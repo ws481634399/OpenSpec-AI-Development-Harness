@@ -1,0 +1,29 @@
+{
+  "name": "openspec-ai-development-harness",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OpenSpec AI Development Harness - SDD framework for AI Coding Agents",
+  "type": "module",
+  "bin": {
+    "openspec": "cli/openspec/bin/openspec.js"
+  },
+  "files": [
+    "cli",
+    "core",
+    "templates",
+    ".version"
+  ],
+  "scripts": {
+    "openspec": "node cli/openspec/bin/openspec.js",
+    "test": "node --test tests/*.spec.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@clack/prompts": "^1.7.0",
+    "commander": "^12.1.0",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.5.0"
+  }
+}

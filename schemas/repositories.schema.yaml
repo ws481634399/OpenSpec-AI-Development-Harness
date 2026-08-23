@@ -1,0 +1,24 @@
+# OpenSpec Repositories Schema (v0.1)
+#
+# 描述 .sdd/repositories.yaml 的字段结构。
+
+type: object
+required: [mode, repositories]
+properties:
+  mode:
+    type: string
+    enum: [single, multi]
+    description: 仓库模式
+  repositories:
+    type: array
+    minItems: 1
+    items:
+      type: object
+      required: [id, path]
+      properties:
+        id:
+          type: string
+          description: 仓库标识（Workspace 内唯一）
+        path:
+          type: string
+          description: 仓库路径（相对 implementation/ 或任意路径）
