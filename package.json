@@ -7,6 +7,12 @@
   "bin": {
     "openspec": "cli/openspec/bin/openspec.js"
   },
+  "files": [
+    "cli",
+    "core",
+    "templates",
+    ".version"
+  ],
   "scripts": {
     "openspec": "node cli/openspec/bin/openspec.js",
     "test": "node --test tests/*.spec.js"
