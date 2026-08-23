@@ -1,0 +1,31 @@
+# OpenSpec Product Feature Tree
+#
+# 版本: v0.1
+# 类型: Product Knowledge Metadata
+#
+# 用于描述产品能力层级。
+
+product:
+  name: ""
+
+  description: ""
+
+# 产品能力树
+
+features:
+  # 一级能力
+
+  - id: ""
+
+    name: ""
+
+    description: ""
+
+    # 子能力
+
+    children:
+      - id: ""
+
+        name: ""
+
+        description: ""

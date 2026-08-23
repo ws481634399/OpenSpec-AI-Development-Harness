@@ -1,0 +1,59 @@
+# OpenSpec Version Configuration
+#
+# 版本: v0.1
+# 类型: Version Metadata
+#
+# 用于记录当前 Workspace 使用的版本信息。
+#
+# 包含三类版本：
+# - Harness 版本：OpenSpec Harness 自身版本
+# - Workspace Template 版本：工作空间模板版本
+# - Schema 版本：配置文件结构版本
+
+
+# Harness 版本
+#
+# 当前 Workspace 使用的 OpenSpec Harness 版本
+#
+# 格式: Major.Minor.Patch
+#
+# 说明:
+# - Major: 重大变化（破坏性升级）
+# - Minor: 功能新增（向后兼容）
+# - Patch: 问题修复（向后兼容）
+
+harness:
+
+  version: "0.1.0"
+
+
+# Workspace Template 版本
+#
+# 当前 Workspace 基于的模板版本
+#
+# 用于追踪 Workspace 初始化时使用的模板
+#
+# 格式: Major.Minor.Patch
+
+workspace-template:
+
+  version: "0.1.0"
+
+
+# Schema 版本
+#
+# 当前 Workspace 配置文件的结构版本
+#
+# 用于标识 .sdd/ 下所有 YAML 文件
+# （workspace.yaml、repositories.yaml、context-rules.yaml、version.yaml）
+# 的字段结构版本
+#
+# 当 Schema 发生变化时:
+# - 需要 Workspace 迁移
+# - 需要更新 AI Agent 加载逻辑
+#
+# 格式: Major.Minor.Patch
+
+schema:
+
+  version: "0.1.0"

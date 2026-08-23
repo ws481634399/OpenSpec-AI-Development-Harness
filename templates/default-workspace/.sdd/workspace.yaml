@@ -1,0 +1,30 @@
+# OpenSpec Workspace Configuration
+#
+# 版本: v0.1
+# 类型: SDD Workspace Metadata
+#
+# 用于描述当前 OpenSpec Workspace 基础信息。
+
+
+workspace:
+
+  # Workspace名称
+  # 初始化时由项目名称生成
+  name: ""
+
+
+  # Workspace类型
+  #
+  # greenfield:
+  #   新项目
+  #
+  # brownfield:
+  #   已有项目接入
+  #
+  type: ""
+
+
+  # Harness版本
+  harness:
+
+    version: "0.1.0"

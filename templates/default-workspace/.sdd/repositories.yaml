@@ -1,0 +1,54 @@
+# OpenSpec Repository Configuration
+#
+# 版本: v0.1
+# 类型: Repository Metadata
+#
+# 用于描述当前 Workspace 关联的代码仓库。
+
+
+# 仓库模式
+#
+# single:
+#   单仓库项目
+#
+# multi:
+#   多仓库项目
+
+mode: single
+
+
+# 仓库列表
+#
+# single模式:
+#   通常只有一个repository
+#
+# multi模式:
+#   可以配置多个repository
+
+repositories:
+
+
+  # 仓库标识
+  #
+  # 用于在 Workspace 中唯一标识一个仓库
+  #
+  # 示例:
+  # main
+  # backend
+  # frontend
+
+  - id: main
+
+
+    # 仓库路径
+    #
+    # 指向 implementation/ 下的相对路径
+    #
+    # single模式:
+    #   通常为 implementation
+    #
+    # multi模式:
+    #   可以是 implementation/backend
+    #   implementation/frontend 等
+
+    path: implementation

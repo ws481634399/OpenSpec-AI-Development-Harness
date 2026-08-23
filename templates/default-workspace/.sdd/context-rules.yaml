@@ -1,0 +1,130 @@
+# OpenSpec Context Rules Configuration
+#
+# 版本: v0.1
+# 类型: AI Context Loading Rules
+#
+# 定义 AI Agent 在不同 SDD 阶段
+# 应该读取的 Workspace 上下文。
+
+
+# 不同开发阶段上下文规则
+
+stages:
+
+
+  # 探索阶段
+  #
+  # 目标：
+  # - 理解需求
+  # - 分析业务上下文
+  # - 识别影响范围
+
+  explore:
+
+    read:
+
+      - standards/
+
+      - product/
+
+
+
+  # 产品规格阶段
+  #
+  # 目标：
+  # - 生成产品规格
+  # - 定义验收标准
+  # - 明确业务规则
+
+  prd:
+
+    read:
+
+      - product/
+
+      - delivery/
+
+
+
+  # 设计阶段
+  #
+  # 目标：
+  # - 生成技术设计
+  # - 分析架构影响
+  # - 评估风险
+
+  design:
+
+    read:
+
+      - standards/
+
+      - product/
+
+      - implementation/
+
+
+
+  # 任务拆分阶段
+  #
+  # 目标：
+  # - 拆分设计为可执行任务
+  # - 明确修改范围
+  # - 定义验证方式
+
+  task:
+
+    read:
+
+      - delivery/
+
+
+
+  # 开发阶段
+  #
+  # 目标：
+  # - 执行 Task
+  # - 修改实现代码
+  # - 遵循工程规范
+
+  dev:
+
+    read:
+
+      - delivery/
+
+      - implementation/
+
+
+
+  # 测试阶段
+  #
+  # 目标：
+  # - 验证实现
+  # - 生成 Evidence
+  # - 检查质量
+
+  test:
+
+    read:
+
+      - delivery/
+
+      - implementation/
+
+
+
+  # 知识沉淀阶段
+  #
+  # 目标：
+  # - 逆向分析
+  # - 更新项目知识
+  # - 沉淀经验
+
+  converge:
+
+    read:
+
+      - delivery/
+
+      - implementation/
