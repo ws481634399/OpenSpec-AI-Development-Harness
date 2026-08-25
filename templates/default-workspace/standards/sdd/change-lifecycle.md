@@ -89,7 +89,11 @@ delivery/
 
 └── CHG-XXXX/
 
-    ├── request.md
+    ├── metadata.yaml
+
+    ├── requirement.md
+
+    ├── exploration.md
 
     ├── prd.md
 
@@ -97,9 +101,13 @@ delivery/
 
     ├── tasks.md
 
+    ├── implementation.md
+
     ├── evidence/
 
-    └── metadata.yaml
+    │   └── test-report.md
+
+    └── convergence.md
 
 ```
 
@@ -164,7 +172,7 @@ Archived（已归档）
 
 ```
 
-request.md
+requirement.md
 
 ```
 
@@ -191,9 +199,7 @@ request.md
 
 ```
 
-Feature 映射
-
-影响分析
+exploration.md
 
 ```
 
@@ -311,6 +317,14 @@ approved specifications
 
 ```
 
+产出：
+
+```
+
+implementation.md
+
+```
+
 
 ### Testing（测试中）
 
@@ -343,6 +357,15 @@ evidence/test-report.md
 - 测试已完成；
 - 证据已收集；
 - 知识更新已评估。
+
+
+产出：
+
+```
+
+convergence.md
+
+```
 
 
 ### Archived（已归档）
@@ -489,11 +512,19 @@ title: Add order cancel reason
 
 status: exploring
 
+requirement: REQ-001
+
+created-at: 2026-08-23T10:00:00Z
+
+updated-at: 2026-08-23T12:00:00Z
+
 features:
   - FEAT-ORDER-CANCEL
 
 repositories:
   - order-service
+
+related-change: ""
 ````
 
 ## 11. 冲突处理
@@ -510,7 +541,18 @@ delivery/reports/conflicts/
 
 ## 12. 知识收敛
 
-Change 完成后评估对以下内容的更新：
+Change 完成后评估对以下内容的更新。
+
+产出：
+
+```
+
+convergence.md
+
+```
+
+convergence.md 记录：本次 Change 的知识变化总结、是否需更新以下内容的判断、知识沉淀过程。
+真正的知识更新发生在 Workspace Knowledge 中（写回 standards/product/），convergence.md 只记录"该不该更新、更新了什么、为什么"。
 
 ### Standards
 

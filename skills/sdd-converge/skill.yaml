@@ -1,0 +1,18 @@
+# OpenSpec SDD Skill 定义（骨架）
+#
+# 版本: v0.1
+# 类型: Skill 元数据 + Artifact Contract
+
+id: sdd-converge
+version: 0.1.0
+stage: converge
+description: 知识沉淀阶段 Skill——逆向分析，更新项目知识，沉淀经验，收敛 Change
+input:
+  - delivery/
+  - implementation/
+output:
+  - convergence.md
+requires-state: testing
+produces-state: completed
+output-artifacts:
+  - convergence.md

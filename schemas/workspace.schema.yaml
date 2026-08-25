@@ -1,0 +1,27 @@
+# OpenSpec Workspace Schema (v0.1)
+#
+# 描述 .sdd/workspace.yaml 的字段结构。
+# Phase 1.2：作为字段清单文档，validator 可选用（v0.1 不强制 schema 校验）。
+
+type: object
+required: [workspace]
+properties:
+  workspace:
+    type: object
+    required: [name, type, harness]
+    properties:
+      name:
+        type: string
+        description: Workspace 名称（初始化时由项目名称生成）
+      type:
+        type: string
+        enum: [greenfield, brownfield]
+        description: 项目类型
+      harness:
+        type: object
+        required: [version]
+        properties:
+          version:
+            type: string
+            pattern: '^\d+\.\d+\.\d+$'
+            description: Harness 版本（Major.Minor.Patch，读自 .version）

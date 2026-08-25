@@ -1,0 +1,19 @@
+# OpenSpec SDD Skill 定义（骨架）
+#
+# 版本: v0.1
+# 类型: Skill 元数据 + Artifact Contract
+
+id: sdd-dev
+version: 0.1.0
+stage: dev
+description: 开发阶段 Skill——执行 Task，修改实现代码，遵循工程规范
+input:
+  - tasks.md
+  - standards/engineering/
+  - implementation/
+output:
+  - implementation.md
+requires-state: tasked
+produces-state: developing
+output-artifacts:
+  - implementation.md
