@@ -243,14 +243,112 @@ async function runSddExplore(opts, harnessRoot) {
 }
 
 /**
- * 骨架 Skill 执行（sdd-prd/design/task/dev/test/converge）。
+ * 通用 Phase Skill Runner（sdd-prd/design/task/dev/test/converge）。
  *
- * v0.1 仅校验状态前置 + 输出 Instruction 骨架，不产出 Artifact：
+ * 与 sdd-explore 对齐：
  * - 必须 --change 指定 CHG
  * - 校验 CHG 状态 === requires-state
- * - 装配 Context + 生成 Instruction
- * - 提示用户外部 Agent 执行后手动 openspec change status --set 推进状态
+ * - 写本阶段 Artifact（由 SKILL_CONFIG[id] 定义 artifactName + replacements 工厂）
+ * - validateTransition + patchStatus 自动推进到 produces-state
+ * - 装配 Context + 生成完整版 Instruction（含 SKILL.md / checklist / rules）
+ *
+ * OpenSpec 不执行 AI，结构化字段由 ArtifactWriter 填充，非结构化段交外部 Agent。
  */
+
+/**
+ * Skill 配置表：每个 Skill 的 Artifact 定义。
+ * replacementsFactory(meta) 返回填模板的 replacements；
+ * artifactWriter 可选自定义写文件函数（默认 ArtifactWriter.writeArtifact）。
+ */
+const SKILL_CONFIG = {
+  'sdd-prd': {
+    artifactName: 'prd.md',
+    replacementsFactory: (meta, changeId) => ({
+      'change-id': changeId,
+      requirement: meta.requirement || '',
+      'feature-id': (meta.features && meta.features[0]) || '',
+      'from-state': meta.status || '',
+      'to-state': 'specified',
+      'target-user': '',
+      'pain-points': '',
+      'expected-value': '',
+      'scope-in': '',
+      'scope-out': '',
+    }),
+  },
+  'sdd-design': {
+    artifactName: 'design.md',
+    replacementsFactory: (meta, changeId) => ({
+      'change-id': changeId,
+      'prd-source': changeId + '/prd.md',
+      'from-state': meta.status || '',
+      'to-state': 'designed',
+      'current-pattern': '',
+      'repos-involved': (meta.repositories || []).join(', '),
+      'modules-involved': '',
+      'proposal-summary': '',
+      'key-components': '',
+      'interface-contract': '',
+      'repo-impact-count': String(meta.repositories ? meta.repositories.length : 0),
+      'repo-impact-summary': '',
+      'need-migration': 'no',
+      'data-change-summary': '',
+      'risk-level': '',
+      'risk-summary': '',
+      mitigation: '',
+    }),
+  },
+  'sdd-task': {
+    artifactName: 'tasks.md',
+    replacementsFactory: (meta, changeId) => ({
+      'change-id': changeId,
+      'design-source': changeId + '/design.md',
+      'from-state': meta.status || '',
+      'to-state': 'tasked',
+      'task-count': '',
+    }),
+  },
+  'sdd-dev': {
+    artifactName: 'implementation.md',
+    replacementsFactory: (meta, changeId) => ({
+      'change-id': changeId,
+      'tasks-source': changeId + '/tasks.md',
+      'from-state': meta.status || '',
+      'to-state': 'developing',
+      'started-at': new Date().toISOString(),
+      'primary-repo': (meta.repositories && meta.repositories[0]) || '',
+    }),
+  },
+  'sdd-test': {
+    artifactName: 'evidence/test-report.md',
+    outputSubDir: 'evidence',
+    replacementsFactory: (meta, changeId) => ({
+      'change-id': changeId,
+      'implementation-source': changeId + '/implementation.md',
+      'from-state': meta.status || '',
+      'to-state': 'testing',
+      'tested-at': new Date().toISOString(),
+      'test-scope': '',
+      'pass-rate': '',
+    }),
+  },
+  'sdd-converge': {
+    artifactName: 'convergence.md',
+    replacementsFactory: (meta, changeId) => ({
+      'change-id': changeId,
+      'completed-at': new Date().toISOString(),
+      'from-state': meta.status || '',
+      'to-state': 'completed',
+      'artifact-count': '',
+      'knowledge-delta': '',
+      'standards-need-update': 'no',
+      'product-need-update': 'no',
+      'featuretree-need-update': 'no',
+      'glossary-need-update': 'no',
+    }),
+  },
+};
+
 async function runSkillSkeleton(id, opts, harnessRoot) {
   const ws = resolveWorkspaceRoot();
 
@@ -263,10 +361,16 @@ async function runSkillSkeleton(id, opts, harnessRoot) {
     throw new Error(`Change not found: ${changeId}`);
   }
 
+  const cfg = SKILL_CONFIG[id];
+  if (!cfg) {
+    throw new Error(`Unknown skill: ${id}. Run 'openspec skill list'.`);
+  }
+
   const changeDir = join(ws, 'delivery', 'changes', changeId);
   const loaded = await loadSkill(id, harnessRoot);
   const y = loaded.yaml || {};
   const requiresState = y['requires-state'];
+  const producesState = y['produces-state'];
 
   // 校验状态前置
   const meta = await readMetadata(changeDir);
@@ -277,23 +381,41 @@ async function runSkillSkeleton(id, opts, harnessRoot) {
     );
   }
 
-  // 装配 Context + 生成 Instruction
+  // 1. 写本阶段 Artifact
+  const replacements = cfg.replacementsFactory(meta, changeId);
+  const artifactFullName = cfg.artifactName; // 含子目录，如 "evidence/test-report.md"
+  const artifactOutDir = cfg.outputSubDir ? join(changeDir, cfg.outputSubDir) : changeDir;
+  const artifactFileName = artifactFullName.split('/').pop(); // 证据目录的文件名
+  await writeArtifact(
+    artifactOutDir,
+    cfg.artifactName,
+    {
+      replacements,
+      outputName: artifactFileName, // ArtifactWriter 去 templates/artifacts/<artifactName> 读，写时用 basename
+    },
+    harnessRoot
+  );
+
+  // 2. 推进状态
+  if (producesState) {
+    validateTransition(current, producesState);
+    await patchStatus(changeDir, producesState);
+  }
+
+  // 3. 装配 Context + 生成 Instruction
   const stage = y.stage || id.replace('sdd-', '');
   const context = await assembleContext(ws, stage);
   const userInput = {
     changeId,
-    requirement: opts.requirement,
-    title: opts.title,
+    requirement: opts.requirement || meta.requirement,
+    title: opts.title || meta.title,
   };
   const instruction = buildInstruction(loaded, context, userInput);
   await writeFile(join(changeDir, '.instruction.md'), instruction, 'utf8');
 
   note(instruction, `Instruction: ${id} @ ${changeId}`);
+  ok(`${id} 完成：${cfg.artifactName} 已写入，状态 ${current} → ${producesState || current}`);
   ok(`Instruction 已写入: ${join(changeDir, '.instruction.md')}`);
-  if (y['produces-state']) {
-    warn(
-      `外部 Agent 执行后，运行 openspec change status ${changeId} --set ${y['produces-state']} 推进状态`
-    );
-  }
+  warn(`外部 Agent 请按 Instruction 补充 ${cfg.artifactName} 的非结构化分析段`);
   outro('Done.');
 }
