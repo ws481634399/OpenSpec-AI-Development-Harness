@@ -5,6 +5,8 @@ import { getHarnessRoot } from '../../../core/workspace/harness-root.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerChangeCommand } from './commands/change.js';
 import { registerSkillCommand } from './commands/skill.js';
+import { registerGateCommand } from './commands/gate.js';
+import { registerWorkflowCommand } from './commands/workflow.js';
 
 // 解析 Harness 版本作为 CLI 版本
 let version;
@@ -29,6 +31,10 @@ registerChangeCommand(program);
 
 // Phase 1.4：skill 管理与调用（list/show/run，sdd-explore 完整演示，其余 6 骨架）
 registerSkillCommand(program);
+
+// Phase 1.5：gate / workflow（Gate-driven Workflow Engine）
+registerGateCommand(program);
+registerWorkflowCommand(program);
 
 // Phase 1.4+ 预留（不实现，仅注释占位）：
 // program.command('doctor', ...)  — openspec doctor（复用 core/workspace/validator.js 内核）

@@ -1,0 +1,29 @@
+# OpenSpec SDD Gate 配置（Phase 1.5）
+# 见 phase-1.5-workflow-engine-design.md §11
+
+stage: prd
+artifact: prd.md
+
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+  - required-sections
+  - cross-reference-valid
+
+required-front-matter: []
+
+required-replacements:
+  - change-id
+  - requirement
+  - scope-in
+  - scope-out
+
+non-empty-ai-sections:
+  - "## 1. 背景"
+  - "## 2. 用户价值"
+  - "## 5. 验收标准"
+
+human-checks:
+  - "## 1. 背景"
+  - "## 2. 用户价值"
+  - "## 5. 验收标准"

@@ -6,13 +6,11 @@ import { outro, note } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { listChanges, showChange, changeExists } from '../../../../core/sdd/change-repository.js';
-import { readMetadata, patchStatus } from '../../../../core/sdd/change-model.js';
-import {
-  validateTransition,
-  nextStatuses,
-  isValidStatus,
-} from '../../../../core/sdd/change-state-machine.js';
+import { readMetadata } from '../../../../core/sdd/change-model.js';
+import { nextStatuses, isValidStatus } from '../../../../core/sdd/change-state-machine.js';
 import { archiveChange } from '../../../../core/sdd/change-archiver.js';
+import { requestTransition } from '../../../../core/sdd/transition-service.js';
+import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { confirmArchive } from '../lib/change-prompts.js';
 import { join } from 'node:path';
 
@@ -113,13 +111,15 @@ export function registerChangeCommand(program) {
           return;
         }
 
-        // --set：推进状态
+        // --set：推进状态（走 TransitionService，校验 Gate + Hash + 状态机）
         if (opts.set === current) {
           throw new Error(`Already at ${current} (from === to).`);
         }
-        validateTransition(current, opts.set); // 非法迁移抛错
-        await patchStatus(changeDir, opts.set);
-        ok(`${id} status: ${current} → ${opts.set}`);
+        const result = await requestTransition(changeDir, opts.set, { harnessRoot: getHarnessRoot() });
+        if (!result.advanced) {
+          throw new Error(`Cannot advance to ${opts.set}: ${result.reason}`);
+        }
+        ok(`${id} status: ${result.reason}`);
         outro('Done.');
       } catch (e) {
         error(e.message);

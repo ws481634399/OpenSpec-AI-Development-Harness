@@ -15,6 +15,8 @@ import { writeArtifact, fillTemplate } from '../core/sdd/artifact-writer.js';
 import { nextCandidateId, writeCandidate } from '../core/sdd/candidate-repository.js';
 import { decideReuseAction } from '../cli/openspec/src/lib/skill-prompts.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
+import { runChangeCreate, readMetadata, patchStatus } from '../core/sdd/change-model.js';
+import { runInit } from '../core/workspace/workspace-initializer.js';
 
 const pathExists = (p) => stat(p).then(() => true).catch(() => false);
 const rmrf = (p) => rm(p, { recursive: true, force: true });
@@ -341,4 +343,211 @@ test('decideReuseAction: 空候选 → 新建', () => {
 test('decideReuseAction: null choice → 新建', () => {
   const candidates = [{ id: 'CHG-0001', title: 'T', status: 'created', changeDir: '/tmp' }];
   assert.deepEqual(decideReuseAction(candidates, null), { action: 'new' });
+});
+
+// ---- 6 个 Phase Skill 端到端（runChangeCreate → patchStatus → 写 Artifact → 状态推进）
+//
+// 不依赖 CLI 的 commander/@clack 交互，直接调用 core 纯函数链模拟通用 runner 行为：
+// 1. 初始化 Workspace（greenfield/single）
+// 2. runChangeCreate 创建 CHG-0001（status: created）
+// 3. 依次 patchStatus 到前置状态，再按 Skill 配置写 Artifact + patchStatus 到下一阶段
+// 4. 验证 Artifact 存在且元信息正确
+
+async function setupWorkspaceForSkillRunner() {
+  const tmp = await mkdtemp(join(tmpdir(), 'skill-run-'));
+  const initCfg = {
+    name: 'skill-runner-ws',
+    type: 'greenfield',
+    mode: 'single',
+    repos: [{ id: 'main', path: 'implementation' }],
+    shouldCreateImplementation: true,
+    force: false,
+  };
+  const { selfCheck } = await runInit(initCfg, tmp, harnessRoot);
+  assert.ok(selfCheck.ok, selfCheck.issues.join('; '));
+  const { id, changeDir } = await runChangeCreate(
+    tmp,
+    { title: 'SkillRunner 测试需求', requirement: 'REQ-TEST', repositories: ['main'] },
+    harnessRoot
+  );
+  return { tmp, changeId: id, changeDir };
+}
+
+/** 通用 Skill Artifact 写出 + 状态推进模拟（对齐 SKILL_CONFIG + runSkillSkeleton） */
+const SKILL_CONFIG_TEST = {
+  'sdd-prd': { artifactName: 'prd.md', from: 'exploring', to: 'specified',
+    replacements: (meta, id) => ({ 'change-id': id, requirement: meta.requirement || '', 'from-state': meta.status, 'to-state': 'specified' }) },
+  'sdd-design': { artifactName: 'design.md', from: 'specified', to: 'designed',
+    replacements: (meta, id) => ({ 'change-id': id, 'prd-source': `${id}/prd.md`, 'from-state': meta.status, 'to-state': 'designed', 'repo-impact-count': '1' }) },
+  'sdd-task': { artifactName: 'tasks.md', from: 'designed', to: 'tasked',
+    replacements: (meta, id) => ({ 'change-id': id, 'design-source': `${id}/design.md`, 'from-state': meta.status, 'to-state': 'tasked' }) },
+  'sdd-dev': { artifactName: 'implementation.md', from: 'tasked', to: 'developing',
+    replacements: (meta, id) => ({ 'change-id': id, 'tasks-source': `${id}/tasks.md`, 'from-state': meta.status, 'to-state': 'developing', 'primary-repo': 'main' }) },
+  'sdd-test': { artifactName: 'evidence/test-report.md', outSubDir: 'evidence', from: 'developing', to: 'testing',
+    replacements: (meta, id) => ({ 'change-id': id, 'implementation-source': `${id}/implementation.md`, 'from-state': meta.status, 'to-state': 'testing' }) },
+  'sdd-converge': { artifactName: 'convergence.md', from: 'testing', to: 'completed',
+    replacements: (meta, id) => ({ 'change-id': id, 'from-state': meta.status, 'to-state': 'completed', 'standards-need-update': 'no', 'product-need-update': 'no', 'featuretree-need-update': 'no', 'glossary-need-update': 'no' }) },
+};
+
+async function runSkillStep({ ws, changeId, changeDir, skillId }, harness) {
+  const cfg = SKILL_CONFIG_TEST[skillId];
+  const metaBefore = await readMetadata(changeDir);
+  if (metaBefore.status !== cfg.from) {
+    // 若当前状态早于 from，顺序推进前置状态（created → exploring → ...）
+    const { CHANGE_STATUSES, validateTransition } = await import('../core/sdd/change-state-machine.js');
+    let cur = metaBefore.status;
+    const fromIdx = CHANGE_STATUSES.indexOf(cfg.from);
+    while (CHANGE_STATUSES.indexOf(cur) < fromIdx) {
+      const nextStatus = CHANGE_STATUSES[CHANGE_STATUSES.indexOf(cur) + 1];
+      validateTransition(cur, nextStatus);
+      await patchStatus(changeDir, nextStatus);
+      cur = nextStatus;
+    }
+  }
+  const meta = await readMetadata(changeDir);
+  assert.equal(meta.status, cfg.from, `skill ${skillId} requires status=${cfg.from}, got ${meta.status}`);
+
+  // 1. 写 Artifact
+  const replacements = cfg.replacements(meta, changeId);
+  const outDir = cfg.outSubDir ? join(changeDir, cfg.outSubDir) : changeDir;
+  const outName = cfg.artifactName.split('/').pop();
+  const artifactPath = await writeArtifact(outDir, cfg.artifactName, { replacements, outputName: outName }, harness);
+  assert.ok(await pathExists(artifactPath));
+  const content = await readFile(artifactPath, 'utf8');
+  assert.ok(content.includes(changeId), `${cfg.artifactName} missing change-id`);
+
+  // 2. 不推进状态（Phase 1.5：Skill 产出 ≠ 阶段完成）
+  //    状态保持 cfg.from，Artifact 仍是 draft
+  //    状态推进迁移到 tests/integration.spec.js 走完整 TransitionService 链路
+  const metaAfter = await readMetadata(changeDir);
+  assert.equal(metaAfter.status, cfg.from, `skill ${skillId} 应保持状态 ${cfg.from}，实际 ${metaAfter.status}`);
+
+  return { artifactPath };
+}
+
+test('SkillRunner: sdd-prd 写 prd.md + exploring→specified', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  const r = await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  const content = await readFile(r.artifactPath, 'utf8');
+  assert.ok(content.includes('REQ-TEST')); // replacements.requirement
+  assert.ok(content.includes('exploring → specified'));
+  await rmrf(tmp);
+});
+
+test('SkillRunner: sdd-design 写 design.md + specified→designed', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  const cfg = SKILL_CONFIG_TEST['sdd-design'];
+  // 先补前置到 specified
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  const r = await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
+  const content = await readFile(r.artifactPath, 'utf8');
+  assert.ok(content.includes(`${changeId}/prd.md`));
+  assert.ok(content.includes('specified → designed'));
+  assert.ok(content.includes('受影响仓库数: 1'));
+  await rmrf(tmp);
+});
+
+test('SkillRunner: sdd-task 写 tasks.md + designed→tasked', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
+  const r = await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-task' }, harnessRoot);
+  const content = await readFile(r.artifactPath, 'utf8');
+  assert.ok(content.includes(`${changeId}/design.md`));
+  assert.ok(content.includes('designed → tasked'));
+  await rmrf(tmp);
+});
+
+test('SkillRunner: sdd-dev 写 implementation.md + tasked→developing', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-task' }, harnessRoot);
+  const r = await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-dev' }, harnessRoot);
+  const content = await readFile(r.artifactPath, 'utf8');
+  assert.ok(content.includes(`${changeId}/tasks.md`));
+  assert.ok(content.includes('tasked → developing'));
+  assert.ok(content.includes('| main | | |'));
+  await rmrf(tmp);
+});
+
+test('SkillRunner: sdd-test 写 evidence/test-report.md + developing→testing', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-task' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-dev' }, harnessRoot);
+  const r = await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-test' }, harnessRoot);
+  assert.ok(r.artifactPath.includes(join('evidence', 'test-report.md')));
+  const content = await readFile(r.artifactPath, 'utf8');
+  assert.ok(content.includes(`${changeId}/implementation.md`));
+  assert.ok(content.includes('developing → testing'));
+  await rmrf(tmp);
+});
+
+test('SkillRunner: sdd-converge 写 convergence.md + testing→completed', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-task' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-dev' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-test' }, harnessRoot);
+  const r = await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-converge' }, harnessRoot);
+  const content = await readFile(r.artifactPath, 'utf8');
+  assert.ok(content.includes('testing → completed'));
+  assert.ok(content.includes('是否需更新: no')); // 4 个 need-update 都是 no
+  await rmrf(tmp);
+});
+
+test('SkillRunner: 7 个 Skill 顺序串产出全量 Artifact（状态不推进到 completed）', async () => {
+  const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
+  // 0. sdd-explore：created → exploring（写 requirement.md + exploration.md）
+  const metaCreated = await readMetadata(changeDir);
+  assert.equal(metaCreated.status, 'created');
+  const { validateTransition } = await import('../core/sdd/change-state-machine.js');
+  validateTransition('created', 'exploring');
+  await patchStatus(changeDir, 'exploring');
+  await writeArtifact(
+    changeDir,
+    'requirement.md',
+    { replacements: {
+        'requirement-id': 'REQ-TEST',
+        'requirement-title': 'SkillRunner 测试需求',
+        'requirement-content': '模拟的需求原文',
+        'requirement-source': 'manual',
+        'created-at': new Date().toISOString(),
+      } },
+    harnessRoot
+  );
+  await writeArtifact(
+    changeDir,
+    'exploration.md',
+    { replacements: {
+        'decision': '新建 CHG', 'new-candidate': 'no', 'matched-change-in-progress': 'none',
+        'feature-path': 'none', 'change-id': changeId, 'from-state': 'created', 'to-state': 'exploring',
+      } },
+    harnessRoot
+  );
+  // 1~6. 6 个 Skill 串（runSkillStep 内部预推进到 cfg.from，但 Skill 本身不推进到 cfg.to）
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-task' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-dev' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-test' }, harnessRoot);
+  await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-converge' }, harnessRoot);
+  // Phase 1.5：Skill 产出 ≠ 阶段完成，最终状态停在 sdd-converge 的 from（testing）
+  //    completed 由 TransitionService 在 Machine Gate + Human Gate 通过后推进（见 integration.spec.js）
+  const finalMeta = await readMetadata(changeDir);
+  assert.equal(finalMeta.status, 'testing');
+
+  // 验证 8 个 Artifact 都存在
+  const expectedArtifacts = [
+    'exploration.md', 'requirement.md',
+    'prd.md', 'design.md', 'tasks.md', 'implementation.md',
+    join('evidence', 'test-report.md'), 'convergence.md',
+  ];
+  for (const rel of expectedArtifacts) {
+    assert.ok(await pathExists(join(changeDir, rel)), `missing artifact: ${rel}`);
+  }
+  await rmrf(tmp);
 });
