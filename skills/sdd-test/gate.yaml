@@ -1,0 +1,24 @@
+# OpenSpec SDD Gate 配置（Phase 1.5）
+# 见 phase-1.5-workflow-engine-design.md §11
+
+stage: test
+artifact: evidence/test-report.md
+
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+  - required-sections
+  - cross-reference-valid
+
+required-front-matter: []
+
+required-replacements:
+  - change-id
+  - implementation-source
+
+non-empty-ai-sections:
+  - "## 2. 测试执行汇总"
+
+human-checks:
+  - "## 1. 测试范围"
+  - "## 3. 证据清单"

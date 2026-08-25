@@ -1,0 +1,30 @@
+# OpenSpec SDD Gate 配置（Phase 1.5）
+# 见 phase-1.5-workflow-engine-design.md §11 / §15
+# sdd-converge Machine Gate 加强：前序全部 accepted + 4 个 need-update 已填
+
+stage: converge
+artifact: convergence.md
+
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+  - required-sections
+  - cross-reference-valid
+  - all-predecessors-accepted
+
+required-front-matter: []
+
+required-replacements:
+  - change-id
+  - standards-need-update
+  - product-need-update
+  - featuretree-need-update
+  - glossary-need-update
+
+non-empty-ai-sections:
+  - "## 1. 知识变化总结"
+  - "## 2. 更新判断"
+
+human-checks:
+  - "## 1. 知识变化总结"
+  - "## 2. 更新判断"

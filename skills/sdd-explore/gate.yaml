@@ -1,0 +1,34 @@
+# OpenSpec SDD Gate 配置（Phase 1.5）
+# 与 skill.yaml 同目录，职责不同：skill.yaml 管 Skill 元数据，gate.yaml 管门禁规则
+# 见 phase-1.5-workflow-engine-design.md §11
+
+stage: explore
+artifact: exploration.md
+
+# Machine Gate 校验项（GateValidator 执行，仅检查明确声明的项，不扫描全文 checkbox）
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+  - required-sections
+  - cross-reference-valid
+
+# machine-checks: required-front-matter 的具体字段（exploration.md 无 front-matter）
+required-front-matter: []
+
+# machine-checks: no-placeholder 的具体占位符（这些 {{...}} 不应出现在正文中）
+required-replacements:
+  - feature-id
+  - feature-path
+  - is-new-candidate
+  - reuse-decision
+
+# machine-checks: required-sections 的具体标题（标题下必须有非注释内容）
+non-empty-ai-sections:
+  - "## 1. 需求理解"
+  - "## 2. Feature 归属"
+  - "## 3. 影响分析"
+
+# Human Gate review 段（人工判断，CLI gate approve 时展示）
+human-checks:
+  - "## 1. 需求理解"
+  - "## 3. 影响分析"

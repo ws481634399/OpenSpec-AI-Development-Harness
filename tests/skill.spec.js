@@ -416,12 +416,11 @@ async function runSkillStep({ ws, changeId, changeDir, skillId }, harness) {
   const content = await readFile(artifactPath, 'utf8');
   assert.ok(content.includes(changeId), `${cfg.artifactName} missing change-id`);
 
-  // 2. 推进状态
-  const { validateTransition } = await import('../core/sdd/change-state-machine.js');
-  validateTransition(cfg.from, cfg.to);
-  await patchStatus(changeDir, cfg.to);
+  // 2. 不推进状态（Phase 1.5：Skill 产出 ≠ 阶段完成）
+  //    状态保持 cfg.from，Artifact 仍是 draft
+  //    状态推进迁移到 tests/integration.spec.js 走完整 TransitionService 链路
   const metaAfter = await readMetadata(changeDir);
-  assert.equal(metaAfter.status, cfg.to);
+  assert.equal(metaAfter.status, cfg.from, `skill ${skillId} 应保持状态 ${cfg.from}，实际 ${metaAfter.status}`);
 
   return { artifactPath };
 }
@@ -500,7 +499,7 @@ test('SkillRunner: sdd-converge 写 convergence.md + testing→completed', async
   await rmrf(tmp);
 });
 
-test('SkillRunner: 7 个状态（含 explore created→exploring）顺序串完整生命周期', async () => {
+test('SkillRunner: 7 个 Skill 顺序串产出全量 Artifact（状态不推进到 completed）', async () => {
   const { tmp, changeId, changeDir } = await setupWorkspaceForSkillRunner();
   // 0. sdd-explore：created → exploring（写 requirement.md + exploration.md）
   const metaCreated = await readMetadata(changeDir);
@@ -529,15 +528,17 @@ test('SkillRunner: 7 个状态（含 explore created→exploring）顺序串完�
       } },
     harnessRoot
   );
-  // 1~6. 6 个 Skill 串
+  // 1~6. 6 个 Skill 串（runSkillStep 内部预推进到 cfg.from，但 Skill 本身不推进到 cfg.to）
   await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-prd' }, harnessRoot);
   await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-design' }, harnessRoot);
   await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-task' }, harnessRoot);
   await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-dev' }, harnessRoot);
   await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-test' }, harnessRoot);
   await runSkillStep({ ws: tmp, changeId, changeDir, skillId: 'sdd-converge' }, harnessRoot);
+  // Phase 1.5：Skill 产出 ≠ 阶段完成，最终状态停在 sdd-converge 的 from（testing）
+  //    completed 由 TransitionService 在 Machine Gate + Human Gate 通过后推进（见 integration.spec.js）
   const finalMeta = await readMetadata(changeDir);
-  assert.equal(finalMeta.status, 'completed');
+  assert.equal(finalMeta.status, 'testing');
 
   // 验证 8 个 Artifact 都存在
   const expectedArtifacts = [

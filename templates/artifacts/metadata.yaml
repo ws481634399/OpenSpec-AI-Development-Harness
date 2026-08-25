@@ -19,3 +19,24 @@ features: # 影响的 Feature id 列表（sdd-explore 判定，可空）
 repositories: # 影响的仓库 id 列表（对应 repositories.yaml，可空）
   # - product-service
 related-change: "" # 关联的历史 CHG-XXXX（需求复用 archived Change 时记录，可空）
+
+# Phase 1.5 新增：artifacts 段（Gate Result 持久化）
+# GateRepository 用 setIn 按需创建 artifacts.<name>.gates.{machine,human} 节点（不预填 7 个，避免模板臃肿）
+# 每个 artifact 节点结构示例（实际由 GateRepository 写入时填充）：
+#   <artifact-name>:
+#     path: <artifact-path>
+#     status: draft          # draft / accepted
+#     gates:
+#       machine:
+#         status: pending    # pending / passed / failed
+#         checked-at: ""     # ISO8601
+#         validator: ""      # skill id（如 sdd-prd）
+#         artifact-hash: ""  # sha256:...
+#         issues: []         # failed 时的未通过项
+#       human:
+#         status: pending    # pending / approved / rejected / bypassed
+#         reviewed-at: ""
+#         reviewer: ""
+#         artifact-hash: ""
+#         reason: ""         # bypassed 时的理由
+artifacts: {}

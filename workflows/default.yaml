@@ -1,0 +1,47 @@
+# OpenSpec SDD Workflow 定义（Phase 1.5）
+# 见 phase-1.5-workflow-engine-design.md §12.5
+#
+# state-map：每个 stage 显式声明 from-state / to-state / skill / artifact / gate
+# TransitionService 通过 to-state 反查此表定位 Skill 和 Artifact，不反查 skill.yaml
+#（避免 state→skill→gate.yaml→artifact 的循环依赖，见 §8.2 第 3 步）
+
+id: default
+name: SDD 完整生命周期
+description: 从需求探索到知识沉淀的完整 SDD 流程
+
+stages:
+  - skill: sdd-explore
+    gate: explore
+    from-state: created
+    to-state: exploring
+    artifact: exploration.md
+  - skill: sdd-prd
+    gate: prd
+    from-state: exploring
+    to-state: specified
+    artifact: prd.md
+  - skill: sdd-design
+    gate: design
+    from-state: specified
+    to-state: designed
+    artifact: design.md
+  - skill: sdd-task
+    gate: task
+    from-state: designed
+    to-state: tasked
+    artifact: tasks.md
+  - skill: sdd-dev
+    gate: dev
+    from-state: tasked
+    to-state: developing
+    artifact: implementation.md
+  - skill: sdd-test
+    gate: test
+    from-state: developing
+    to-state: testing
+    artifact: evidence/test-report.md
+  - skill: sdd-converge
+    gate: converge
+    from-state: testing
+    to-state: completed
+    artifact: convergence.md

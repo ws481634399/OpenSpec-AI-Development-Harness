@@ -16,10 +16,9 @@ import { assembleContext } from '../../../../core/sdd/context-assembler.js';
 import { buildInstruction } from '../../../../core/sdd/instruction-builder.js';
 import { writeArtifact } from '../../../../core/sdd/artifact-writer.js';
 import { writeCandidate } from '../../../../core/sdd/candidate-repository.js';
-import { runChangeCreate, readMetadata, patchMetadata, patchStatus } from '../../../../core/sdd/change-model.js';
+import { runChangeCreate, readMetadata, patchMetadata } from '../../../../core/sdd/change-model.js';
 import { findChangeByRequirement, changeExists } from '../../../../core/sdd/change-repository.js';
 import { readFeatureTree, findFeature, featurePath } from '../../../../core/sdd/feature-model.js';
-import { validateTransition } from '../../../../core/sdd/change-state-machine.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { collectRequirement, askReuseDecision } from '../lib/skill-prompts.js';
 
@@ -212,13 +211,13 @@ async function runSddExplore(opts, harnessRoot) {
     harnessRoot
   );
 
-  // 7. 更新 Change State
+  // 7. 不推进状态（Phase 1.5：Skill 产出 ≠ 阶段完成）
+  //    状态推进由 TransitionService 在 Machine Gate + Human Gate 通过后执行
+  //    Artifacts（requirement.md + exploration.md）保持 draft，等待 gate check/approve
   if (featureId) {
     await patchMetadata(changeDir, { features: [featureId] });
   }
   const current = (await readMetadata(changeDir)).status;
-  validateTransition(current, 'exploring');
-  await patchStatus(changeDir, 'exploring');
 
   // 8. 生成 Instruction
   const skillLoaded = await loadSkill('sdd-explore', harnessRoot);
@@ -233,12 +232,14 @@ async function runSddExplore(opts, harnessRoot) {
 
   // 输出
   note(instruction, `Instruction: sdd-explore @ ${changeId}`);
-  ok(`${changeId} ${decision.action === 'reuse' ? 'reused' : 'created'}, status: ${current} → exploring`);
-  ok('Artifacts: requirement.md, exploration.md');
+  ok(`${changeId} ${decision.action === 'reuse' ? 'reused' : 'created'}, status: ${current} (保持不变)`);
+  ok('Artifacts: requirement.md, exploration.md (draft)');
   if (isNewCandidate === 'yes') {
     warn('Feature 未命中 Feature Tree，已创建 Candidate（product/features/）');
   }
   ok(`Instruction 已写入: ${join(changeDir, '.instruction.md')}`);
+  warn(`外部 Agent 请按 Instruction 补充 exploration.md 的非结构化分析段`);
+  warn(`完成后运行 'openspec gate check ${changeId} --stage explore' 推进 Machine Gate`);
   outro('Done.');
 }
 
@@ -396,11 +397,9 @@ async function runSkillSkeleton(id, opts, harnessRoot) {
     harnessRoot
   );
 
-  // 2. 推进状态
-  if (producesState) {
-    validateTransition(current, producesState);
-    await patchStatus(changeDir, producesState);
-  }
+  // 2. 不推进状态（Phase 1.5：Skill 产出 ≠ 阶段完成）
+  //    状态推进由 TransitionService 在 Machine Gate + Human Gate 通过后执行
+  //    Artifact 保持 draft，等待 gate check/approve
 
   // 3. 装配 Context + 生成 Instruction
   const stage = y.stage || id.replace('sdd-', '');
@@ -414,8 +413,9 @@ async function runSkillSkeleton(id, opts, harnessRoot) {
   await writeFile(join(changeDir, '.instruction.md'), instruction, 'utf8');
 
   note(instruction, `Instruction: ${id} @ ${changeId}`);
-  ok(`${id} 完成：${cfg.artifactName} 已写入，状态 ${current} → ${producesState || current}`);
+  ok(`${id} 完成：${cfg.artifactName} 已写入 (draft)，状态保持 ${current}`);
   ok(`Instruction 已写入: ${join(changeDir, '.instruction.md')}`);
   warn(`外部 Agent 请按 Instruction 补充 ${cfg.artifactName} 的非结构化分析段`);
+  warn(`完成后运行 'openspec gate check ${changeId} --stage ${y.stage}' 推进 Machine Gate`);
   outro('Done.');
 }
