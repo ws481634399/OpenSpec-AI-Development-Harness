@@ -7,6 +7,11 @@ import { registerChangeCommand } from './commands/change.js';
 import { registerSkillCommand } from './commands/skill.js';
 import { registerGateCommand } from './commands/gate.js';
 import { registerWorkflowCommand } from './commands/workflow.js';
+import { registerDoctorCommand } from './commands/doctor.js';
+import { registerStatusCommand } from './commands/status.js';
+import { registerValidateCommand } from './commands/validate.js';
+import { registerReverseCommand } from './commands/reverse.js';
+import { registerFeatureCommand } from './commands/feature.js';
 
 // 解析 Harness 版本作为 CLI 版本
 let version;
@@ -36,10 +41,11 @@ registerSkillCommand(program);
 registerGateCommand(program);
 registerWorkflowCommand(program);
 
-// Phase 1.4+ 预留（不实现，仅注释占位）：
-// program.command('doctor', ...)  — openspec doctor（复用 core/workspace/validator.js 内核）
-// program.command('validate', ...) — openspec validate
-// program.command('reverse', ...)  — openspec reverse（knowledge reverse）
-// program.command('status', ...)   — openspec status
+// Phase 1 补齐：doctor / status / validate / reverse / feature
+registerDoctorCommand(program);
+registerStatusCommand(program);
+registerValidateCommand(program);
+registerReverseCommand(program);
+registerFeatureCommand(program);
 
 program.parseAsync();

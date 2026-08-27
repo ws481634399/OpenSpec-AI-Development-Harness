@@ -1,0 +1,24 @@
+# OpenSpec SDD Skill 定义
+#
+# 版本: v0.1
+# 类型: Knowledge Reverse Skill（旧项目接入）
+#
+# 与 7 个生命周期 Skill 不同：sdd-reverse 不进 7 状态生命周期，
+# 而是创建一个 reverse CHG，为外部 Agent 产出 instruction.md，
+# Agent 执行后写入 standards/product/ 知识，用户手动归档。
+
+id: sdd-reverse
+version: 0.1.0
+stage: reverse
+description: Knowledge Reverse 骨架——扫描 implementation/ 代码树，生成 Agent 执行指令，指导知识提取
+input:
+  - implementation/ # 现有代码库
+  - workspace # 已初始化的 Workspace
+output:
+  - change # reverse CHG（含 instruction.md）
+  - reverse-report # 知识提取报告（Agent 执行后产出）
+requires-state: created # reverse CHG 创建后处于 created
+produces-state: created # 不推进生命周期状态，保持 created 直到归档
+output-artifacts:
+  - instruction.md # 执行指令（本 Skill 产出）
+  - reverse-report.md # 知识提取报告（Agent 执行后产出）

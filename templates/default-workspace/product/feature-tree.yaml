@@ -1,31 +1,35 @@
 # OpenSpec Product Feature Tree
 #
-# 版本: v0.1
+# 版本: v0.2
 # 类型: Product Knowledge Metadata
 #
-# 用于描述产品能力层级。
+# 四级结构：Product → Module → Feature → Story
+# Story 为最小可实施单元，直接关联 CHG
+#
+# ID 规范：
+#   Module:  MOD-<DOMAIN>        如 MOD-USER
+#   Feature: FEAT-<MODULE>-<CAP> 如 FEAT-USER-AUTH
+#   Story:   STORY-<MODULE>-<ACT> 如 STORY-USER-REGISTER
+#
+# Story status: planned / in-progress / delivered
 
 product:
   name: ""
-
   description: ""
 
-# 产品能力树
+# 产品能力树（modules → features → stories 三级）
 
-features:
-  # 一级能力
-
-  - id: ""
-
-    name: ""
-
-    description: ""
-
-    # 子能力
-
-    children:
-      - id: ""
-
-        name: ""
-
-        description: ""
+modules: []
+  # 示例：
+  # - id: MOD-USER
+  #   name: 用户中心
+  #   description: 用户注册、登录、个人中心
+  #   features:
+  #     - id: FEAT-USER-AUTH
+  #       name: 用户认证
+  #       description: 注册、登录、密码管理
+  #       stories:
+  #         - id: STORY-USER-REGISTER
+  #           name: 用户注册
+  #           description: 支持邮箱/手机号注册
+  #           status: planned

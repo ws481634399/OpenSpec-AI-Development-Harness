@@ -91,9 +91,9 @@ test('GateConfigLoader: 不存在的 Skill 抛错', async () => {
   await assert.rejects(() => loadGate('nonexistent-skill', harnessRoot), /Gate config not found/);
 });
 
-test('GateConfigLoader: listGates 返回 7 个', async () => {
+test('GateConfigLoader: listGates 返回 8 个', async () => {
   const list = await listGates(harnessRoot);
-  assert.equal(list.length, 7);
+  assert.equal(list.length, 8);
 });
 
 // ---- GateRepository ----

@@ -98,11 +98,11 @@ test('SkillLoader: 不存在的 Skill 抛错', async () => {
 
 // ---- SkillRegistry ----
 
-test('SkillRegistry: listSkills 返回 7 个 Skill', async () => {
+test('SkillRegistry: listSkills 返回 8 个 Skill', async () => {
   const skills = await listSkills(harnessRoot);
-  assert.equal(skills.length, 7);
+  assert.equal(skills.length, 8);
   const ids = skills.map((s) => s.id);
-  for (const expected of ['sdd-explore', 'sdd-prd', 'sdd-design', 'sdd-task', 'sdd-dev', 'sdd-test', 'sdd-converge']) {
+  for (const expected of ['sdd-explore', 'sdd-prd', 'sdd-design', 'sdd-task', 'sdd-dev', 'sdd-test', 'sdd-converge', 'sdd-reverse']) {
     assert.ok(ids.includes(expected), `missing skill: ${expected}`);
   }
 });

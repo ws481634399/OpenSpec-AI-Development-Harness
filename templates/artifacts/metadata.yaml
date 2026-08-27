@@ -14,8 +14,10 @@ status: created # 见 Lifecycle State（change-lifecycle.md §4）：created/exp
 requirement: "" # 需求来源 REQ-XXX（sdd-explore 记录，对齐 requirement.md front-matter.id）
 created-at: "" # ISO8601，创建时填
 updated-at: "" # ISO8601，每次状态变更更新
-features: # 影响的 Feature id 列表（sdd-explore 判定，可空）
-  # - FEAT-PRODUCT-RECOMMEND
+features: # 影响的 Feature/Story id 列表（sdd-explore 判定，可空）
+  # 四级结构：Product → Module → Feature → Story
+  # ID 规范：MOD-xxx / FEAT-xxx / STORY-xxx
+  # - STORY-USER-REGISTER
 repositories: # 影响的仓库 id 列表（对应 repositories.yaml，可空）
   # - product-service
 related-change: "" # 关联的历史 CHG-XXXX（需求复用 archived Change 时记录，可空）

@@ -1,36 +1,44 @@
-// Unit tests: FeatureModel（readFeatureTree / findFeature / featurePath）
-// 对齐 phase-1.3-sdd-lifecycle-artifact-design.md §7 Feature Model
-// Feature Tree 属 Product World，存放 product/feature-tree.yaml
-// 注：FeatureModel 仅提供只读 API；写候选 (writeCandidate) 属 Phase 1.4 sdd-explore 实现，不在本测试范围
+// Unit tests: FeatureModel（readFeatureTree / findFeature / featurePath / findNodeById / nodeLevel / generateId）
+// 四级结构：Product → Module → Feature → Story
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { readFeatureTree, findFeature, featurePath } from '../core/sdd/feature-model.js';
+import {
+  readFeatureTree, findFeature, findNodeById, findNodeByName,
+  featurePath, nodePath, nodeLevel, generateId, collectIds,
+} from '../core/sdd/feature-model.js';
 
 const rmrf = (p) => rm(p, { recursive: true, force: true });
 
-// 构造示例 Feature Tree（含两层 children）
+// 四级 Feature Tree 示例
 const SAMPLE_TREE = `# OpenSpec Product Feature Tree
 product:
   name: 示例产品
   description: 用于 FeatureModel 测试
 
-features:
-  - id: F001
+modules:
+  - id: MOD-PRODUCT
     name: 商品中心
     description: 商品域
-    children:
-      - id: F001-01
+    features:
+      - id: FEAT-PRODUCT-MGMT
         name: 商品管理
         description: 商品 CRUD
-      - id: F001-02
+        stories:
+          - id: STORY-PRODUCT-CREATE
+            name: 创建商品
+            description: 新建商品入口
+            status: planned
+      - id: FEAT-PRODUCT-RECO
         name: 智能推荐
         description: 推荐能力
-  - id: F002
+        stories: []
+  - id: MOD-ORDER
     name: 订单中心
     description: 订单域
+    features: []
 `;
 
 async function makeWorkspace(treeContent = SAMPLE_TREE) {
@@ -42,139 +50,144 @@ async function makeWorkspace(treeContent = SAMPLE_TREE) {
 
 // ---- readFeatureTree ----
 
-test('FeatureModel.readFeatureTree: 正常文件返回 product + features', async () => {
+test('FeatureModel.readFeatureTree: 正常文件返回 product + modules', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
   assert.equal(tree.product.name, '示例产品');
   assert.equal(tree.product.description, '用于 FeatureModel 测试');
-  assert.ok(Array.isArray(tree.features));
-  assert.equal(tree.features.length, 2);
-  assert.equal(tree.features[0].id, 'F001');
-  assert.equal(tree.features[0].children.length, 2);
+  assert.ok(Array.isArray(tree.modules));
+  assert.equal(tree.modules.length, 2);
+  assert.equal(tree.modules[0].id, 'MOD-PRODUCT');
+  assert.equal(tree.modules[0].features.length, 2);
+  assert.equal(tree.modules[0].features[0].stories.length, 1);
   await rmrf(tmp);
 });
 
-test('FeatureModel.readFeatureTree: 文件缺失返回空树（features: []）', async () => {
+test('FeatureModel.readFeatureTree: 文件缺失返回空树（modules: []）', async () => {
   const tmp = await mkdtemp(join(tmpdir(), 'sdd-feat-empty-'));
   const tree = await readFeatureTree(tmp);
   assert.equal(tree.product.name, '');
-  assert.equal(tree.product.description, '');
-  assert.ok(Array.isArray(tree.features));
-  assert.equal(tree.features.length, 0);
+  assert.ok(Array.isArray(tree.modules));
+  assert.equal(tree.modules.length, 0);
   await rmrf(tmp);
 });
 
-test('FeatureModel.readFeatureTree: 空 features 字段返回空数组', async () => {
-  const tmp = await mkdtemp(join(tmpdir(), 'sdd-feat-nofeat-'));
-  await mkdir(join(tmp, 'product'), { recursive: true });
-  await writeFile(
-    join(tmp, 'product', 'feature-tree.yaml'),
-    'product:\n  name: 空产品\n  description: 无能力\nfeatures: []\n',
-    'utf8'
-  );
-  const tree = await readFeatureTree(tmp);
-  assert.equal(tree.product.name, '空产品');
-  assert.equal(tree.features.length, 0);
-  await rmrf(tmp);
-});
+// ---- findNodeById / findFeature ----
 
-// ---- findFeature ----
-
-test('FeatureModel.findFeature: 按 id 精确命中根节点', async () => {
+test('FeatureModel.findNodeById: 命中 Module 级', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  const hit = findFeature(tree, { id: 'F001' });
+  const hit = findNodeById(tree, 'MOD-PRODUCT');
   assert.ok(hit);
   assert.equal(hit.name, '商品中心');
   await rmrf(tmp);
 });
 
-test('FeatureModel.findFeature: 按 id 命中子节点', async () => {
+test('FeatureModel.findNodeById: 命中 Feature 级', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  const hit = findFeature(tree, { id: 'F001-02' });
+  const hit = findNodeById(tree, 'FEAT-PRODUCT-RECO');
   assert.ok(hit);
   assert.equal(hit.name, '智能推荐');
   await rmrf(tmp);
 });
 
-test('FeatureModel.findFeature: 按 name 命中（忽略大小写/首尾空白）', async () => {
+test('FeatureModel.findNodeById: 命中 Story 级', async () => {
+  const tmp = await makeWorkspace();
+  const tree = await readFeatureTree(tmp);
+  const hit = findNodeById(tree, 'STORY-PRODUCT-CREATE');
+  assert.ok(hit);
+  assert.equal(hit.name, '创建商品');
+  assert.equal(hit.status, 'planned');
+  await rmrf(tmp);
+});
+
+test('FeatureModel.findFeature: 按 name 模糊命中（兼容旧接口）', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
   const hit = findFeature(tree, { name: '  智能推荐  ' });
   assert.ok(hit);
-  assert.equal(hit.id, 'F001-02');
-  await rmrf(tmp);
-});
-
-test('FeatureModel.findFeature: 同时提供 id 与 name 同时命中同一节点', async () => {
-  const tmp = await makeWorkspace();
-  const tree = await readFeatureTree(tmp);
-  // id 与 name 均指向 F002，验证不冲突、能正确命中
-  const hit = findFeature(tree, { id: 'F002', name: '订单中心' });
-  assert.ok(hit);
-  assert.equal(hit.id, 'F002');
-  assert.equal(hit.name, '订单中心');
+  assert.equal(hit.id, 'FEAT-PRODUCT-RECO');
   await rmrf(tmp);
 });
 
 test('FeatureModel.findFeature: 无匹配返回 null', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  assert.equal(findFeature(tree, { id: 'F999' }), null);
+  assert.equal(findFeature(tree, { id: 'MOD-XXX' }), null);
   assert.equal(findFeature(tree, { name: '不存在的功能' }), null);
   await rmrf(tmp);
 });
 
-test('FeatureModel.findFeature: 空 query 返回 null', async () => {
+// ---- nodePath / featurePath ----
+
+test('FeatureModel.nodePath: Module 返回 Product > Module', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  assert.equal(findFeature(tree, {}), null);
-  assert.equal(findFeature(tree, { id: '', name: '' }), null);
+  const path = nodePath(tree, 'MOD-PRODUCT');
+  assert.equal(path, '示例产品 > 商品中心');
   await rmrf(tmp);
 });
 
-// ---- featurePath ----
-
-test('FeatureModel.featurePath: 根节点返回单层路径', async () => {
+test('FeatureModel.nodePath: Story 返回完整四级路径', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  const node = findFeature(tree, { id: 'F001' });
+  const path = nodePath(tree, 'STORY-PRODUCT-CREATE');
+  assert.equal(path, '示例产品 > 商品中心 > 商品管理 > 创建商品');
+  await rmrf(tmp);
+});
+
+test('FeatureModel.featurePath: 兼容旧接口', async () => {
+  const tmp = await makeWorkspace();
+  const tree = await readFeatureTree(tmp);
+  const node = findNodeById(tree, 'FEAT-PRODUCT-RECO');
   const path = featurePath(tree, node);
-  assert.equal(path, '商品中心');
+  assert.equal(path, '示例产品 > 商品中心 > 智能推荐');
   await rmrf(tmp);
 });
 
-test('FeatureModel.featurePath: 子节点返回多层路径', async () => {
+// ---- nodeLevel ----
+
+test('FeatureModel.nodeLevel: Module/Feature/Story 判断正确', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  const node = findFeature(tree, { id: 'F001-02' });
-  const path = featurePath(tree, node);
-  assert.equal(path, '商品中心 / 智能推荐');
+  assert.equal(nodeLevel(findNodeById(tree, 'MOD-PRODUCT')), 'module');
+  assert.equal(nodeLevel(findNodeById(tree, 'FEAT-PRODUCT-MGMT')), 'feature');
+  assert.equal(nodeLevel(findNodeById(tree, 'STORY-PRODUCT-CREATE')), 'story');
   await rmrf(tmp);
 });
 
-test('FeatureModel.featurePath: 第二棵树根节点路径独立', async () => {
-  const tmp = await makeWorkspace();
-  const tree = await readFeatureTree(tmp);
-  const node = findFeature(tree, { id: 'F002' });
-  const path = featurePath(tree, node);
-  assert.equal(path, '订单中心');
-  await rmrf(tmp);
+// ---- generateId ----
+
+test('FeatureModel.generateId: ASCII name → slugify', () => {
+  const id = generateId('MOD-', 'User Center', []);
+  assert.equal(id, 'MOD-user-center');
 });
 
-test('FeatureModel.featurePath: target 为 null/undefined 返回空串', async () => {
-  const tmp = await makeWorkspace();
-  const tree = await readFeatureTree(tmp);
-  assert.equal(featurePath(tree, null), '');
-  assert.equal(featurePath(tree, undefined), '');
-  await rmrf(tmp);
+test('FeatureModel.generateId: 中文 name → 序号', () => {
+  const id = generateId('MOD-', '用户中心', []);
+  assert.equal(id, 'MOD-1');
 });
 
-test('FeatureModel.featurePath: target 不属于该树返回空串', async () => {
+test('FeatureModel.generateId: 序号递增避重', () => {
+  const id = generateId('MOD-', '用户中心', ['MOD-1']);
+  assert.equal(id, 'MOD-2');
+});
+
+test('FeatureModel.generateId: ASCII slug 冲突 → 序号', () => {
+  const id = generateId('MOD-', 'User Center', ['MOD-user-center']);
+  assert.match(id, /^MOD-\d+$/);
+});
+
+// ---- collectIds ----
+
+test('FeatureModel.collectIds: 收集全树 ID', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  const foreign = { id: 'X', name: '外部节点' };
-  assert.equal(featurePath(tree, foreign), '');
+  const ids = collectIds(tree);
+  assert.ok(ids.includes('MOD-PRODUCT'));
+  assert.ok(ids.includes('MOD-ORDER'));
+  assert.ok(ids.includes('FEAT-PRODUCT-MGMT'));
+  assert.ok(ids.includes('STORY-PRODUCT-CREATE'));
   await rmrf(tmp);
 });

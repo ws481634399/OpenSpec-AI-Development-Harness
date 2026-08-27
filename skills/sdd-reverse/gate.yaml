@@ -1,0 +1,29 @@
+# OpenSpec SDD Gate 配置（Phase 1.5）
+# sdd-reverse 的 gate 规则——校验 instruction.md 和 reverse-report.md
+
+stage: reverse
+artifact: instruction.md
+
+# Machine Gate 校验项
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+  - required-sections
+
+# instruction.md 无 front-matter
+required-front-matter: []
+
+# 占位符不应出现在最终产出中
+required-replacements:
+  - change-id
+
+# 必须存在的 section
+non-empty-ai-sections:
+  - "## 目标"
+  - "## 扫描结果摘要"
+  - "## 执行步骤"
+
+# Human Gate review 段
+human-checks:
+  - "## 扫描结果摘要"
+  - "## 执行步骤"
