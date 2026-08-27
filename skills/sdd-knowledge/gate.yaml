@@ -1,0 +1,22 @@
+# OpenSpec SDD Gate 配置
+# sdd-knowledge 的 gate 规则——校验索引文件和知识文档
+
+stage: knowledge
+artifact: knowledge-index.json
+
+# Machine Gate 校验项
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+
+# knowledge-index.json 无 front-matter（纯 JSON）
+required-front-matter: []
+
+# 无占位符
+required-replacements: []
+
+# Human Gate review 项
+human-checks:
+  - "知识分类是否合理（standards vs product）"
+  - "索引是否完整覆盖所有知识文档"
+  - "知识文档内容是否准确反映开发沉淀"

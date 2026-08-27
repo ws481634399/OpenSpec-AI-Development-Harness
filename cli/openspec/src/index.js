@@ -31,10 +31,10 @@ program
 // Phase 1.2：init 命令
 registerInitCommand(program);
 
-// Phase 1.3：change 管理操作（list/show/status/archive，不含 create 入口）
+// Phase 1.3+：change 管理操作（create/list/show/status/archive）
 registerChangeCommand(program);
 
-// Phase 1.4：skill 管理与调用（list/show/run，sdd-explore 完整演示，其余 6 骨架）
+// Phase 1.4+：skill 元数据查询（list/show，Agent 读 SKILL.md 执行）
 registerSkillCommand(program);
 
 // Phase 1.5：gate / workflow（Gate-driven Workflow Engine）

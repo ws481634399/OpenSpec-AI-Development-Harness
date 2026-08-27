@@ -309,7 +309,7 @@ test('integration: Change 目录位于 delivery/changes/ 与 Workspace 模板一
 });
 
 // ---- sdd-explore 端到端 ----
-// 验证 sdd-explore 完整执行流程：init → core 纯函数链模拟 skill run → Artifact + 状态 + Instruction
+// 验证 sdd-explore Agent 执行流程：init → core 纯函数链模拟 Agent 读 SKILL.md 执行 → Artifact + 状态
 // 直接调用 core 函数链（绕过 @clack 交互），decideReuseAction 用纯函数注入选择
 
 test('integration: sdd-explore 全新需求 → 新建 CHG + 创建 Candidate + 生成 Artifact + 推进状态', async () => {

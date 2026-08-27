@@ -1,0 +1,22 @@
+# OpenSpec SDD Skill 定义
+#
+# 版本: v0.1
+# 类型: 辅助 Skill（不进 7 状态生命周期）
+#
+# sdd-feature-tree 负责 Feature Tree 的自动生成与匹配。
+# sdd-explore 和 sdd-reverse 可调用此 Skill。
+# Agent 读取 SKILL.md 执行，产出 Feature Tree 节点草稿供用户确认。
+
+id: sdd-feature-tree
+version: 0.1.0
+stage: feature-tree
+description: 特性树生成——分析需求，自动创建 Module/Feature/Story 节点，返回匹配的 Story ID
+input:
+  - workspace # 已初始化的 Workspace
+  - requirement # 需求描述（标题 + 详细内容）
+output:
+  - feature-tree # product/feature-tree.yaml 更新
+requires-state: null # 不进 7 状态生命周期
+produces-state: null
+output-artifacts:
+  - feature-tree.yaml # product/feature-tree.yaml（更新或新建节点）

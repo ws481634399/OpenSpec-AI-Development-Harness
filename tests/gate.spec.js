@@ -77,8 +77,8 @@ test('GateConfigLoader: loadGate 返回 sdd-prd 正确配置', async () => {
   assert.ok(g['human-checks'].length > 0);
 });
 
-test('GateConfigLoader: 7 个 Skill 都有 gate.yaml', async () => {
-  const ids = ['sdd-explore', 'sdd-prd', 'sdd-design', 'sdd-task', 'sdd-dev', 'sdd-test', 'sdd-converge'];
+test('GateConfigLoader: 9 个 Skill 都有 gate.yaml', async () => {
+  const ids = ['sdd-explore', 'sdd-prd', 'sdd-design', 'sdd-task', 'sdd-dev', 'sdd-test', 'sdd-converge', 'sdd-reverse', 'sdd-feature-tree', 'sdd-knowledge'];
   for (const id of ids) {
     const g = await loadGate(id, harnessRoot);
     assert.ok(g.stage, `${id} 应有 stage`);
@@ -91,9 +91,9 @@ test('GateConfigLoader: 不存在的 Skill 抛错', async () => {
   await assert.rejects(() => loadGate('nonexistent-skill', harnessRoot), /Gate config not found/);
 });
 
-test('GateConfigLoader: listGates 返回 8 个', async () => {
+test('GateConfigLoader: listGates 返回 10 个', async () => {
   const list = await listGates(harnessRoot);
-  assert.equal(list.length, 8);
+  assert.equal(list.length, 10);
 });
 
 // ---- GateRepository ----

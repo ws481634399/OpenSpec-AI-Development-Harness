@@ -1,0 +1,21 @@
+# OpenSpec SDD Gate 配置
+# sdd-feature-tree 的 gate 规则——校验 Feature Tree 节点创建结果
+
+stage: feature-tree
+artifact: feature-tree.yaml
+
+# Machine Gate 校验项
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+
+# feature-tree.yaml 无 front-matter（纯结构 YAML）
+required-front-matter: []
+
+# 无占位符
+required-replacements: []
+
+# Human Gate review 项
+human-checks:
+  - "Feature Tree 节点是否合理反映需求结构"
+  - "Story 命名是否清晰可实施"

@@ -1,0 +1,22 @@
+{
+  "$schema": "sdd-knowledge-index/v0.1",
+  "updated-at": "{{updated-at}}",
+  "standards": [
+    {
+      "title": "{{title}}",
+      "path": "standards/{{file}}.md",
+      "tags": ["{{tag}}"],
+      "summary": "{{summary}}",
+      "related-changes": ["{{CHG-XXXX}}"]
+    }
+  ],
+  "product": [
+    {
+      "title": "{{title}}",
+      "path": "product/{{file}}.md",
+      "tags": ["{{tag}}"],
+      "summary": "{{summary}}",
+      "related-changes": ["{{CHG-XXXX}}"]
+    }
+  ]
+}

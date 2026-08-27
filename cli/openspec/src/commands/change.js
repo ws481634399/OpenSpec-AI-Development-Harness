@@ -1,12 +1,12 @@
-// Change Command：编排 list/show/status/archive（CLI 层，依赖 core/sdd）
+// Change Command：编排 create/list/show/status/archive（CLI 层，依赖 core/sdd）
 // 瘦编排范本对齐 init.js：resolveWorkspaceRoot → @clack 交互 → core 纯函数 → note/ok/warn 输出
-// 不含 create 子命令（create 由 Phase 1.4 sdd-explore 内部调用 ChangeModel.runChangeCreate）
+// create 供 Agent 读 SKILL.md 后调用（原子操作，不编排 Skill 流程）
 import { Command } from 'commander';
 import { outro, note } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { listChanges, showChange, changeExists } from '../../../../core/sdd/change-repository.js';
-import { readMetadata } from '../../../../core/sdd/change-model.js';
+import { runChangeCreate, readMetadata } from '../../../../core/sdd/change-model.js';
 import { nextStatuses, isValidStatus } from '../../../../core/sdd/change-state-machine.js';
 import { archiveChange } from '../../../../core/sdd/change-archiver.js';
 import { requestTransition } from '../../../../core/sdd/transition-service.js';
@@ -19,6 +19,26 @@ import { join } from 'node:path';
  */
 export function registerChangeCommand(program) {
   const change = program.command('change').description('SDD Change 管理操作');
+
+  // create：创建 CHG 载体（Agent 原子操作）
+  change
+    .command('create')
+    .requiredOption('--title <text>', 'Change 标题')
+    .option('--requirement <req>', '需求来源标识（REQ-XXX）')
+    .option('--summary <text>', 'Change 摘要')
+    .action(async (opts) => {
+      const ws = resolveWorkspaceRoot();
+      try {
+        const result = await runChangeCreate(ws, { title: opts.title, requirement: opts.requirement, summary: opts.summary }, getHarnessRoot());
+        ok(`${result.id} created`);
+        note(`Path: ${result.changeDir}`, result.id);
+        outro('Done.');
+      } catch (e) {
+        error(e.message);
+        outro('Create failed.');
+        process.exit(1);
+      }
+    });
 
   // list：列出进行中 Change
   change

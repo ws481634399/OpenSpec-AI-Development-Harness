@@ -1,0 +1,28 @@
+# OpenSpec SDD Skill 定义
+#
+# 版本: v0.1
+# 类型: 辅助 Skill（不进 7 状态生命周期）
+#
+# sdd-knowledge 负责知识管理全流程：沉淀、独立添加、索引构建、检索。
+# sdd-converge 调用能力 A（沉淀）和 C（索引）。
+# sdd-explore 调用能力 D（检索）。
+# 用户可直接调用能力 B（独立添加知识）。
+
+id: sdd-knowledge
+version: 0.1.0
+stage: knowledge
+description: 知识管理——沉淀/添加/索引/检索，维护 standards/ 和 product/ 知识库
+input:
+  - workspace # 已初始化的 Workspace
+  - change-artifacts # （能力 A）已完成 Change 的全部 Artifact
+  - knowledge-content # （能力 B）独立知识文档内容
+  - keywords # （能力 D）检索关键词
+output:
+  - standards # standards/ 知识文档（更新或新建）
+  - product # product/ 知识文档（更新或新建）
+  - index # .sdd/knowledge-index.json + standards/INDEX.md + product/INDEX.md
+requires-state: null
+produces-state: null
+output-artifacts:
+  - INDEX.md # 索引文件（人读）
+  - knowledge-index.json # 索引文件（Agent 读）

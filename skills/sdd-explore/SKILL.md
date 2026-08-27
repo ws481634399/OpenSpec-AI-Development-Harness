@@ -1,82 +1,257 @@
-# sdd-explore Skill
+# sdd-explore: 需求探索
 
-> 角色：SDD 需求探索阶段执行者
-> 阶段：explore（requires-state: created → produces-state: exploring）
-> 定位：流程编排者——调用 core/sdd 基础能力，产出 Artifact，不直接调模型
+> 阶段: explore
+> 状态转换: created → exploring
+> 产出: requirement.md + exploration.md
 
-## 1. 角色与目标
+## 前置条件
 
-sdd-explore 是 SDD 生命周期的入口 Skill。它的职责是：
+- Workspace 已初始化（`openspec init` 已执行）
+- Change 处于 `created` 状态（或全新创建）
 
-- 理解用户需求，沉淀为 requirement.md
-- 判断需求是否匹配已有进行中 Change（旧需求沿用策略）
-- 创建或复用 CHG 载体
-- 判断需求在 Feature Tree 中的归属（命中记录 / 未命中创建 Candidate）
-- 产出 exploration.md（结构化字段 + 非结构化分析占位）
-- 推进 Change 状态到 exploring
-- 生成 Instruction 交外部 Agent 补充非结构化分析
+## 执行步骤
 
-**sdd-explore 不执行 AI。** 结构化字段由 core/sdd 纯函数填充，非结构化段落（需求理解 / 影响分析 / 未知问题）由外部 Agent（Trae / Cursor / Claude Code）按 Instruction 补充。
+### 1. 询问用户需求
 
-## 2. 执行流程
+向用户提问，收集以下信息：
 
+- **需求标题**：一句话概括需求（10-30 字）
+- **需求来源 ID**：如 REQ-001（可选，无登记时留空）
+- **详细描述**：需求的完整内容、背景、目标
+
+#### 1.1 需求收集方法论
+
+用户描述往往不完整或模糊。Agent 需要主动澄清：
+
+**识别需求类型：**
+
+- 新功能开发 — 用户描述了新的产品能力
+- 现有功能改进 — 用户描述了对已有功能的修改
+- 缺陷修复 — 用户描述了不符合预期的行为
+- 技术重构 — 用户描述了代码/架构层面的调整
+
+**主动澄清清单（按需提问，不要一次性全部抛出）：**
+
+- 功能边界：这个功能包含什么操作？不包含什么？
+- 触发条件：用户在什么场景下会使用这个功能？
+- 预期结果：操作完成后用户看到什么？系统状态如何变化？
+- 约束条件：有没有性能、安全、兼容性方面的要求？
+- 优先级：这是必须的（P0）、应该有的（P1）、还是可以有的（P2）？
+
+**当需求描述过于模糊时（如"做个用户管理"），Agent 应主动追问：**
+
+- "用户管理具体包含哪些操作？注册、登录、权限分配、资料编辑？"
+- "面向什么用户角色？普通用户、管理员、还是两者都有？"
+- "有没有参考的竞品或现有系统？"
+
+#### 1.2 需求结构化
+
+将用户描述结构化为：
+
+- **核心动词**：用户要做什么（注册、查询、导出、审批...）
+- **操作对象**：操作的目标实体（用户、订单、报表...）
+- **业务约束**：隐含的业务规则（权限、时效、唯一性...）
+- **利益相关者**：谁提出、谁受影响、谁审批
+
+### 2. 知识检索（调用 sdd-knowledge 能力 D）
+
+读取 `skills/sdd-knowledge/SKILL.md`，执行「能力 D：知识检索」段落。
+
+#### 2.1 检索策略
+
+**关键词提取：**
+
+- 从需求描述中提取 3-5 个关键词（核心动词 + 操作对象 + 业务域）
+- 示例：需求"用户注册时发送欢迎邮件" → 关键词：`用户注册`、`邮件通知`、`用户生命周期`
+
+**检索范围：**
+
+- `standards/` — 查找已有的技术规范（编码规范、架构决策）
+- `product/` — 查找已有的业务知识（业务流程、领域模型）
+
+**检索目的：**
+
+- 避免重复探索已有知识
+- 发现潜在冲突（需求是否与已有 standards 矛盾）
+- 复用已有设计决策（如已有的认证方案）
+
+#### 2.2 检索结果处理
+
+- **命中且相关**：将关键结论引用到 exploration.md 的"需求理解分析"
+- **命中但不相关**：记录但不引用
+- **未命中**：标记为"无历史知识参考"，需独立探索
+
+### 3. 创建 Change
+
+```bash
+openspec change create --title "<需求标题>" --requirement <REQ-XXX>
 ```
-openspec skill run sdd-explore
-    ↓ 1. 收集 Requirement（@clack：已登记 REQ-XXX / 直接输入 title + content）
-    ↓ 2. 查找已有 Change（findChangeByRequirement）
-    ↓ 3. 创建或复用 CHG（runChangeCreate，内部自动查 archive 写 related-change）
-    ↓ 4. Feature Tree 匹配（readFeatureTree + findFeature）
-       ├─ 命中 → 记录 feature id，填入 exploration.md 与 metadata.features
-       └─ 未命中 → CandidateRepository.writeCandidate（product/features/FEAT-CANDIDATE-NNNN.md）
-    ↓ 5. 写 requirement.md（ArtifactWriter，填 front-matter + {{requirement-content}}）
-    ↓ 6. 生成 exploration.md（ArtifactWriter，结构化字段填充 + 非结构化段保留占位）
-    ↓ 7. 更新 Change State（patchMetadata features + validateTransition + patchStatus exploring）
-    ↓ 8. 生成 Instruction（InstructionBuilder，引导外部 AI 补充 exploration.md 非结构化分析）
+
+记录返回的 CHG-XXXX 和路径。
+
+如果已有匹配 REQ-XXX 的 Change：
+
+- 询问用户：沿用现有 CHG 还是新建
+- 沿用：确认状态为 `created` 后复用
+- 新建：执行上面的 create 命令
+
+### 4. 生成/匹配 Feature Tree（调用 sdd-feature-tree）
+
+读取 `skills/sdd-feature-tree/SKILL.md` 并执行。
+
+#### 4.1 Feature 匹配策略
+
+**匹配优先级：**
+
+1. Story 级匹配 — 是否已有相同 Story（如"用户注册"已存在）
+2. Feature 级匹配 — 是否属于已有 Feature（如"用户认证"下的新 Story）
+3. Module 级匹配 — 是否属于已有 Module（如"用户中心"下的新 Feature）
+4. 新建 Module — 需求不属于任何现有 Module
+
+**匹配判断方法：**
+
+- 语义相似度：需求核心动词 + 操作对象是否与现有 Story 描述一致
+- 功能包含关系：需求是否是现有 Feature 的子能力
+- 业务域归属：需求涉及的数据实体是否属于现有 Module
+
+**当匹配不确定时：**
+
+- 向用户展示候选 Feature 路径
+- 说明匹配理由
+- 请用户确认或指定其他路径
+
+### 5. 写 requirement.md
+
+读取模板 `templates/artifacts/requirement.md`，按结构填写。
+
+Front-matter 格式：
+
+```yaml
+---
+id: "REQ-001"
+name: "需求标题"
+content: "需求描述"
+source: user
+created-at: "2026-01-01T00:00:00Z"
+---
 ```
 
-## 3. 旧需求沿用策略
+正文写入 `## 需求描述` section，内容为用户提供的原始需求文本（保持用户原话，不做改写）。
 
-对齐 change-lifecycle.md §8.6：
+写入 `delivery/changes/<CHG>/requirement.md`。
 
-- 用户提供 REQ-XXX 或 title → `findChangeByRequirement` 查进行中 Change
-- 命中进行中 Change → @clack select：沿用现有 CHG / 新建
-- 新建 → `runChangeCreate`（内部自动查 archive 写 `related-change`）
-- 决策逻辑抽纯函数（候选清单 + 用户选择 → 动作），@clack 只收集选择
+### 6. 写 exploration.md
 
-## 4. Feature 归属与 Candidate
+读取模板 `templates/artifacts/exploration.md`，按结构填写。
 
-- `readFeatureTree` + `findFeature` 判定归属（FeatureModel 只读）
-- 命中 → 记录 feature id，填入 exploration.md 的 `{{feature-id}}` / `{{feature-path}}` 与 metadata.features
-- 未命中 → `CandidateRepository.writeCandidate`（`product/features/FEAT-CANDIDATE-NNNN.md`，status:pending）
-- FeatureModel 保持只读，Candidate 生命周期由 CandidateRepository 负责
+占位符替换：
 
-## 5. Instruction 输出
+- `{{feature-id}}`：步骤 4 获取的 Story ID
+- `{{feature-path}}`：步骤 4 获取的 Feature 路径
+- `{{affected-repos}}`：从 `.sdd/repositories.yaml` 推断涉及的仓库
+- `{{matched-change}}`：是否有匹配的历史 Change
+- `{{archived-change}}`：metadata 中的 related-change
+- `{{reuse-decision}}`：新建或沿用现有
 
-InstructionBuilder 输出 Instruction Markdown：
+#### 6.1 需求理解分析（正文段落）
 
-- Skill 角色与目标
-- Workspace Context 摘要（standards/ + product/ 文件清单）
-- 用户输入原文
-- Artifact 模板引用（exploration.md 待补充段落：需求理解 / 影响分析 / 未知问题）
-- 外部 Agent 执行指引
+基于步骤 1.2 的结构化需求和步骤 2 的检索结果，分析：
 
-Instruction 输出到终端（`note`）+ 写入 CHG 目录（`<changeDir>/.instruction.md`，供外部 Agent 读取）。
+**需求本质：**
 
-## 6. 行为规则
+- 这个需求真正要解决什么问题？（表面描述 vs 实际意图）
+- 是否有隐含需求用户没说出来？（如安全性、性能、兼容性）
 
-### Must
+**影响分析：**
 
-- 遵循 SDD 工作流（created → exploring）
-- 加载所需上下文（standards/sdd/ + product/）
-- 产出 requirement.md + exploration.md
-- 记录 Feature 归属（命中或 Candidate）
-- 推进 Change 状态到 exploring
-- 生成 Instruction 交外部 Agent
+- 涉及哪些模块/仓库？
+- 是否影响现有功能？如有，影响范围多大？
+- 是否需要数据迁移？
 
-### Must Not
+**未知问题：**
+
+- 需求中哪些部分不够明确，需要后续阶段（PRD/设计）澄清？
+- 有哪些技术可行性尚未验证？
+
+将步骤 2 检索到的历史知识整合到分析中，标注引用来源。
+
+### 7. 更新 metadata
+
+将 Story ID 写入 metadata.yaml 的 features 字段：
+
+```yaml
+features:
+  - STORY-3
+```
+
+## 产出草稿
+
+- `delivery/changes/<CHG>/requirement.md` — 需求文档
+- `delivery/changes/<CHG>/exploration.md` — 探索分析
+
+## 质量自检
+
+产出前自检：
+
+- [ ] 需求标题是否 10-30 字，能独立表达需求意图？
+- [ ] 需求描述是否保持用户原话，未做主观改写？
+- [ ] Feature 归属是否经用户确认？
+- [ ] exploration.md 是否包含需求本质分析（不只是复述需求）？
+- [ ] 影响分析是否覆盖了可能受影响的现有功能？
+- [ ] 未知问题是否明确列出，待 PRD 阶段解决？
+- [ ] 是否引用了相关历史知识（如有）？
+
+## 用户确认
+
+将 requirement.md 和 exploration.md 草稿展示给用户：
+
+- 需求描述是否准确？
+- Feature 归属是否合理？
+- 探索分析是否充分？未知问题是否需要现在澄清？
+
+用户确认后执行：
+
+```bash
+openspec gate check <CHG>
+openspec gate approve <CHG>
+openspec change status <CHG> --set exploring
+```
+
+## 工作示例
+
+**用户输入：** "我们需要一个用户注册功能，用户可以用邮箱或手机号注册"
+
+**Agent 分析：**
+
+- 需求类型：新功能开发
+- 核心动词：注册
+- 操作对象：用户（邮箱/手机号两种入口）
+- 业务约束：邮箱格式校验、手机号格式校验、唯一性
+- 隐含需求：密码设置、验证码发送、重复注册处理
+
+**Feature 匹配：**
+
+- 现有 Feature Tree 有 Module "用户中心" → Feature "用户认证"
+- 新增 Story "用户注册" 挂到 Feature "用户认证" 下
+
+**exploration.md 需求理解分析节选：**
+
+> 本需求实现在用户中心 → 用户认证域下新增注册能力。用户可通过邮箱或手机号两种方式注册。
+>
+> 隐含需求分析：
+>
+> - 密码设置：注册时必须设置密码，需考虑密码强度策略
+> - 验证码：邮箱/手机号需验证真实性，需接入通知服务
+> - 重复注册：邮箱/手机号已存在时的处理策略（提示还是找回密码）
+>
+> 影响范围：涉及 auth/ 模块新增注册端点，models/ 新增 User 实体，可能需要通知服务集成。
+>
+> 未已知问题：密码强度策略需在 PRD 阶段与用户确认；通知服务是否已有，需在设计阶段调查。
+
+## 行为规则
 
 - 不跳过必经阶段
-- 不直接调模型（OpenSpec 不执行 AI）
-- 不直接写文件（通过 ArtifactWriter / CandidateRepository）
-- 不修改 feature-tree.yaml（FeatureModel 只读，Candidate 待人工 review）
-- 不假设需求归属（未命中必须创建 Candidate）
+- 产出草稿供用户确认，不直接推进状态
+- Feature Tree 不命中时调用 sdd-feature-tree 自动创建
+- 利用 sdd-knowledge 检索历史知识，避免重复探索
+- 需求模糊时主动追问，不基于猜测继续
