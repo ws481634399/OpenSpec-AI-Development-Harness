@@ -148,6 +148,8 @@ Feature Tree 四级结构模板：`templates/default-workspace/product/feature-t
 
 ## 工作示例
 
+> 完整示例参考: `templates/default-workspace/product/feature-tree.yaml`（四级 Feature Tree 模板）
+
 **需求：** "用户可以通过邮箱或手机号注册账号"
 
 **映射分析：**

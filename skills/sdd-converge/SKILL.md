@@ -226,6 +226,8 @@ openspec change archive <CHG>
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/convergence.md`（含知识分类/Standards 更新/Product 更新/归档）
+
 **Change: CHG-0001 用户注册**
 
 **知识提取：**

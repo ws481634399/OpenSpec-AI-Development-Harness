@@ -150,6 +150,8 @@ openspec change status <CHG> --set tasked
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/tasks.md`（含 7 个 Task/依赖图/覆盖矩阵）
+
 **需求：** 用户注册（邮箱/手机号）
 
 **任务清单（节选）：**

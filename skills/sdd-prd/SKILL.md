@@ -158,6 +158,8 @@ openspec change status <CHG> --set specified
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/prd.md`（含 7 条 SMART 验收标准 + Scope 管理 + 异常处理矩阵）
+
 **需求来源：** "用户注册功能，支持邮箱或手机号注册"
 
 **PRD §2 目标用户节选：**

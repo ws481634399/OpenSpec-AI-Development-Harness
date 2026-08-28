@@ -174,6 +174,8 @@ openspec change status <CHG> --set designed
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/design.md`（含分层设计/接口定义/数据模型/Migration/风险评估）
+
 **需求：** 用户注册（邮箱/手机号）
 
 **design.md §2 提议方案节选：**

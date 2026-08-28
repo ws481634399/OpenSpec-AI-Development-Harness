@@ -213,6 +213,8 @@ openspec change archive <CHG>
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/requirement.md` + `templates/artifacts/examples/exploration.md`（完整生命周期示例）
+
 **扫描结果：**
 ```
 技术栈: Node.js + Express + Sequelize ORM

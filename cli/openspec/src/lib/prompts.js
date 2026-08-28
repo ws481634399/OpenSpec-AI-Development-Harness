@@ -10,17 +10,36 @@ function bail(message) {
 }
 
 /**
+ * 根据仓库模式自动生成默认仓库配置。
+ *
+ * single → 1 个仓库 main → implementation/
+ * multi  → 2 个仓库 repo-1/repo-2 → implementation/repo-1, implementation/repo-2
+ *
+ * 用户不再需要手动输入仓库 id 和路径。
+ *
+ * @param {string} mode single / multi
+ * @returns {Array<{id:string,path:string}>}
+ */
+function generateDefaultRepos(mode) {
+  if (mode === 'multi') {
+    return [
+      { id: 'repo-1', path: 'implementation/repo-1' },
+      { id: 'repo-2', path: 'implementation/repo-2' },
+    ];
+  }
+  return [{ id: 'main', path: 'implementation' }];
+}
+
+/**
  * 交互式收集 init 配置。
  *
- * 流程（对齐设计 §7.1 完整交互）：
+ * 流程（简化版，去掉仓库路径交互）：
  * 1. 项目名称（text，默认目录 basename）
  * 2. 项目类型（select: greenfield / brownfield）
  * 3. 代码是否已存在（confirm，仅 brownfield）
  * 4. 仓库模式（select: single / multi）
- * 5a. multi：循环输入 repo id + path（id 留空结束）
- * 5b. single + brownfield：代码路径（text，默认 implementation，允许任意路径）
  *
- * greenfield + single 固定 path=implementation，不问路径。
+ * 仓库 id 和路径自动生成，用户无需输入。
  *
  * @param {string} defaultName 默认项目名（目标目录 basename）
  * @returns {Promise<{name:string,type:string,mode:string,repos:Array<{id:string,path:string}>,shouldCreateImplementation:boolean,codeExists:boolean}>}
@@ -69,50 +88,12 @@ export async function askInitConfig(defaultName) {
   });
   if (p.isCancel(mode)) bail('已取消');
 
-  // 5. repos
-  let repos = [];
-  if (mode === 'multi') {
-    p.note('依次输入每个仓库的 id 与 path，id 留空结束。', '多仓配置');
-    let i = 1;
-    for (;;) {
-      const id = await p.text({
-        message: `仓库 ${i} id（留空结束）：`,
-        placeholder: '如 backend',
-      });
-      if (p.isCancel(id)) bail('已取消');
-      const idVal = (id || '').trim();
-      if (!idVal) break;
-      const path = await p.text({
-        message: `仓库 ${idVal} path：`,
-        defaultValue: `implementation/${idVal}`,
-        placeholder: `implementation/${idVal}`,
-      });
-      if (p.isCancel(path)) bail('已取消');
-      const pathVal = (path || '').trim() || `implementation/${idVal}`;
-      repos.push({ id: idVal, path: pathVal });
-      i++;
-    }
-    if (repos.length === 0) bail('多仓模式至少需要一个仓库');
-  } else {
-    // single
-    let path = 'implementation';
-    if (type === 'brownfield') {
-      const cp = await p.text({
-        message: '代码路径？',
-        defaultValue: 'implementation',
-        placeholder: 'implementation（可改为任意相对/绝对路径）',
-      });
-      if (p.isCancel(cp)) bail('已取消');
-      path = (cp || '').trim() || 'implementation';
-    }
-    // greenfield + single 固定 implementation
-    repos = [{ id: 'main', path }];
-  }
+  // 5. 自动生成仓库配置（用户无需输入 id 和路径）
+  const repos = generateDefaultRepos(mode);
 
-  // 派生：是否需要创建 implementation/（任一 repo path 以 implementation 开头）
-  const shouldCreateImplementation = repos.some(
-    (r) => r.path === 'implementation' || r.path.startsWith('implementation/')
-  );
+  // 派生：是否需要创建 implementation/
+  // greenfield → 创建；brownfield + 代码不存在 → 创建；brownfield + 代码已存在 → 不创建
+  const shouldCreateImplementation = type === 'greenfield' || !codeExists;
 
   return { name: nameVal, type, mode, repos, shouldCreateImplementation, codeExists };
 }

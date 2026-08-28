@@ -1,0 +1,57 @@
+{
+  "$schema": "sdd-knowledge-index/v0.1",
+  "updated-at": "2026-08-28T00:00:00Z",
+  "standards": [
+    {
+      "title": "规则知识说明",
+      "path": "standards/README.md",
+      "tags": [],
+      "summary": "Workspace 规则世界的目的、结构和使用指南",
+      "related-changes": []
+    },
+    {
+      "title": "编码规范",
+      "path": "standards/coding-standards.md",
+      "tags": ["code", "style", "naming", "formatting"],
+      "summary": "命名约定、文件组织、格式化、注释规则、错误处理",
+      "related-changes": []
+    },
+    {
+      "title": "架构原则",
+      "path": "standards/architecture-principles.md",
+      "tags": ["architecture", "solid", "layered", "patterns"],
+      "summary": "分层架构、SOLID 原则、Repository/Factory/Strategy 模式、API 设计规范",
+      "related-changes": []
+    },
+    {
+      "title": "测试规范",
+      "path": "standards/testing-conventions.md",
+      "tags": ["testing", "unit", "integration", "coverage"],
+      "summary": "测试金字塔、AAA 模式、边界值分析、覆盖率要求",
+      "related-changes": []
+    },
+    {
+      "title": "Git 规范",
+      "path": "standards/git-conventions.md",
+      "tags": ["git", "commit", "branch", "workflow"],
+      "summary": "分支命名、Commit 消息格式、PR 流程、.gitignore 基线",
+      "related-changes": []
+    },
+    {
+      "title": "安全指南",
+      "path": "standards/security-guidelines.md",
+      "tags": ["security", "owasp", "auth", "crypto", "input-validation"],
+      "summary": "输入校验、认证授权、密码存储、数据保护、OWASP Top 10",
+      "related-changes": []
+    }
+  ],
+  "product": [
+    {
+      "title": "产品知识说明",
+      "path": "product/README.md",
+      "tags": [],
+      "summary": "Workspace 产品世界的目的、结构和使用指南",
+      "related-changes": []
+    }
+  ]
+}

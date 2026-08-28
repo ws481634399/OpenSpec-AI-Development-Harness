@@ -216,6 +216,8 @@ openspec change status <CHG> --set developing
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/implementation.md`（含 Commit 记录/文件清单/实现状态）
+
 **TASK-003: 注册端点实现**
 
 ```javascript

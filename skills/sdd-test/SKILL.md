@@ -181,6 +181,8 @@ openspec change status <CHG> --set testing
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/test-report.md`（含 20 测试/AC 矩阵/覆盖率/性能）
+
 **测试用例（节选）：**
 
 ```javascript

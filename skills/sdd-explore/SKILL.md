@@ -219,6 +219,8 @@ openspec change status <CHG> --set exploring
 
 ## 工作示例
 
+> 完整示例参考: `templates/artifacts/examples/exploration.md`（含需求理解/知识检索/影响分析/未知问题）
+
 **用户输入：** "我们需要一个用户注册功能，用户可以用邮箱或手机号注册"
 
 **Agent 分析：**
