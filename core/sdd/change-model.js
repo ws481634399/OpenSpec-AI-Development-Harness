@@ -87,7 +87,7 @@ async function findArchivedMatch(workspaceRoot, { requirement, title }) {
  *
  * 流程（§8.5）：
  * 1. nextChangeId 扫描 changes + archive 取最大 +1
- * 2. mkdir delivery/changes/<id>/evidence/
+ * 2. mkdir delivery/changes/<id>/evidence/ + references/
  * 3. 读 templates/artifacts/metadata.yaml 模板（保留注释）
  * 4. setIn 填充 id/title/summary/status:created/requirement/created-at/updated-at/repositories
  * 5. 查 archive 关联历史 → 写 related-change（§8.6）
@@ -104,9 +104,11 @@ export async function runChangeCreate(workspaceRoot, input, harnessRoot) {
   const id = await nextChangeId(workspaceRoot);
   const changeDir = join(workspaceRoot, 'delivery', 'changes', id);
   const evidenceDir = join(changeDir, 'evidence');
+  const referencesDir = join(changeDir, 'references');
 
   await mkdir(changeDir, { recursive: true });
   await mkdir(evidenceDir, { recursive: true });
+  await mkdir(referencesDir, { recursive: true });
 
   // 读模板（保留注释）→ setIn 填充
   const templateRaw = await readFile(metadataTemplatePath(root), 'utf8');

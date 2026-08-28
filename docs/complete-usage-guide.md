@@ -39,11 +39,11 @@ OpenSpec 是一套 **SDD（Spec-Driven Development）框架**，为 AI Coding Ag
 
 ### 三个角色
 
-| 角色 | 职责 | 工具 |
-|------|------|------|
-| **用户** | 提出需求、审批草稿、推进流程 | CLI `openspec init` |
+| 角色      | 职责                                       | 工具                        |
+| --------- | ------------------------------------------ | --------------------------- |
+| **用户**  | 提出需求、审批草稿、推进流程               | CLI `openspec init`         |
 | **Agent** | 读 SKILL.md 执行全流程，产出 Artifact 草稿 | Trae / Cursor / Claude Code |
-| **CLI** | 原子操作（创建 CHG、校验、推进状态） | `openspec` 命令 |
+| **CLI**   | 原子操作（创建 CHG、校验、推进状态）       | `openspec` 命令             |
 
 ### v0.1 设计边界
 
@@ -146,16 +146,19 @@ openspec init my-project
 ```
 
 交互式选择（4 步）：
+
 - 项目名称
 - 类型：greenfield（新项目）/ brownfield（已有代码）
 - 代码是否已存在（仅 brownfield 询问）
 - 仓库模式：single（单仓）/ multi（多仓）
 
 仓库 id 和路径自动生成，无需手动输入：
+
 - single → `main` → `implementation/`
 - multi → `repo-1` → `implementation/repo-1`，`repo-2` → `implementation/repo-2`
 
 完成后：
+
 ```bash
 cd my-project
 openspec doctor    # 验证完整性
@@ -163,6 +166,7 @@ openspec status    # 查看状态
 ```
 
 init 自动完成：
+
 - 创建四世界目录（standards/product/delivery/skills）
 - 复制 5 个 Standards 种子到 standards/
 - 复制 10 个 Skill 到 skills/
@@ -179,6 +183,7 @@ init 自动完成：
 ```
 
 Agent 自动执行：
+
 1. 检索知识（读 knowledge-index.json，匹配相关 Standards）
 2. 创建 CHG（`openspec change create`）
 3. 匹配/创建 Feature Tree（sdd-feature-tree）
@@ -291,6 +296,7 @@ openspec init
 ```
 
 Agent 自动执行：
+
 1. 扫描 `implementation/` 代码树（6 级优先级）
 2. 推断技术栈、架构、路由、数据模型
 3. 创建 reverse CHG
@@ -307,6 +313,50 @@ openspec doctor      # 验证 Workspace 完整
 openspec status      # 查看知识概览
 openspec validate --all  # 校验全部 Change
 ```
+
+---
+
+## 5.5 导入现有文档（references/ 机制）
+
+每个 CHG 创建时自动生成 `references/` 目录，用于归档用户提供的原始文档。
+
+### 使用方式
+
+用户无需手动操作 references/ 目录。流程如下：
+
+```
+1. openspec init                          # 初始化 Workspace
+2. 把文档放到任意位置（如 docs/需求.md）
+3. 对 Agent 说："执行 sdd-explore，需求文档在 docs/需求.md"
+4. Agent 内部自动 openspec change create   # 创建 CHG + references/
+5. Agent 读 docs/需求.md → 写 requirement.md + exploration.md
+6. Agent 把原始文档复制到 references/ 归档
+```
+
+### 归档结构
+
+```
+delivery/changes/CHG-0001/
+├── references/          ← Agent 自动归档原始文档
+│   ├── 需求规格.md
+│   ├── 架构设计.md
+│   └── API文档.json
+├── requirement.md       ← Agent 产出
+├── exploration.md
+└── ...
+```
+
+### 适用场景
+
+| 文档类型     | 用户操作                    | Agent 使用方式                        |
+| ------------ | --------------------------- | ------------------------------------- |
+| 需求规格/PRD | 放任意位置，告诉 Agent 路径 | sdd-explore 读取 → 归档到 references/ |
+| 架构设计     | 放任意位置，告诉 Agent 路径 | sdd-reverse 读取 → 交叉验证代码扫描   |
+| API 文档     | 放任意位置，告诉 Agent 路径 | sdd-explore/sdd-design 读取作为约束   |
+| 业务流程     | 放任意位置，告诉 Agent 路径 | sdd-explore 读取提取业务规则          |
+| 技术标准     | 直接放入 standards/         | sdd-knowledge 索引                    |
+
+> 注：`.docx`/`.pdf` 等非文本格式需先转换为 `.md`/`.txt`。
 
 ---
 
@@ -404,12 +454,12 @@ Agent 写 Artifact 草稿
 
 每个 Skill 的 `gate.yaml` 声明 Machine Gate 检查规则：
 
-| 检查项 | 说明 |
-|--------|------|
+| 检查项                | 说明                          |
+| --------------------- | ----------------------------- |
 | required-front-matter | front-matter 必填字段是否存在 |
-| required-sections | 必填 section 是否存在 |
-| no-placeholder | 是否残留 `{{}}` 占位符 |
-| max-words | 字数限制 |
+| required-sections     | 必填 section 是否存在         |
+| no-placeholder        | 是否残留 `{{}}` 占位符        |
+| max-words             | 字数限制                      |
 
 ### 7.3 Human Gate 审批
 
@@ -478,13 +528,13 @@ sdd-explore 和 sdd-reverse 会自动调用 sdd-feature-tree，根据需求自�
 
 init 时自带 5 个种子文件：
 
-| 文件 | 内容 |
-|------|------|
-| coding-standards.md | 命名约定、文件组织、格式化、注释、错误处理 |
+| 文件                       | 内容                                                   |
+| -------------------------- | ------------------------------------------------------ |
+| coding-standards.md        | 命名约定、文件组织、格式化、注释、错误处理             |
 | architecture-principles.md | 分层架构、SOLID、Repository/Factory/Strategy、API 设计 |
-| testing-conventions.md | 测试金字塔、AAA 模式、边界值、覆盖率 |
-| git-conventions.md | 分支命名、Commit 格式、PR 流程、.gitignore |
-| security-guidelines.md | 输入校验、认证授权、密码存储、OWASP Top 10 |
+| testing-conventions.md     | 测试金字塔、AAA 模式、边界值、覆盖率                   |
+| git-conventions.md         | 分支命名、Commit 格式、PR 流程、.gitignore             |
+| security-guidelines.md     | 输入校验、认证授权、密码存储、OWASP Top 10             |
 
 ### 9.2 Product（产品知识世界）
 
@@ -494,26 +544,26 @@ init 时为空（项目特定）。随 Change 推进，sdd-converge 逐步沉淀
 
 三个索引文件，init 时自动生成：
 
-| 文件 | 用途 | 格式 |
-|------|------|------|
-| standards/INDEX.md | 技术规则索引（人读） | Markdown |
-| product/INDEX.md | 产品知识索引（人读） | Markdown |
-| .sdd/knowledge-index.json | 机器可读索引（Agent 检索） | JSON |
+| 文件                      | 用途                       | 格式     |
+| ------------------------- | -------------------------- | -------- |
+| standards/INDEX.md        | 技术规则索引（人读）       | Markdown |
+| product/INDEX.md          | 产品知识索引（人读）       | Markdown |
+| .sdd/knowledge-index.json | 机器可读索引（Agent 检索） | JSON     |
 
 ### 9.4 参考 Artifact
 
 8 个完整示例（统一"用户注册"案例），位于 `templates/artifacts/examples/`：
 
-| 文件 | 对应 Skill |
-|------|-----------|
-| requirement.md | sdd-explore |
-| exploration.md | sdd-explore |
-| prd.md | sdd-prd |
-| design.md | sdd-design |
-| tasks.md | sdd-task |
-| implementation.md | sdd-dev |
-| test-report.md | sdd-test |
-| convergence.md | sdd-converge |
+| 文件              | 对应 Skill   |
+| ----------------- | ------------ |
+| requirement.md    | sdd-explore  |
+| exploration.md    | sdd-explore  |
+| prd.md            | sdd-prd      |
+| design.md         | sdd-design   |
+| tasks.md          | sdd-task     |
+| implementation.md | sdd-dev      |
+| test-report.md    | sdd-test     |
+| convergence.md    | sdd-converge |
 
 ### 9.5 Skill 同步
 
@@ -529,56 +579,56 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 到 Workspace
 
 ### 10.1 用户命令（手动运行）
 
-| 命令 | 用途 | 何时使用 |
-|------|------|---------|
-| `openspec init [path]` | 初始化 Workspace | 项目开始时 |
-| `openspec skill sync` | 同步 Skill 更新 | Harness 更新 SKILL.md 后 |
+| 命令                   | 用途             | 何时使用                 |
+| ---------------------- | ---------------- | ------------------------ |
+| `openspec init [path]` | 初始化 Workspace | 项目开始时               |
+| `openspec skill sync`  | 同步 Skill 更新  | Harness 更新 SKILL.md 后 |
 
 ### 10.2 Agent 命令（Agent 自动调用）
 
-| 命令 | 用途 |
-|------|------|
-| `openspec change create --title <t> [--requirement <r>]` | 创建 CHG |
-| `openspec change list [--status <s>]` | 列出 Change |
-| `openspec change show <CHG>` | 查看 Change 详情 |
-| `openspec change status <CHG>` | 查看 Change 状态 |
-| `openspec change status <CHG> --set <target>` | 推进状态（经 TransitionService） |
-| `openspec change archive <CHG>` | 归档 Change |
-| `openspec feature list [--module <id>] [--json]` | 列出 Feature Tree |
-| `openspec feature show <id>` | 查看 Feature 节点 |
-| `openspec feature add module/feature/story ...` | 添加节点 |
-| `openspec feature update <id> [--name <n>] [--status <s>]` | 更新节点 |
-| `openspec feature remove <id>` | 删除节点 |
-| `openspec gate check <CHG>` | Machine Gate 校验 |
-| `openspec gate approve <CHG>` | Human Gate 审批 |
-| `openspec gate status <CHG>` | 查看 Gate 状态 |
-| `openspec skill list` | 列出 Skill |
-| `openspec skill show <id>` | 查看 Skill 元数据 + SKILL.md 路径 |
+| 命令                                                       | 用途                              |
+| ---------------------------------------------------------- | --------------------------------- |
+| `openspec change create --title <t> [--requirement <r>]`   | 创建 CHG                          |
+| `openspec change list [--status <s>]`                      | 列出 Change                       |
+| `openspec change show <CHG>`                               | 查看 Change 详情                  |
+| `openspec change status <CHG>`                             | 查看 Change 状态                  |
+| `openspec change status <CHG> --set <target>`              | 推进状态（经 TransitionService）  |
+| `openspec change archive <CHG>`                            | 归档 Change                       |
+| `openspec feature list [--module <id>] [--json]`           | 列出 Feature Tree                 |
+| `openspec feature show <id>`                               | 查看 Feature 节点                 |
+| `openspec feature add module/feature/story ...`            | 添加节点                          |
+| `openspec feature update <id> [--name <n>] [--status <s>]` | 更新节点                          |
+| `openspec feature remove <id>`                             | 删除节点                          |
+| `openspec gate check <CHG>`                                | Machine Gate 校验                 |
+| `openspec gate approve <CHG>`                              | Human Gate 审批                   |
+| `openspec gate status <CHG>`                               | 查看 Gate 状态                    |
+| `openspec skill list`                                      | 列出 Skill                        |
+| `openspec skill show <id>`                                 | 查看 Skill 元数据 + SKILL.md 路径 |
 
 ### 10.3 工具命令
 
-| 命令 | 用途 |
-|------|------|
-| `openspec doctor` | Workspace 自检 |
-| `openspec status` | 状态概览 |
-| `openspec status --json` | 状态概览（JSON，供 Agent） |
-| `openspec validate <CHG>` | 校验 Change |
-| `openspec validate --all` | 校验全部 Change |
-| `openspec workflow list` | 列出 Workflow |
-| `openspec workflow show default` | 查看 Workflow 配置 |
-| `openspec workflow run default --change <CHG>` | 执行 Workflow 下一步 |
+| 命令                                           | 用途                       |
+| ---------------------------------------------- | -------------------------- |
+| `openspec doctor`                              | Workspace 自检             |
+| `openspec status`                              | 状态概览                   |
+| `openspec status --json`                       | 状态概览（JSON，供 Agent） |
+| `openspec validate <CHG>`                      | 校验 Change                |
+| `openspec validate --all`                      | 校验全部 Change            |
+| `openspec workflow list`                       | 列出 Workflow              |
+| `openspec workflow show default`               | 查看 Workflow 配置         |
+| `openspec workflow run default --change <CHG>` | 执行 Workflow 下一步       |
 
 ### 10.4 Workflow 状态
 
 `openspec workflow run` 返回值：
 
-| 状态 | 含义 | Agent 动作 |
-|------|------|-----------|
-| WAITING_FOR_ARTIFACT | 等待 Skill 产出 | 读 SKILL.md 执行 |
-| WAITING_FOR_MACHINE_FIX | Machine Gate 失败 | 修复 Artifact |
-| WAITING_FOR_HUMAN | 等待用户审批 | 展示草稿，等待确认 |
-| ADVANCED | 已推进状态 | 继续下一步 |
-| COMPLETED | Change 完成 | 执行归档 |
+| 状态                    | 含义              | Agent 动作         |
+| ----------------------- | ----------------- | ------------------ |
+| WAITING_FOR_ARTIFACT    | 等待 Skill 产出   | 读 SKILL.md 执行   |
+| WAITING_FOR_MACHINE_FIX | Machine Gate 失败 | 修复 Artifact      |
+| WAITING_FOR_HUMAN       | 等待用户审批      | 展示草稿，等待确认 |
+| ADVANCED                | 已推进状态        | 继续下一步         |
+| COMPLETED               | Change 完成       | 执行归档           |
 
 ---
 
@@ -587,6 +637,7 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 到 Workspace
 ### 11.1 提示词模板
 
 **启动新需求：**
+
 ```
 请执行 skills/sdd-explore/SKILL.md 中的指令。
 
@@ -594,11 +645,13 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 到 Workspace
 ```
 
 **推进下一阶段：**
+
 ```
 请执行 skills/sdd-prd/SKILL.md，为 CHG-0001 生成 PRD 草稿。
 ```
 
 **查看 Skill：**
+
 ```
 openspec skill show sdd-prd
 # 输出 SKILL.md 路径，Agent 读取该路径执行
@@ -653,7 +706,8 @@ my-project/
 │   │       ├── tasks.md
 │   │       ├── implementation.md
 │   │       ├── convergence.md
-│   │       └── evidence/       # 测试证据
+│   │       ├── evidence/       # 测试证据
+│   │       └── references/     # 用户原始文档
 │   └── archive/                # 已归档 Change
 ├── skills/                     # Skill 世界（10 个）
 │   ├── sdd-explore/
