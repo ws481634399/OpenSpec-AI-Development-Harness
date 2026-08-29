@@ -3,6 +3,7 @@
 > 阶段: explore
 > 状态转换: created → exploring
 > 产出: requirement.md + exploration.md
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/explore/persona-explore.md
 
 ## 前置条件
 
@@ -118,26 +119,38 @@ openspec change create --title "<需求标题>" --requirement <REQ-XXX>
 
 读取 `skills/sdd-feature-tree/SKILL.md` 并执行。
 
+Phase 2.4：Feature Tree 为固定四级结构（L1 → L2 → L3 → Story），
+ID 采用层级嵌套编码（如 `FEAT-001-02-03` / `STORY-001-02-03-01`）。
+
 #### 4.1 Feature 匹配策略
 
 **匹配优先级：**
 
-1. Story 级匹配 — 是否已有相同 Story（如"用户注册"已存在）
-2. Feature 级匹配 — 是否属于已有 Feature（如"用户认证"下的新 Story）
-3. Module 级匹配 — 是否属于已有 Module（如"用户中心"下的新 Feature）
-4. 新建 Module — 需求不属于任何现有 Module
+1. Story 级匹配 — 是否已有相同 Story（最小产品能力节点）
+2. L3 匹配 — 是否属于已有 L3 节点（新增 Story）
+3. L2/L1 匹配 — 是否需要新建 L3/L2/L1
+4. Candidate 兜底 — 树中找不到合理归属时产出 Candidate（见 §4.2）
 
 **匹配判断方法：**
 
 - 语义相似度：需求核心动词 + 操作对象是否与现有 Story 描述一致
-- 功能包含关系：需求是否是现有 Feature 的子能力
-- 业务域归属：需求涉及的数据实体是否属于现有 Module
+- 功能包含关系：需求是否是现有节点的子能力
+- 业务域归属：需求涉及的数据实体是否属于现有分支
 
 **当匹配不确定时：**
 
-- 向用户展示候选 Feature 路径
+- 向用户展示候选 Feature Path（四级链）
 - 说明匹配理由
 - 请用户确认或指定其他路径
+
+#### 4.2 Candidate 兜底（Phase 2.4 §17.4）
+
+需求无法映射到现有树且用户暂不能确认新建节点时：
+
+- 按 sdd-feature-tree 规则产出 Candidate（product/features/ 下 pending 文件）
+- 绑定 Change feature-path 时标记 `--candidate`
+- Candidate 未晋升（candidate: true）的 CHG 无法进入 task 阶段（gate 链阻断）
+- 用户确认晋升后重新执行 bind-feature-path（不带 --candidate）完成绑定
 
 ### 5. 写 requirement.md
 
@@ -194,14 +207,18 @@ created-at: "2026-01-01T00:00:00Z"
 
 将步骤 2 检索到的历史知识整合到分析中，标注引用来源。
 
-### 7. 更新 metadata
+### 7. 绑定 feature-path（Phase 2.4）
 
-将 Story ID 写入 metadata.yaml 的 features 字段：
+将步骤 4 确认的 Story 绑定到 Change（写入 metadata.feature-path 四级链）：
 
-```yaml
-features:
-  - STORY-3
+```bash
+openspec change bind-feature-path <CHG> --story <STORY-ID>
 ```
+
+- 命令从 `product/feature-tree.yaml` 推导完整四级链（含各层 name），无需手动构造
+- Candidate 场景加 `--candidate` 标记（§4.2）
+- 绑定后 metadata.features 扁平索引自动刷新（v2 兼容字段）
+- 未绑定 feature-path 的 Change 无法进入 task/dev/test 阶段
 
 ## 产出草稿
 
@@ -214,7 +231,8 @@ features:
 
 - [ ] 需求标题是否 10-30 字，能独立表达需求意图？
 - [ ] 需求描述是否保持用户原话，未做主观改写？
-- [ ] Feature 归属是否经用户确认？
+- [ ] Feature Path（四级链）归属是否经用户确认？
+- [ ] 是否已执行 `openspec change bind-feature-path`（或明确标记 Candidate）？
 - [ ] exploration.md 是否包含需求本质分析（不只是复述需求）？
 - [ ] 影响分析是否覆盖了可能受影响的现有功能？
 - [ ] 未知问题是否明确列出，待 PRD 阶段解决？
@@ -272,7 +290,8 @@ openspec change status <CHG> --set exploring
 ## 行为规则
 
 - 不跳过必经阶段
-- 产出草稿供用户确认，不直接推进状态
 - Feature Tree 不命中时调用 sdd-feature-tree 自动创建
 - 利用 sdd-knowledge 检索历史知识，避免重复探索
 - 需求模糊时主动追问，不基于猜测继续
+
+> 通用行为约束（产出草稿供用户确认 / 不直接推进状态等）见 prompts/common/constraints.md。

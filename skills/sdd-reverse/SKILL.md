@@ -3,10 +3,11 @@
 > 阶段: reverse
 > 不进 7 状态生命周期（辅助 Skill，旧项目接入）
 > 产出: instruction.md + reverse-report.md + standards/ 和 product/ 知识草稿
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/explore/persona-reverse.md
 
 ## 前置条件
 - Workspace 已初始化（`openspec init` 已执行，选择 brownfield 模式）
-- `implementation/` 目录有现有代码
+- `implementation/` 下各子仓（`.sdd/repositories.yaml` 登记）有现有代码
 
 ## 执行步骤
 
@@ -24,11 +25,13 @@
 **如果用户没有外部文档：**
 - 仅依赖代码扫描结果
 
-### 1. 扫描 implementation/
+### 1. 扫描 implementation/（Phase 2.4：逐仓扫描）
 
-遍历 `implementation/` 目录树：
-- 跳过 `.git` / `node_modules` / `target` / `build` / `dist`
-- 按文件扩展名推断语言/技术栈
+遍历 `implementation/` 下**每个子仓**（backend / frontend / ai 等，独立 Git 仓库）：
+
+- 每仓单独扫描并标注仓库归属（repo id）
+- 仓内遍历目录树：跳过 `.git` / `node_modules` / `target` / `build` / `dist`
+- 按文件扩展名推断语言/技术栈（各仓可不同）
 - 检测框架标记文件
 - 识别核心目录结构
 
@@ -198,11 +201,12 @@ Feature Tree 草稿：
 ### 8. 质量自检
 
 产出前自检：
+- [ ] 每个子仓（repositories.yaml 登记的全部仓库）是否都已扫描？
 - [ ] 扫描是否覆盖了 6 级优先级全部目录（如存在）？
 - [ ] 技术栈判断是否有配置文件证据？
-- [ ] 业务域划分是否与目录结构/路由一致？
+- [ ] 业务域划分是否与目录结构/路由一致，且标注了仓库归属？
 - [ ] Feature Tree 是否覆盖了全部识别的业务能力？
-- [ ] standards 草稿是否包含编码规范 + 架构决策 + 技术选型？
+- [ ] standards 草稿是否包含编码规范 + 架构决策 + 技术选型（按仓区分技术栈差异）？
 - [ ] product 草稿是否包含业务域 + 核心能力？
 - [ ] 遗留问题是否明确列出（如不确定的架构判断）？
 
@@ -273,9 +277,12 @@ Product: 在线商城
 ```
 
 ## 行为规则
+
 - 不推进 7 状态生命周期
 - 不修改 implementation/ 代码
+- 逐仓扫描并标注仓库归属，不混合多仓结果
 - 知识写入通过 sdd-knowledge 执行
-- 产出草稿供用户确认
 - 业务域划分必须基于代码证据（目录结构/路由），不猜测
 - 遗留问题必须明确列出，不默默跳过
+
+> 通用行为约束（产出草稿供用户确认等）见 prompts/common/constraints.md。

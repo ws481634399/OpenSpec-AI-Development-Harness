@@ -10,6 +10,7 @@ machine-checks:
   - required-sections
   - cross-reference-valid
   - repositories-match-metadata
+  - feature-path-bound # Phase 2.4：feature-path 四级完整且 candidate=false
 
 required-front-matter: []
 

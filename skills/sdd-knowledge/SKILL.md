@@ -3,6 +3,7 @@
 > 阶段: knowledge
 > 不进 7 状态生命周期（辅助 Skill，供 sdd-converge / sdd-explore 调用或独立使用）
 > 产出: standards/INDEX.md, product/INDEX.md, .sdd/knowledge-index.json
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/review/persona-knowledge.md
 
 ## 四种能力
 
@@ -47,11 +48,16 @@
 ---
 title: <标题>
 tags: [<标签>]
+repos: [<适用仓库 id，可空=全仓通用>]
 related-changes: [<CHG-XXXX>]
 created-at: <ISO8601>
 updated-at: <ISO8601>
 ---
 ```
+
+> Phase 2.4 多仓：规则仅适用于特定仓技术栈时（如 Java 后端规范），
+> 在 front-matter 标注 `repos`（对应 `.sdd/repositories.yaml` 的仓库 id）；
+> 省略表示全仓通用。
 
 **合并原则：**
 - 保留历史内容，不覆盖

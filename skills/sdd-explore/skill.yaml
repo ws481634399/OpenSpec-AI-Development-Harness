@@ -25,3 +25,8 @@ produces-state: exploring # 产出状态（执行后推进到 exploring）
 output-artifacts: # Artifact Contract，引用 templates/artifacts/ 模板
   - requirement.md
   - exploration.md
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - explore/persona-explore

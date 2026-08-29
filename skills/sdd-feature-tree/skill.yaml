@@ -20,3 +20,8 @@ requires-state: null # 不进 7 状态生命周期
 produces-state: null
 output-artifacts:
   - feature-tree.yaml # product/feature-tree.yaml（更新或新建节点）
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - review/persona-feature-tree

@@ -22,3 +22,8 @@ produces-state: created # 不推进生命周期状态，保持 created 直到归
 output-artifacts:
   - instruction.md # 执行指令（本 Skill 产出）
   - reverse-report.md # 知识提取报告（Agent 执行后产出）
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - explore/persona-reverse

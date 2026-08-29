@@ -47,8 +47,12 @@ test('copier: greenfield 复制产物正确（README 改名 + workspace/reposito
   assert.ok(await pathExists(join(tmp, '.sdd/context-rules.yaml')), 'context-rules.yaml 应复制');
   assert.ok(await pathExists(join(tmp, '.sdd/README.md')), '.sdd/README.md 应复制');
 
-  for (const w of ['standards', 'product', 'delivery', 'skills', 'implementation']) {
+  for (const w of ['standards', 'product', 'delivery', 'skills', 'prompts', 'implementation']) {
     assert.ok(await pathExists(join(tmp, w)), `${w}/ 应存在`);
+  }
+  // Phase 2.3：prompts/ 片段就位（四类目录 + common）
+  for (const d of ['common', 'explore', 'design', 'coding', 'review']) {
+    assert.ok(await pathExists(join(tmp, 'prompts', d)), `prompts/${d}/ 应存在`);
   }
   await rmrf(tmp);
 });
@@ -60,16 +64,21 @@ test('copier: brownfield 外部路径不创建 implementation', async () => {
   await rmrf(tmp);
 });
 
-test('copier: --force 不触碰四世界', async () => {
+test('copier: --force 不触碰受保护目录（四世界 + prompts）', async () => {
   const tmp = await mkdtemp(join(tmpdir(), 'sdd-force-'));
   await copyTemplate(templateDir, tmp, { shouldCreateImplementation: true, force: false });
-  // 在 standards/ 内放标记文件，模拟用户知识
+  // 在 standards/ 与 prompts/ 内放标记文件，模拟用户自定义内容
   await writeFile(join(tmp, 'standards', 'USER_MARKER.md'), 'user kept');
-  // --force 再复制：四世界应被跳过，标记文件保留
+  await writeFile(join(tmp, 'prompts', 'common', 'USER_PROMPT.md'), 'user prompt');
+  // --force 再复制：受保护目录应被跳过，标记文件保留
   await copyTemplate(templateDir, tmp, { shouldCreateImplementation: true, force: true });
   assert.ok(
     await pathExists(join(tmp, 'standards', 'USER_MARKER.md')),
     '--force 不应清空 standards/ 标记文件'
+  );
+  assert.ok(
+    await pathExists(join(tmp, 'prompts', 'common', 'USER_PROMPT.md')),
+    '--force 不应覆盖用户自定义 prompts/ 文件'
   );
   assert.ok(await pathExists(join(tmp, '.sdd/version.yaml')), '.sdd/version.yaml 应刷新');
   await rmrf(tmp);

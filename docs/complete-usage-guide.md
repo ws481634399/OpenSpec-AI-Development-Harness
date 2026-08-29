@@ -13,7 +13,7 @@
 3. [核心概念](#3-核心概念)
 4. [新项目完整流程](#4-新项目完整流程)
 5. [已有项目接入](#5-已有项目接入)
-6. [10 个 Skill 详解](#6-10-个-skill-详解)
+6. [11 个 Skill 详解](#6-11-个-skill-详解)
 7. [Gate 门禁系统](#7-gate-门禁系统)
 8. [Feature Tree 管理](#8-feature-tree-管理)
 9. [知识底座](#9-知识底座)
@@ -75,7 +75,7 @@ openspec doctor       # 自检
 ### 2.3 验证 Skill 可用
 
 ```bash
-openspec skill list          # 列出 10 个 Skill
+openspec skill list          # 列出 11 个 Skill
 openspec skill show sdd-explore  # 查看 Skill 元数据 + SKILL.md 路径
 ```
 
@@ -135,6 +135,28 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
   → Agent 调用 gate approve + change status --set
 ```
 
+### 3.5 多仓交付模型（Phase 2.4）
+
+**两级 Delivery：**
+
+| 层级 | 位置 | 职责 |
+| ---- | ---- | ---- |
+| Workspace Delivery | `delivery/changes/<CHG>/` | 需求探索 → PRD → 设计 → DU 分解 → 跨仓汇总/知识收敛 |
+| Repository Delivery | `implementation/<repo>/delivery/.../DU-XXX/` | 仓内实施（代码/证据/Commit） |
+
+**核心机制：**
+
+- **feature-path 挂载**：Change 绑定四级链（L1/L2/L3/Story），STORY 级 Artifact
+  （tasks.md）按 `<CHG>/<L1>/<L2>/<L3>/<STORY>/` 目录存放
+- **Delivery Unit（DU）**：1 DU = 1 仓库的 **Repository-specific executable delivery specification**
+  （Phase 2.5）。task 阶段分解（Fan-out）并为每个 DU 产出 Implementation Sketch（必填）/
+  Pseudocode（条件必填）/ Verification（必填）作为 Dev 前置实现指导；在各仓物化并实施
+  （允许偏离但须记录 Deviations），dev/test 阶段回传状态（Fan-in），驱动 Workspace 状态推进
+- **Git 边界**：Workspace 独立 Git 仓，不包含 `implementation/` 内容（.gitignore 排除）；
+  各子仓独立 Git，Workspace 通过 repositories.yaml / .gitmodules 引用其 commit 指针
+- **多仓机检**：`feature-path-bound` / `du-coverage` / `du-guidance` / `du-materialized` /
+  `du-fan-in-testing` / `du-fan-in-complete` / `submodule-pointer-aligned`
+
 ---
 
 ## 4. 新项目完整流程
@@ -169,7 +191,8 @@ init 自动完成：
 
 - 创建四世界目录（standards/product/delivery/skills）
 - 复制 5 个 Standards 种子到 standards/
-- 复制 10 个 Skill 到 skills/
+- 复制 11 个 Skill 到 skills/
+- 复制 14 个 Prompt 片段到 prompts/（Phase 2.3）
 - 生成知识索引（INDEX.md + knowledge-index.json）
 
 ### 4.2 需求探索（sdd-explore）
@@ -187,9 +210,13 @@ Agent 自动执行：
 1. 检索知识（读 knowledge-index.json，匹配相关 Standards）
 2. 创建 CHG（`openspec change create`）
 3. 匹配/创建 Feature Tree（sdd-feature-tree）
-4. 写 requirement.md + exploration.md 草稿
-5. 展示草稿 → 用户确认
-6. Gate 校验 + 审批 + 推进状态（`openspec gate check/approve` + `openspec change status --set exploring`）
+4. **绑定 feature-path**（Phase 2.4：`openspec change bind-feature-path <CHG> --story <STORY-ID>`，
+   写入四级链；Candidate 场景加 `--candidate`）
+5. 写 requirement.md + exploration.md 草稿
+6. 展示草稿 → 用户确认
+7. Gate 校验 + 审批 + 推进状态（`openspec gate check/approve` + `openspec change status --set exploring`）
+
+> 未绑定 feature-path 的 Change 无法进入 task/dev/test 阶段（gate 链阻断）。
 
 ### 4.3 PRD（sdd-prd）
 
@@ -207,13 +234,28 @@ Agent 读 exploration.md → 用 JTBD 框架分析 → 写 prd.md（含 SMART �
 
 Agent 读 prd.md → 分析架构 → 写 design.md（含接口定义/数据模型/Migration/风险评估）→ 确认 → Gate + 推进。
 
-### 4.5 任务分解（sdd-task）
+Phase 2.4 多仓要求：
+
+- front-matter 声明 `affected-repositories`（与 §3 分仓小节一致，du-coverage 机检输入）
+- 多仓需求必须写 §4 跨仓协作契约（API/Event/Data Contract + 依赖方向 + 集成边界）
+- Design 不产生 DU（DU-XXX 不得出现在 design.md，拆分是 sdd-task 职责）
+
+### 4.5 任务分解（sdd-task，Delivery Decomposition）
 
 ```
 请执行 skills/sdd-task/SKILL.md，为 CHG-0001 分解任务。
 ```
 
-Agent 读 design.md → 分解为 Task 列表 → 写 tasks.md（含依赖图/覆盖矩阵）→ 确认 → Gate + 推进。
+Agent 读 design.md → **分解为 Delivery Unit（DU，1 DU = 1 仓库）并产出 Implementation Guidance**
+（Sketch 必填 / Pseudocode 条件必填 / Verification 必填，写入 tasks.md DU 小节）→ 产出 STORY 级 tasks.md
+（`<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`）→ 注册并物化 DU → 确认 → Gate + 推进：
+
+```bash
+# 注册 Workspace DU（--complexity 命中任一触发器则 Pseudocode 必填）
+openspec du create <CHG> --id DU-BE-001 --repository backend --scope "auth/,models/" --acceptance "AC-1;AC-2" --complexity "business-flow"
+# 物化到各仓 delivery/（生成 9 节 task.md 骨架 + 记录 baseline commit）
+openspec du materialize <CHG> DU-BE-001
+```
 
 ### 4.6 开发实施（sdd-dev）
 
@@ -221,7 +263,18 @@ Agent 读 design.md → 分解为 Task 列表 → 写 tasks.md（含依赖图/�
 请执行 skills/sdd-dev/SKILL.md，为 CHG-0001 开始开发。
 ```
 
-Agent 读 tasks.md → 逐个 Task 实现 → 写代码到 implementation/ → 写 implementation.md（Commit 记录）→ 确认 → Gate + 推进。
+Agent 读 STORY 级 tasks.md + DU metadata + repo task.md 全 9 节（含 §7 Sketch / §8 Pseudocode /
+§9 Verification，Phase 2.5）→ **进入各仓 `implementation/<repo>/` 按 DU Scope 实施**
+→ Commit（`DU: DU-XXX-NNN` 标注）→ 证据写入各仓 DU evidence/ → 与 DU 建议偏离时记录到
+repo implementation.md `## Deviations` → 回传状态 → 确认 → Gate + 推进：
+
+```bash
+# 同步 DU baseline/result commit 到 Workspace
+openspec du sync-status <CHG> DU-BE-001
+```
+
+Workspace 级 implementation.md 只做跨仓汇总引用（Reference do not duplicate）。
+develop → test 阶段前置 `du-fan-in-testing`（全部 DU 进入测试）。
 
 ### 4.7 测试（sdd-test）
 
@@ -229,9 +282,21 @@ Agent 读 tasks.md → 逐个 Task 实现 → 写代码到 implementation/ → �
 请执行 skills/sdd-test/SKILL.md，为 CHG-0001 执行测试。
 ```
 
-Agent 读 design.md + implementation.md → 写测试用例 → 执行测试 → 写 test-report.md（含 AC 矩阵/覆盖率）→ 确认 → Gate + 推进。
+Agent 读 design.md + implementation.md → **在各仓内执行测试**（每个 DU 至少一个验收测试）
+→ DU 级日志/证据回写各仓 → Workspace 聚合 test-report.md（分仓小节 + evidence-ref）→ 确认 → Gate + 推进。
+review 前置 `du-fan-in-complete`（全部 DU completed）。
 
-### 4.8 知识收敛（sdd-converge）
+### 4.8 评审检查点（sdd-review，Phase 2.2）
+
+```
+请执行 skills/sdd-review/SKILL.md，为 CHG-0001 执行评审检查。
+```
+
+Agent 执行四项检查（需求一致性 / 设计一致性 / 代码质量 / 知识同步候选）→ 发现登记为 review-finding 条目 → 修复 blocker/major 并闭环 → 写 review-report.md → 确认 → Gate。
+
+> 注意：sdd-review 是 **同态检查点**——双门禁通过后 review-report.md 置为 accepted，但 Change 状态保持 `testing`，随后进入知识收敛。review-report.md 未 accepted 时 sdd-converge 的 Machine Gate 必失败。
+
+### 4.9 知识收敛（sdd-converge）
 
 ```
 请执行 skills/sdd-converge/SKILL.md，为 CHG-0001 收敛知识。
@@ -239,7 +304,7 @@ Agent 读 design.md + implementation.md → 写测试用例 → 执行测试 →
 
 Agent 读全部 Artifact → 分类知识项 → 调用 sdd-knowledge（沉淀到 standards/product/）→ 更新 Feature Tree Story 状态 → 写 convergence.md → 确认 → Gate + 推进到 completed。
 
-### 4.9 归档
+### 4.10 归档
 
 ```
 请执行 openspec change archive CHG-0001
@@ -247,7 +312,7 @@ Agent 读全部 Artifact → 分类知识项 → 调用 sdd-knowledge（沉淀�
 
 Change 移到 delivery/archive/，生命周期完成。
 
-### 4.10 流程图
+### 4.11 流程图
 
 ```
 用户                     Agent（读 SKILL.md）              CLI 原子命令
@@ -257,6 +322,7 @@ Change 移到 delivery/archive/，生命周期完成。
  ├── "探索需求" ──────────►│ sdd-explore                  │
  │                         ├──────────────────────────────►│ change create
  │                         ├──────────────────────────────►│ feature add
+ │                         ├──────────────────────────────►│ change bind-feature-path
  │                         ├── 写 requirement.md          │
  │                         ├── 写 exploration.md          │
  │◄── 展示草稿 ────────────┤                              │
@@ -269,7 +335,8 @@ Change 移到 delivery/archive/，生命周期完成。
  │◄── 展示草稿 ────────────┤                              │
  ├── 确认 ───────────────►├──────────────────────────────►│ gate + status
  │                         │                              │
- │   ... design → task → dev → test → converge ...        │
+ │   ... design → task(du create/materialize) → dev(du sync-status)
+ │      → test → review → converge ...                       │
  │                         │                              │
  ├── "归档" ───────────────►│──────────────────────────────►│ change archive
 ```
@@ -297,7 +364,7 @@ openspec init
 
 Agent 自动执行：
 
-1. 扫描 `implementation/` 代码树（6 级优先级）
+1. 逐仓扫描 `implementation/` 下各子仓代码树（6 级优先级，标注仓库归属）
 2. 推断技术栈、架构、路由、数据模型
 3. 创建 reverse CHG
 4. 调用 sdd-feature-tree 生成 Feature Tree
@@ -360,9 +427,9 @@ delivery/changes/CHG-0001/
 
 ---
 
-## 6. 10 个 Skill 详解
+## 6. 11 个 Skill 详解
 
-### 主生命周期 Skill（7 个，按状态推进）
+### 主生命周期 Skill（7 个，按状态推进）+ 检查点 Skill（1 个）
 
 #### sdd-explore（created → exploring）
 
@@ -381,25 +448,32 @@ delivery/changes/CHG-0001/
 
 - **产出**：design.md
 - **方法论**：现有架构分析 + SOLID 原则 + Repository/Factory/Strategy 模式 + 接口设计 + 风险评估
+- **Phase 2.4**：affected-repositories 声明 + §3 分仓小节 + §4 跨仓协作契约；不产生 DU
 - **完整示例**：`templates/artifacts/examples/design.md`
 
-#### sdd-task（designed → tasked）
+#### sdd-task（designed → tasked，Delivery Decomposition）
 
-- **产出**：tasks.md
-- **方法论**：5 层分解策略 + 粒度标准（1 Task = 1 Commit）+ 依赖分析 + AC 覆盖矩阵
+- **产出**：STORY 级 tasks.md（`<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`）+ Workspace DU 注册
+- **方法论**：DU 分解（1 DU = 1 仓库）+ 依赖分析 + AC 覆盖 + `du create` / `du materialize`
 - **完整示例**：`templates/artifacts/examples/tasks.md`
 
 #### sdd-dev（tasked → developing）
 
-- **产出**：implementation/ 代码 + evidence/ + implementation.md
-- **方法论**：实现策略 + Commit 规范 + 代码质量要求 + 安全实践
+- **产出**：各仓 DU 实施（代码/task.md/evidence/）+ implementation.md（跨仓汇总）
+- **方法论**：按 DU Scope 分仓实施 + Commit 标注 DU + `du sync-status` 回传 + Fan-in
 - **完整示例**：`templates/artifacts/examples/implementation.md`
 
 #### sdd-test（developing → testing）
 
-- **产出**：evidence/test-report.md
-- **方法论**：测试金字塔 + 等价类/边界值分析 + 异常路径 checklist + AC 覆盖矩阵
+- **产出**：各仓 DU 测试证据 + evidence/test-report.md（跨仓聚合，分仓小节）
+- **方法论**：测试金字塔 + 等价类/边界值分析 + 异常路径 checklist + AC 覆盖矩阵 + DU 验收测试
 - **完整示例**：`templates/artifacts/examples/test-report.md`
+
+#### sdd-review（testing 状态内检查点，Phase 2.2）
+
+- **产出**：review-report.md + review-finding 证据条目
+- **方法论**：四项检查（需求一致性 / 设计一致性 / 代码质量 / 知识同步候选）+ 严重度判定（blocker/major/minor）+ 闭环规则
+- **特殊**：同态检查点——双门禁通过后状态保持 testing；blocker/major 未闭环时 Machine Gate 必失败
 
 #### sdd-converge（testing → completed）
 
@@ -461,6 +535,18 @@ Agent 写 Artifact 草稿
 | no-placeholder        | 是否残留 `{{}}` 占位符        |
 | max-words             | 字数限制                      |
 
+Phase 2.4 多仓检查项（按阶段注册）：
+
+| 检查项                    | 阶段    | 说明                                        |
+| ------------------------- | ------- | ------------------------------------------- |
+| feature-path-bound        | design  | Change 已绑定四级 feature-path              |
+| du-coverage               | task    | design.affected-repositories 全部有 DU 覆盖 |
+| du-guidance               | task    | DU Implementation Guidance 完整性（Sketch 必填 / Pseudocode 条件必填 / Verification 必填 / trigger 枚举合法，Phase 2.5） |
+| du-materialized           | dev     | 全部 DU 已物化到所属仓 delivery/            |
+| du-fan-in-testing         | dev→test| 全部 DU 进入 testing                        |
+| du-fan-in-complete        | review  | 全部 DU completed                           |
+| submodule-pointer-aligned | converge| Workspace 引用的子仓 commit 与 HEAD 一致    |
+
 ### 7.3 Human Gate 审批
 
 用户审批时关注：
@@ -486,34 +572,38 @@ openspec gate status <CHG>     # 查看 Gate 状态
 
 ## 8. Feature Tree 管理
 
-### 8.1 四级结构
+### 8.1 四级结构（Phase 2.4：嵌套编码）
 
 ```
 Product（产品）
-  └── Module（模块）— MOD-NNN
-        └── Feature（功能）— FEAT-NNN
-              └── Story（故事）— STORY-NNN
-                    状态: planned → in-progress → delivered
+  └── L1（业务域）— FEAT-001
+        └── L2（功能组）— FEAT-001-02
+              └── L3（子功能，可选）— FEAT-001-02-03
+                    └── Story（故事）— STORY-001-02-03-01
+                          状态: planned → in-progress → delivered
 ```
+
+- ID 层级嵌套（父 ID + 序号），Story 是 CHG 直接关联的最小单元
+- v1 格式（MOD-/FEAT-/STORY- 前缀）兼容读取，首次写入自动升级
 
 ### 8.2 CLI 命令
 
 ```bash
 # 查看
-openspec feature list                    # 列出整棵树
-openspec feature list --module MOD-1     # 只看某模块
-openspec feature show STORY-3            # 查看某节点
+openspec feature list                      # 列出整棵树
+openspec feature list --module FEAT-001    # 只看某业务域
+openspec feature show STORY-001-01-01      # 查看某节点
 
-# 添加
+# 添加（add feature 按父层级自动生成 L2 或 L3）
 openspec feature add module --name "用户中心"
-openspec feature add feature --module MOD-1 --name "用户认证"
-openspec feature add story --feature FEAT-1 --name "用户注册"
+openspec feature add feature --module FEAT-001 --name "用户认证"
+openspec feature add story --feature FEAT-001-01 --name "用户注册"
 
 # 更新
-openspec feature update STORY-3 --status delivered
+openspec feature update STORY-001-01-01 --status delivered
 
 # 删除
-openspec feature remove STORY-3         # 需确认
+openspec feature remove STORY-001-01-01   # 需确认
 ```
 
 ### 8.3 自动生成
@@ -565,12 +655,39 @@ init 时为空（项目特定）。随 Change 推进，sdd-converge 逐步沉淀
 | test-report.md    | sdd-test     |
 | convergence.md    | sdd-converge |
 
-### 9.5 Skill 同步
+### 9.5 Prompt 片段库（Phase 2.3）
 
-Harness 更新 SKILL.md 后，旧 Workspace 需同步：
+`prompts/` 是可复用提示片段库（persona / 通用约束 / 输出格式），与 Skill 方法论分工：
+
+- SKILL.md = 阶段方法论（怎么走流程、产出什么、质量自检）
+- prompts/ = 跨 Skill 复用的提示文本（角色设定、行为约束、输出格式约定）
+
+目录结构（四类职能族 + common，共 14 个片段）：
+
+```
+prompts/
+├── common/            # 全部 Skill 共享：persona-sdd / constraints / output-format
+├── explore/           # 分析族：sdd-explore / sdd-prd / sdd-reverse
+├── design/            # 设计族：sdd-design / sdd-task
+├── coding/            # 实现族：sdd-dev / sdd-test
+└── review/            # 评审与知识族：sdd-review / sdd-converge / sdd-feature-tree / sdd-knowledge
+```
+
+引用机制（双路径生效）：
+
+- 每个 `skills/<id>/skill.yaml` 声明 `prompts:` 字段；`openspec workflow run` 产出的 Instruction 自动注入「Prompt 片段」section
+- 每个 SKILL.md 顶部有「提示片段」引用行；Agent 直接读 SKILL.md 执行时可按引用读取片段
+
+自定义：直接编辑 Workspace `prompts/` 下片段。`--force` 重新 init 不会覆盖 prompts/；`skill sync` 会覆盖（与 skills/ 同策略），自定义建议用新文件名并修改 skill.yaml 引用。
+
+片段内容规范对齐 `standards/engineering/ai/prompt-standard.md`（Role / Task / Constraints / Output 结构 + front-matter 版本管理）。
+
+### 9.6 Skill 与 Prompt 同步
+
+Harness 更新 SKILL.md 或 Prompt 片段后，旧 Workspace 需同步：
 
 ```bash
-openspec skill sync    # 从 Harness 复制最新 skills/ 到 Workspace
+openspec skill sync    # 从 Harness 复制最新 skills/ 与 prompts/ 到 Workspace
 ```
 
 ---
@@ -579,10 +696,10 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 到 Workspace
 
 ### 10.1 用户命令（手动运行）
 
-| 命令                   | 用途             | 何时使用                 |
-| ---------------------- | ---------------- | ------------------------ |
-| `openspec init [path]` | 初始化 Workspace | 项目开始时               |
-| `openspec skill sync`  | 同步 Skill 更新  | Harness 更新 SKILL.md 后 |
+| 命令                   | 用途                      | 何时使用                        |
+| ---------------------- | ------------------------- | ------------------------------- |
+| `openspec init [path]` | 初始化 Workspace          | 项目开始时                      |
+| `openspec skill sync`  | 同步 Skill 与 Prompt 更新 | Harness 更新 SKILL.md/prompts 后 |
 
 ### 10.2 Agent 命令（Agent 自动调用）
 
@@ -594,6 +711,11 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 到 Workspace
 | `openspec change status <CHG>`                             | 查看 Change 状态                  |
 | `openspec change status <CHG> --set <target>`              | 推进状态（经 TransitionService）  |
 | `openspec change archive <CHG>`                            | 归档 Change                       |
+| `openspec change bind-feature-path <CHG> --story <ID>`     | 绑定四级 feature-path（Phase 2.4） |
+| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明） |
+| `openspec du materialize <CHG> <DU>`                       | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架） |
+| `openspec du list <CHG>` / `du show <CHG> <DU>`            | 查看 DU                           |
+| `openspec du sync-status <CHG> <DU>`                       | 回传 DU baseline/result commit    |
 | `openspec feature list [--module <id>] [--json]`           | 列出 Feature Tree                 |
 | `openspec feature show <id>`                               | 查看 Feature 节点                 |
 | `openspec feature add module/feature/story ...`            | 添加节点                          |
@@ -695,23 +817,27 @@ my-project/
 ├── product/                    # 产品知识世界
 │   ├── INDEX.md                # 索引（人读）
 │   └── feature-tree.yaml       # 四级 Feature Tree
-├── delivery/                   # 交付世界
+├── delivery/                   # 交付世界（Workspace 级）
 │   ├── changes/
 │   │   └── CHG-0001/           # 一个 Change 的全部 Artifact
-│   │       ├── metadata.yaml   # 元信息 + Gate 结果
+│   │       ├── metadata.yaml   # 元信息 + Gate 结果 + feature-path（Phase 2.4）
 │   │       ├── requirement.md
 │   │       ├── exploration.md
 │   │       ├── prd.md
 │   │       ├── design.md
-│   │       ├── tasks.md
-│   │       ├── implementation.md
+│   │       ├── FEAT-001/       # Story 级 Artifact（按 feature-path 四级挂载）
+│   │       │   └── FEAT-001-01/
+│   │       │       └── STORY-001-01-01/
+│   │       │           └── tasks.md   # STORY 级 Delivery Decomposition Plan
+│   │       ├── implementation.md      # 跨仓实施汇总（引用各仓 DU 正文）
+│   │       ├── review-report.md       # 评审检查点报告（Phase 2.2）
 │   │       ├── convergence.md
-│   │       ├── evidence/       # 测试证据
-│   │       └── references/     # 用户原始文档
-│   └── archive/                # 已归档 Change
-├── skills/                     # Skill 世界（10 个）
+│   │       ├── evidence/              # Workspace 聚合证据
+│   │       └── references/            # 用户原始文档
+│   └── archive/                       # 已归档 Change
+├── skills/                     # Skill 世界（11 个，Phase 2.2 起）
 │   ├── sdd-explore/
-│   │   ├── skill.yaml          # Skill 元数据
+│   │   ├── skill.yaml          # Skill 元数据（含 prompts 引用）
 │   │   ├── SKILL.md            # Agent 可执行指令
 │   │   └── gate.yaml           # Gate 规则
 │   ├── sdd-prd/
@@ -719,13 +845,24 @@ my-project/
 │   ├── sdd-task/
 │   ├── sdd-dev/
 │   ├── sdd-test/
+│   ├── sdd-review/             # 评审检查点（Phase 2.2）
 │   ├── sdd-converge/
 │   ├── sdd-feature-tree/       # 辅助：特性树生成
 │   ├── sdd-knowledge/          # 辅助：知识管理
 │   └── sdd-reverse/            # 辅助：旧项目接入
+├── prompts/                    # Prompt 片段库（Phase 2.3，四类 + common）
+│   ├── common/
+│   ├── explore/
+│   ├── design/
+│   ├── coding/
+│   └── review/
 ├── workflows/
 │   └── default.yaml            # 默认 Workflow 配置
-└── implementation/             # 代码实现
+└── implementation/             # 代码实现（各子仓独立 Git，Workspace 不含其内容）
+    └── backend/                # 子仓示例（repositories.yaml 登记）
+        └── delivery/           # Repository 级交付（Phase 2.4）
+            └── FEAT-001/FEAT-001-01/STORY-001-01-01/CHG-0001/
+                └── DU-BE-001/  # Delivery Unit（metadata/task.md/implementation.md/evidence/）
 ```
 
 ---
@@ -761,7 +898,7 @@ my-project/
 ### Q: Agent 不知道执行哪个 Skill？
 
 ```bash
-openspec skill list          # 列出全部 10 个 Skill
+openspec skill list          # 列出全部 11 个 Skill
 openspec skill show sdd-prd # 查看 Skill 元数据 + SKILL.md 路径
 ```
 

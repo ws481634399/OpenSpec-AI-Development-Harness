@@ -6,12 +6,14 @@ import { outro, note } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { listChanges, showChange, changeExists } from '../../../../core/sdd/change-repository.js';
-import { runChangeCreate, readMetadata } from '../../../../core/sdd/change-model.js';
+import { runChangeCreate, readMetadata, bindFeaturePath } from '../../../../core/sdd/change-model.js';
 import { nextStatuses, isValidStatus } from '../../../../core/sdd/change-state-machine.js';
 import { archiveChange } from '../../../../core/sdd/change-archiver.js';
 import { requestTransition } from '../../../../core/sdd/transition-service.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { confirmArchive } from '../lib/change-prompts.js';
+import { readFeatureTree } from '../../../../core/sdd/feature-model.js';
+import { aggregateDuStatus } from '../../../../core/sdd/delivery-unit.js';
 import { join } from 'node:path';
 
 /**
@@ -56,7 +58,11 @@ export function registerChangeCommand(program) {
         } else {
           note(
             changes
-              .map((c) => `${c.id}  ${c.title || '(untitled)'}  status: ${c.status}  updated: ${c.updatedAt}`)
+              .map(
+                (c) =>
+                  `${c.id}  ${c.title || '(untitled)'}  status: ${c.status}  story: ${c.story || '(unbound)'}` +
+                  `  updated: ${c.updatedAt}`
+              )
               .join('\n'),
             `Changes (${changes.length})`
           );
@@ -93,6 +99,44 @@ export function registerChangeCommand(program) {
         }
         if (metadata['related-change']) {
           lines.push(`related-change: ${metadata['related-change']}`);
+        }
+        // Phase 2.4：feature-path 摘要
+        const fp = metadata['feature-path'];
+        if (fp && typeof fp === 'object' && fp.story?.id) {
+          lines.push(
+            `feature-path: ${fp['level-1']?.id || '?'} > ${fp['level-2']?.id || '?'} > ${fp['level-3']?.id || '?'} > ${fp.story.id}` +
+              (fp.candidate ? ' (candidate)' : '')
+          );
+        } else {
+          lines.push('feature-path: (unbound)');
+        }
+        if (metadata['repository-baseline'] && Object.keys(metadata['repository-baseline']).length) {
+          lines.push(
+            `repository-baseline: ${Object.entries(metadata['repository-baseline'])
+              .map(([r, v]) => `${r}@${v.commit}`)
+              .join(', ')}`
+          );
+        }
+        if (metadata['repository-result'] && Object.keys(metadata['repository-result']).length) {
+          lines.push(
+            `repository-result: ${Object.entries(metadata['repository-result'])
+              .map(([r, v]) => `${r}@${v.commit}`)
+              .join(', ')}`
+          );
+        }
+        // DU 概览
+        try {
+          const agg = await aggregateDuStatus(changeDir, ws);
+          if (agg.total > 0) {
+            lines.push(
+              '',
+              `Delivery Units (${agg.total}):`,
+              ...agg.dus.map((d) => `  ${d.id}  repo: ${d.repository}  status: ${d.status}  materialized: ${d.materialized ? 'yes' : 'no'}`),
+              `  allCompleted: ${agg.allCompleted}`
+            );
+          }
+        } catch {
+          // DU 概览失败不阻断 show（feature-path 未绑定等）
         }
         lines.push('', 'Artifacts:');
         for (const a of artifacts) {
@@ -144,6 +188,61 @@ export function registerChangeCommand(program) {
       } catch (e) {
         error(e.message);
         outro('Status update failed.');
+        process.exit(1);
+      }
+    });
+
+  // bind-feature-path：绑定/回填 feature-path（Phase 2.4 §22）
+  // --story 从树推导完整四级链；--candidate 用于 explore Candidate 待晋升场景
+  change
+    .command('bind-feature-path <id>')
+    .requiredOption('--story <story-id>', 'Story ID（feature-tree.yaml 中最小产品能力节点）')
+    .option('--candidate', '标记为 Candidate（未晋升，阻断 task 阶段）')
+    .action(async (id, opts) => {
+      const ws = resolveWorkspaceRoot();
+      try {
+        const changeDir = join(ws, 'delivery', 'changes', id);
+        if (!(await changeExists(ws, id))) {
+          throw new Error(`Change not found: ${id}`);
+        }
+        const tree = await readFeatureTree(ws);
+        // 收集 {story, parentL3, parentL2, parentL1} 完整链
+        let chain = null;
+        for (const l1 of tree.modules) {
+          for (const l2 of l1.children || []) {
+            for (const l3 of l2.children || []) {
+              for (const story of l3.stories || []) {
+                if (story.id === opts.story) {
+                  chain = { 'level-1': l1, 'level-2': l2, 'level-3': l3, story };
+                }
+              }
+              // v1 过渡：story 直挂 L2
+              for (const story of l2.stories || []) {
+                if (story.id === opts.story && !chain) {
+                  chain = { 'level-1': l1, 'level-2': l2, 'level-3': { id: '', name: '' }, story };
+                }
+              }
+            }
+          }
+        }
+        if (!chain) {
+          throw new Error(`Story not found in feature-tree.yaml: ${opts.story}`);
+        }
+        await bindFeaturePath(changeDir, {
+          'level-1': { id: chain['level-1'].id, name: chain['level-1'].name },
+          'level-2': { id: chain['level-2'].id, name: chain['level-2'].name },
+          'level-3': { id: chain['level-3'].id, name: chain['level-3'].name },
+          story: { id: chain.story.id, name: chain.story.name },
+          candidate: !!opts.candidate,
+        });
+        ok(
+          `${id} feature-path bound: ${chain['level-1'].id} > ${chain['level-2'].id} > ${chain['level-3'].id || '-'} > ${chain.story.id}` +
+            (opts.candidate ? ' (candidate)' : '')
+        );
+        outro('Done.');
+      } catch (e) {
+        error(e.message);
+        outro('Bind feature-path failed.');
         process.exit(1);
       }
     });

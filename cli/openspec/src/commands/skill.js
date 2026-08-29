@@ -11,6 +11,7 @@ import {
   listSkills,
   getSkill,
   syncSkills,
+  syncPrompts,
 } from "../../../../core/sdd/skill-registry.js";
 import { getHarnessRoot } from "../../../../core/workspace/harness-root.js";
 import { join } from "node:path";
@@ -82,6 +83,7 @@ export function registerSkillCommand(program) {
         `requires-state: ${y["requires-state"] || "-"}`,
         `produces-state: ${y["produces-state"] || "-"}`,
         `output-artifacts: ${Array.isArray(y["output-artifacts"]) ? y["output-artifacts"].join(", ") : ""}`,
+        `prompts: ${Array.isArray(y.prompts) ? y.prompts.join(", ") : "-"}`,
       ];
       note(lines.join("\n"), `${id} metadata`);
 
@@ -113,8 +115,15 @@ export function registerSkillCommand(program) {
         }
 
         const result = await syncSkills(harnessRoot, workspaceRoot);
-        ok(`已同步 ${result.synced} 个 Skill 到 Workspace skills/`);
-        note(result.details.join("\n"), "Sync Details");
+        const promptResult = await syncPrompts(harnessRoot, workspaceRoot);
+        ok(
+          `已同步 ${result.synced} 个 Skill 到 Workspace skills/，` +
+            `${promptResult.synced} 个 Prompt 片段到 Workspace prompts/`
+        );
+        note(
+          [...result.details, ...promptResult.details].join("\n"),
+          "Sync Details"
+        );
         outro("Done.");
       } catch (e) {
         error(e.message);

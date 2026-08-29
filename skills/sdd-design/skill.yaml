@@ -17,3 +17,8 @@ requires-state: specified
 produces-state: designed
 output-artifacts:
   - design.md
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - design/persona-design

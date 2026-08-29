@@ -1,0 +1,30 @@
+# OpenSpec Repository Delivery Unit Metadata（Repository 实施侧）
+#
+# 版本: v0.2（Phase 2.5 增量：implementation-guidance 段；基线 v0.1 Phase 2.4）
+# 类型: Delivery Unit Metadata — Repository 侧
+# 位置: implementation/<repo>/delivery/<CHG>/<L1>/<L2>/<L3>/<STORY>/DU-xxx/metadata.yaml
+# 生成: delivery-unit.js materializeDeliveryUnit（Task Gate accepted 后）
+#
+# 保存完整 Parent Chain：即使仓库被单独打开，也能追溯 DU → Story → Feature Path → Change。
+# 不复制 Workspace PRD / Design（Reference do not duplicate），workspace-source 仅为相对引用。
+
+id: {{du-id}} # DU-<REPO别名>-NNN
+repository: "" # 所属仓库 id
+parent:
+  change: "" # CHG-XXXX
+feature-path: {} # 完整四级链（至少含各层 id）
+workspace-source: # workspace 相对引用（不复制正文）
+  requirement: "" # delivery/changes/CHG-XXXX/requirement.md
+  prd: "" # delivery/changes/CHG-XXXX/prd.md
+  design: "" # delivery/changes/CHG-XXXX/design.md
+  tasks: "" # delivery/changes/CHG-XXXX/<L1>/<L2>/<L3>/<STORY>/tasks.md
+scope: [] # 本 DU 交付范围
+implementation-guidance: # Phase 2.5：从 Workspace DU 复制，仓库单独打开时仍可追溯 Pseudocode 要求
+  sketch: true # Implementation Sketch 必填（恒为 true，占位声明）
+  pseudocode: false # 本 DU 是否要求 Pseudocode（complexity-trigger 命中时 true）
+  complexity-trigger: [] # 命中的触发器：business-flow / algorithm / state-transition / orchestration
+status: pending # pending / developing / testing / completed（轻量记录，非 Lifecycle State）
+baseline:
+  commit: "" # materialize 时记录的仓库 HEAD
+result:
+  commit: "" # completed 时的仓库 HEAD

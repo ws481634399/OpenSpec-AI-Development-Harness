@@ -9,7 +9,7 @@ import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { resolve, basename } from 'node:path';
+import { resolve, basename, join } from 'node:path';
 
 /**
  * 打印成功输出（对齐设计 §16.1）。
@@ -61,7 +61,7 @@ export function registerInitCommand(program) {
 
       let config;
       try {
-        config = await askInitConfig(defaultName);
+        config = await askInitConfig(defaultName, targetDir);
       } catch (e) {
         error(e.message);
         outro('Initialization canceled.');
@@ -72,6 +72,20 @@ export function registerInitCommand(program) {
       try {
         const { selfCheck } = await runInit(config, targetDir, harnessRoot);
         printSuccess(config, harnessVersion, selfCheck);
+
+        // Phase 2.4 §5.3：Git 边界提示（只检测，不自动执行 git 操作）
+        if (existsSync(join(targetDir, '.git'))) {
+          note(
+            'Workspace 根已是 Git 仓库。implementation/ 下各子仓建议以 git submodule 管理\n' +
+              '（.gitmodules = Git 映射；.sdd/repositories.yaml = OpenSpec 注册表，二者由 openspec doctor 校验一致性）。',
+            'Git'
+          );
+        } else if (config.detectedRepos > 0) {
+          note(
+            `已注册 ${config.detectedRepos} 个检测到的代码仓。workspace 根 git init 与 submodule add 由你显式执行。`,
+            'Git'
+          );
+        }
         outro('Done.');
       } catch (e) {
         error(e.message);

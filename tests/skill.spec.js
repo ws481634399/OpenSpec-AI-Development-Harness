@@ -110,13 +110,13 @@ test('SkillLoader: 加载 sdd-knowledge 返回正确元数据', async () => {
 
 // ---- SkillRegistry ----
 
-test('SkillRegistry: listSkills 返回 10 个 Skill', async () => {
+test('SkillRegistry: listSkills 返回 11 个 Skill', async () => {
   const skills = await listSkills(harnessRoot);
-  assert.equal(skills.length, 10);
+  assert.equal(skills.length, 11);
   const ids = skills.map((s) => s.id);
   for (const expected of [
     'sdd-explore', 'sdd-prd', 'sdd-design', 'sdd-task', 'sdd-dev',
-    'sdd-test', 'sdd-converge', 'sdd-reverse', 'sdd-feature-tree', 'sdd-knowledge',
+    'sdd-test', 'sdd-review', 'sdd-converge', 'sdd-reverse', 'sdd-feature-tree', 'sdd-knowledge',
   ]) {
     assert.ok(ids.includes(expected), `missing skill: ${expected}`);
   }

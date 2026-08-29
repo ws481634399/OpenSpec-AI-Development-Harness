@@ -1,0 +1,31 @@
+# OpenSpec Delivery Unit Metadata（Workspace 协调记录）
+#
+# 版本: v0.2（Phase 2.5 增量：implementation-guidance 段；基线 v0.1 Phase 2.4）
+# 类型: Delivery Unit Metadata — Workspace 侧
+# 位置: <CHG>/<L1>/<L2>/<L3>/<STORY>/DU-xxx/metadata.yaml
+# 生成: delivery-unit.js writeWorkspaceDu（sdd-task 产出）
+#
+# Workspace DU 只保存 Reference / Summary / Status，不复制 implementation.md /
+# evidence 正文 / commit log（Reference, do not duplicate）。
+# 实际交付见 repository-delivery.path 指向的 Repository Delivery。
+
+id: {{du-id}} # DU-<REPO别名>-NNN（如 DU-BE-001），Workspace 内唯一
+repository: "" # 所属仓库 id（对应 .sdd/repositories.yaml，1:1 硬约束）
+parent:
+  change: "" # CHG-XXXX
+feature-path: {} # 与 CHG metadata.feature-path 同构（level-1/2/3 + story）
+scope: [] # 本 DU 交付范围（du-coverage 机检输入）
+dependencies: [] # 依赖的 DU id
+acceptance: [] # 验收标准条目
+implementation-guidance: # Phase 2.5：Dev 前置实现指导声明（正文在 tasks.md DU 小节，不复制进 metadata）
+  sketch: true # Implementation Sketch 必填（恒为 true，占位声明）
+  pseudocode: false # 本 DU 是否要求 Pseudocode（complexity-trigger 命中时 true）
+  complexity-trigger: [] # 命中的触发器：business-flow / algorithm / state-transition / orchestration
+repository-delivery:
+  path: "" # repo 侧交付目录（workspace 相对路径），materialize 后回填
+status: pending # pending / developing / testing / completed（轻量记录，非 Lifecycle State）
+evidence-ref: [] # repo 侧 evidence 引用（路径条目）
+baseline:
+  commit: "" # materialize 时记录的仓库 HEAD（可选，du sync-status 刷新）
+result:
+  commit: "" # completed 时的仓库 HEAD（可选）

@@ -12,6 +12,7 @@ import { loadWorkflow, findStageByToState } from './workflow-loader.js';
 import { loadGate } from './gate-config-loader.js';
 import { readGateResult, patchArtifactStatus } from './gate-repository.js';
 import { sha256 } from './artifact-hash.js';
+import { resolveArtifactPath } from './artifact-path.js';
 
 const pathExists = (p) =>
   stat(p).then(() => true).catch((e) => (e.code === 'ENOENT' ? false : Promise.reject(e)));
@@ -56,8 +57,8 @@ export async function requestTransition(changeDir, targetState, opts = {}) {
   const artifactName = stage.artifact;
   await loadGate(skillId, opts.harnessRoot); // 校验 gate.yaml 存在
 
-  // 4. 确认 Artifact 存在
-  const artifactPath = join(changeDir, artifactName);
+  // 4. 确认 Artifact 存在（Phase 2.4：Story 级 artifact 按 feature-path 解析）
+  const artifactPath = resolveArtifactPath(changeDir, artifactName, meta);
   if (!(await pathExists(artifactPath))) {
     return {
       advanced: false,
@@ -104,4 +105,58 @@ export async function requestTransition(changeDir, targetState, opts = {}) {
   await patchStatus(changeDir, targetState);
 
   return { advanced: true, reason: `${current} → ${targetState}` };
+}
+
+/**
+ * 同态检查点验收（Phase 2.2，plans/phase-2.2-sdd-review-skill-design.md §3.2）：
+ * from-state === to-state 的 stage（如 sdd-review）双门禁通过后，
+ * 仅将 Artifact 标记为 accepted，不推进 Change 状态。
+ *
+ * 验收步骤与 requestTransition 第 4-8 步完全一致（hash 匹配防 stale）：
+ * 不做 validateTransition（同态无需转换）、不调 patchStatus。
+ *
+ * stage 由调用方（WorkflowEngine）显式传入——同态 to-state 在 state-map 中
+ * 可能对应多个 stage（如 testing），反查会产生歧义。
+ *
+ * @param {string} changeDir CHG 目录绝对路径
+ * @param {{skill:string, artifact:string, gate:string}} stage 当前 stage 定义
+ * @param {object} [opts] { harnessRoot }
+ * @returns {Promise<{accepted:boolean, reason:string}>}
+ */
+export async function requestCheckpoint(changeDir, stage, opts = {}) {
+  const artifactName = stage.artifact;
+
+  // 确认 Artifact 存在（Phase 2.4：统一走 artifact 路径解析，Story 级 artifact 物化到 STORY 目录）
+  const meta = await readMetadata(changeDir);
+  const artifactPath = resolveArtifactPath(changeDir, artifactName, meta);
+  if (!(await pathExists(artifactPath))) {
+    return { accepted: false, reason: `WAITING_FOR_ARTIFACT: ${artifactName} not found` };
+  }
+
+  // 计算当前 Hash
+  const content = await readFile(artifactPath, 'utf8');
+  const currentHash = sha256(content);
+
+  // 确认 Machine Gate = passed 且 hash 匹配
+  const gateResult = await readGateResult(changeDir, artifactName);
+  if (
+    gateResult.gates.machine.status !== 'passed' ||
+    gateResult.gates.machine['artifact-hash'] !== currentHash
+  ) {
+    return { accepted: false, reason: `WAITING_FOR_MACHINE: gate stale or not passed` };
+  }
+
+  // 确认 Human Gate = approved 且 hash 匹配（bypassed 视为未通过）
+  const humanStatus = gateResult.gates.human.status;
+  if (humanStatus !== 'approved') {
+    return { accepted: false, reason: `WAITING_FOR_HUMAN: gate ${humanStatus} (v0.1 requires approved)` };
+  }
+  if (gateResult.gates.human['artifact-hash'] !== currentHash) {
+    return { accepted: false, reason: `WAITING_FOR_HUMAN: gate stale (hash mismatch)` };
+  }
+
+  // Artifact status = accepted（不改 Change 状态）
+  await patchArtifactStatus(changeDir, artifactName, 'accepted');
+
+  return { accepted: true, reason: `checkpoint ${artifactName} accepted (state unchanged)` };
 }

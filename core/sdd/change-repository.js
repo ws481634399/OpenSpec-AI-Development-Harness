@@ -36,12 +36,15 @@ export async function listChanges(workspaceRoot, opts = {}) {
       continue;
     }
     if (opts.status && meta.status !== opts.status) continue;
+    // Phase 2.4：feature-path 摘要（STORY id；未绑定为空）
+    const fp = meta['feature-path'];
     changes.push({
       id: meta.id || e.name,
       title: meta.title || '',
       status: meta.status || '',
       changeDir,
       updatedAt: meta['updated-at'] || '',
+      story: fp?.story?.id || '',
     });
   }
   // 按 updated-at 倒序（空值排末尾）

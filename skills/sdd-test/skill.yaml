@@ -13,7 +13,14 @@ input:
   - implementation/
 output:
   - evidence/
+  - evidence/evidence.yaml # Phase 2.1：结构化证据（test-run 条目）
 requires-state: developing
 produces-state: testing
 output-artifacts:
   - evidence/
+  - evidence/evidence.yaml
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - coding/persona-test

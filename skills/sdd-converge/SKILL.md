@@ -3,10 +3,13 @@
 > 阶段: converge
 > 状态转换: testing → completed
 > 产出: convergence.md + standards/ 和 product/ 知识更新
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/review/persona-converge.md
 
 ## 前置条件
 - Change 处于 `testing` 状态
-- 全部前序 Artifact 已完成（requirement → exploration → prd → design → tasks → implementation → test-report）
+- 全部前序 Artifact 已完成（requirement → exploration → prd → design → STORY 级 tasks → implementation → test-report）
+- review-report.md 已 accepted（Phase 2.2 评审检查点：blocker/major findings 全部闭环，双门禁通过）
+- Phase 2.4：全部 DU 已 completed（du-fan-in-complete），result commit 与各仓 HEAD 对齐（submodule-pointer-aligned）
 
 ## 执行步骤
 
@@ -17,9 +20,11 @@
 - `delivery/changes/<CHG>/exploration.md`
 - `delivery/changes/<CHG>/prd.md`
 - `delivery/changes/<CHG>/design.md`
-- `delivery/changes/<CHG>/tasks.md`
-- `delivery/changes/<CHG>/implementation.md`
+- STORY 级 `delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`
+- `delivery/changes/<CHG>/implementation.md`（跨仓汇总；各仓 DU 正文按引用追溯）
 - `delivery/changes/<CHG>/evidence/test-report.md`
+- `delivery/changes/<CHG>/review-report.md`
+- 各仓 DU 侧证据（按 evidence.yaml 的 evidence-ref 追溯到 `implementation/<repo>/delivery/.../DU-XXX/evidence/`）
 
 #### 1.1 知识提取清单
 
@@ -30,10 +35,11 @@
 | requirement.md | 用户需求来源 | product（业务能力） |
 | exploration.md | Feature 归属、影响分析 | product（Feature 路径） |
 | prd.md | 业务规则、验收标准 | product（业务规则）、standards（验收标准模板） |
-| design.md | 架构决策、接口设计、技术选型 | standards（架构约定） |
-| tasks.md | 任务分解策略 | standards（任务粒度约定） |
-| implementation.md | 代码模式、错误处理、安全实践 | standards（编码规范） |
+| design.md | 架构决策、接口设计、技术选型、跨仓协作契约 | standards（架构约定）、product（集成边界） |
+| tasks.md（STORY 级） | DU 分解策略（仓库映射/依赖排序） | standards（任务粒度约定） |
+| implementation.md | 各仓代码模式、错误处理、安全实践 | standards（编码规范） |
 | test-report.md | 测试策略、边界 case | standards（测试约定） |
+| review-report.md | 评审发现、缺陷模式、修复经验 | standards（代码质量约定） |
 
 ### 2. 知识分类
 
@@ -176,10 +182,15 @@ openspec feature update <STORY-ID> --status delivered
 - planned → in-progress：开发开始时
 - in-progress → delivered：测试通过且 Change 完成时
 
+**Phase 2.4 多仓前提：** Story 置 delivered 前，其下全部 DU 必须 completed，
+且 Workspace 引用的各子仓 commit 指针与实际 HEAD 一致
+（可运行 `openspec doctor` 验证 submodule-pointer-aligned）。
+
 ### 7. 质量自检
 
 产出前自检：
-- [ ] 全部前序 Artifact 是否已读取？
+- [ ] 全部前序 Artifact 是否已读取（含 STORY 级 tasks 与各仓 DU 证据）？
+- [ ] 每个 DU 是否 completed 且 result commit 与所属仓 HEAD 一致？
 - [ ] 每个知识项是否明确了分类（standards/product/no-update）？
 - [ ] standards 晋升的知识是否具备跨 Change 复用价值？
 - [ ] product 更新是否与 Feature Tree 一致？
@@ -224,6 +235,9 @@ openspec change status <CHG> --set completed
 openspec change archive <CHG>
 ```
 
+**Phase 2.4 多仓注意：** Workspace 归档提交会更新对 `implementation/` 各子仓
+commit 指针的引用；各仓 DU 交付记录已在该仓 Git 中独立提交，互不干扰。
+
 ## 工作示例
 
 > 完整示例参考: `templates/artifacts/examples/convergence.md`（含知识分类/Standards 更新/Product 更新/归档）
@@ -263,9 +277,9 @@ openspec change archive <CHG>
 ```
 
 ## 行为规则
-- 不修改前序 Artifact
+
 - 知识沉淀通过 sdd-knowledge 执行，不直接写 standards/product
-- 产出草稿供用户确认，不直接推进状态
-- 冲突必须标注并请用户决定，不擅自覆盖
 - Story 状态变更需在 Change 完成后执行
 - 知识项必须明确分类理由，不模糊归类
+
+> 通用行为约束（产出草稿供用户确认 / 冲突上报用户决定等）见 prompts/common/constraints.md。

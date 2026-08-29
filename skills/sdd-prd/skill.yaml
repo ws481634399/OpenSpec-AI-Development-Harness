@@ -20,3 +20,8 @@ requires-state: exploring
 produces-state: specified
 output-artifacts:
   - prd.md
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - explore/persona-prd

@@ -16,21 +16,24 @@
 - Implementation 来源: {{implementation-source}}
 - 状态流转: {{from-state}} → {{to-state}}
 - 执行时间: {{tested-at}}
+- Evidence 索引: {{evidence-index}}
 
 ## 1. 测试范围
 
 - 测试范围摘要: {{test-scope}}
+- 覆盖 DU: <!-- Phase 2.4：本报告覆盖的 Delivery Unit 列表（如 DU-BE-001 / DU-FE-001）；
+             Workspace 级测试为跨仓聚合，evidence 条目以 delivery-unit + evidence-ref 引用各仓 DU 侧证据 -->
 
 ## 2. 测试执行汇总
 
-| 分类 | 总数 | 通过 | 失败 | 跳过 |
-| ---- | ---- | ---- | ---- | ---- |
-| 单元测试 | | | | |
-| 集成测试 | | | | |
-| E2E 测试 | | | | |
+| 分类     | 总数 | 通过 | 失败 | 跳过 |
+| -------- | ---- | ---- | ---- | ---- |
+| 单元测试 |      |      |      |      |
+| 集成测试 |      |      |      |      |
+| E2E 测试 |      |      |      |      |
 
 - 通过率: {{pass-rate}}
 
 ## 3. 证据清单
 
-<!-- 引用 evidence/ 下其他文件、截图、报告链接 -->
+<!-- 引用 evidence/ 下其他文件、截图、报告链接；多仓 DU 侧证据以 evidence-ref 引用（不复制正文） -->

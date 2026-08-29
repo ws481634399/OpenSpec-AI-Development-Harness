@@ -1,0 +1,35 @@
+# OpenSpec SDD Gate 配置（Phase 2.2）
+# 见 plans/phase-2.2-sdd-review-skill-design.md §4.3
+# sdd-review 是同态检查点：双门禁通过后 artifact 置 accepted，但不推进 Change 状态
+
+stage: review
+artifact: review-report.md
+
+machine-checks:
+  - required-front-matter
+  - no-placeholder
+  - required-sections
+  - cross-reference-valid
+  - evidence-coverage # findings-closure: blocker/major finding 必须闭环
+  - du-fan-in-complete # Phase 2.4：所有 DU completed（Fan-in 前置）
+
+# Phase 2.1/2.2 evidence-coverage 开关
+evidence-coverage:
+  repos-coverage: false
+  test-coverage: false
+  findings-closure: true # blocker/major 的 review-finding 必须填写非空 resolution
+
+required-front-matter: []
+
+required-replacements:
+  - change-id
+  - test-report-source
+  - evidence-index
+
+non-empty-ai-sections:
+  - "## 1. 检查结论"
+  - "## 2. 发现清单"
+
+human-checks:
+  - "## 1. 检查结论"
+  - "## 3. 完成确认"

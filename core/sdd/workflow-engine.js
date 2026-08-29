@@ -12,10 +12,12 @@ import { loadWorkflow } from './workflow-loader.js';
 import { loadSkill } from './skill-loader.js';
 import { assembleContext } from './context-assembler.js';
 import { buildInstruction } from './instruction-builder.js';
+import { resolvePrompts } from './prompt-loader.js';
 import { loadGate } from './gate-config-loader.js';
 import { runMachineGate } from './gate-validator.js';
 import { writeMachineGate, readGateResult } from './gate-repository.js';
-import { requestTransition } from './transition-service.js';
+import { requestTransition, requestCheckpoint } from './transition-service.js';
+import { resolveArtifactPath } from './artifact-path.js';
 
 const pathExists = (p) =>
   stat(p).then(() => true).catch((e) => (e.code === 'ENOENT' ? false : Promise.reject(e)));
@@ -82,7 +84,9 @@ export async function runWorkflow(workspaceRoot, changeId, opts = {}) {
   for (let i = stageIndex; i < workflow.stages.length; i++) {
     const stage = workflow.stages[i];
     const artifactName = stage.artifact;
-    const artifactPath = join(changeDir, artifactName);
+    // Phase 2.4：Story 级 artifact（tasks.md）按 metadata.feature-path 物化到 STORY 目录；
+    // 未绑定/Change 级 artifact → CHG 根（v1 兼容）
+    const artifactPath = resolveArtifactPath(changeDir, artifactName, meta);
 
     // 检查 Artifact 是否存在
     if (!(await pathExists(artifactPath))) {
@@ -106,7 +110,10 @@ export async function runWorkflow(workspaceRoot, changeId, opts = {}) {
 
     // Artifact 存在 → 跑 Machine Gate
     const gateConfig = await loadGate(stage.skill, harnessRoot);
-    const machineResult = await runMachineGate(changeDir, gateConfig, { metadata: meta });
+    const machineResult = await runMachineGate(changeDir, gateConfig, {
+      metadata: meta,
+      artifactPath, // Story 级 artifact 传解析后的实际路径
+    });
     // 持久化 Machine Gate Result
     await writeMachineGate(changeDir, artifactName, {
       status: machineResult.passed ? 'passed' : 'failed',
@@ -136,7 +143,21 @@ export async function runWorkflow(workspaceRoot, changeId, opts = {}) {
       };
     }
 
-    // Human Gate approved + hash 匹配 → requestTransition
+    // Human Gate approved + hash 匹配 → 推进状态或检查点验收
+    if (stage['from-state'] === stage['to-state']) {
+      // Phase 2.2 同态检查点（如 sdd-review）：仅验收 artifact（置 accepted），
+      // 不调 requestTransition（状态机禁止 from === to），不推进 Change 状态
+      const checkpointResult = await requestCheckpoint(changeDir, stage, { harnessRoot });
+      if (!checkpointResult.accepted) {
+        return {
+          result: WORKFLOW_RESULT.WAITING_FOR_HUMAN,
+          stage,
+          reason: checkpointResult.reason,
+        };
+      }
+      continue; // 检查点通过 → 循环进入下一 stage（sdd-converge）
+    }
+
     const transitionResult = await requestTransition(changeDir, stage['to-state'], { harnessRoot });
     if (!transitionResult.advanced) {
       return {
@@ -166,7 +187,13 @@ async function prepareSkillInvocation(workspaceRoot, changeDir, changeId, stage,
     title: meta.title,
     ...opts.skillInput,
   };
-  const instruction = buildInstruction(skill, context, userInput);
+  // Phase 2.3：解析 skill.yaml prompts 引用的片段（Workspace 优先），缺失条目以占位标注
+  const resolved = await resolvePrompts(skill, { harnessRoot, workspaceRoot });
+  const promptItems = [
+    ...resolved.prompts,
+    ...resolved.missing.map((ref) => ({ ref, missing: true })),
+  ];
+  const instruction = buildInstruction(skill, context, userInput, promptItems);
   await writeFile(join(changeDir, '.instruction.md'), instruction, 'utf8');
   return instruction;
 }

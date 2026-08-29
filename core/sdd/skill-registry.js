@@ -103,6 +103,40 @@ export async function syncSkills(harnessRoot, workspaceRoot) {
 }
 
 /**
+ * 同步 Harness 内置 prompts/ 到 Workspace（Phase 2.3）。
+ *
+ * 将 Harness 的 prompts/ 复制到 Workspace 的 prompts/，覆盖现有文件。
+ * 注意：覆盖策略与 skills/ 一致——用户自定义 Prompt 请使用新文件名并修改 skill.yaml 引用。
+ *
+ * @param {string} harnessRoot Harness 根目录
+ * @param {string} workspaceRoot Workspace 根目录
+ * @returns {Promise<{synced:number, details:string[]}>} 同步结果（synced = 片段文件数）
+ */
+export async function syncPrompts(harnessRoot, workspaceRoot) {
+  const srcDir = join(harnessRoot, 'templates', 'default-workspace', 'prompts');
+  const destDir = join(workspaceRoot, 'prompts');
+
+  await mkdir(destDir, { recursive: true });
+  await cp(srcDir, destDir, { recursive: true, force: true });
+
+  // 统计片段文件数（递归 .md）
+  let count = 0;
+  async function countMd(dir) {
+    const entries = await readdir(dir, { withFileTypes: true });
+    for (const e of entries) {
+      if (e.isDirectory()) {
+        await countMd(join(dir, e.name));
+      } else if (e.name.endsWith('.md')) {
+        count += 1;
+      }
+    }
+  }
+  await countMd(srcDir);
+
+  return { synced: count, details: [`prompts: synced (${count} files)`] };
+}
+
+/**
  * 将 loadSkill 返回值转为摘要对象（供 list/show 输出）。
  */
 function toSummary(loaded) {

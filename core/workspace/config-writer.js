@@ -24,10 +24,11 @@ export function writeWorkspaceYaml(templateDir, targetDir, config, harnessVersio
 /**
  * 生成 .sdd/repositories.yaml。
  * single 模式逐字段改写（保留模板项注释）；multi 模式替换整个数组。
+ * Phase 2.4：repo 条目支持 git.submodule 标记（brownfield 检测写入）。
  *
  * @param {string} templateDir 模板根目录
  * @param {string} targetDir 目标目录
- * @param {object} config { mode, repos: [{id, path}] }
+ * @param {object} config { mode, repos: [{id, path, git?: {submodule?: boolean}}] }
  */
 export function writeRepositoriesYaml(templateDir, targetDir, config) {
   const src = join(templateDir, '.sdd', 'repositories.yaml');
@@ -39,11 +40,12 @@ export function writeRepositoriesYaml(templateDir, targetDir, config) {
     // 模板已有一项（id:main/path:implementation），逐字段改写以保留项注释
     doc.setIn(['repositories', 0, 'id'], repo.id);
     doc.setIn(['repositories', 0, 'path'], repo.path);
+    if (repo.git) doc.setIn(['repositories', 0, 'git'], repo.git);
   } else {
     // multi：替换整个数组（项注释丢失可接受，multi 为用户自定义）
     doc.setIn(
       ['repositories'],
-      config.repos.map((r) => ({ id: r.id, path: r.path }))
+      config.repos.map((r) => (r.git ? { id: r.id, path: r.path, git: r.git } : { id: r.id, path: r.path }))
     );
   }
 

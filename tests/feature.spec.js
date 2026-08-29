@@ -7,12 +7,12 @@ import { join } from 'node:path';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import {
   readFeatureTree, findFeature, findNodeById, findNodeByName,
-  featurePath, nodePath, nodeLevel, generateId, collectIds,
+  featurePath, nodePath, nodeLevel, generateId, generateNestedId, collectIds,
 } from '../core/sdd/feature-model.js';
 
 const rmrf = (p) => rm(p, { recursive: true, force: true });
 
-// 四级 Feature Tree 示例
+// 四级 Feature Tree 示例（v1 磁盘格式，用于兼容读取测试）
 const SAMPLE_TREE = `# OpenSpec Product Feature Tree
 product:
   name: 示例产品
@@ -41,6 +41,27 @@ modules:
     features: []
 `;
 
+// v2 磁盘格式（features → children → children → stories，层级嵌套 ID）
+const V2_SAMPLE_TREE = `# OpenSpec Product Feature Tree
+product:
+  name: 示例产品
+  description: 用于 FeatureModel 测试
+
+features:
+  - id: FEAT-001
+    name: 商品中心
+    children:
+      - id: FEAT-001-02
+        name: 商品管理
+        children:
+          - id: FEAT-001-02-03
+            name: 商品 CRUD
+            stories:
+              - id: STORY-001-02-03-01
+                name: 创建商品
+                status: planned
+`;
+
 async function makeWorkspace(treeContent = SAMPLE_TREE) {
   const tmp = await mkdtemp(join(tmpdir(), 'sdd-feat-'));
   await mkdir(join(tmp, 'product'), { recursive: true });
@@ -50,16 +71,28 @@ async function makeWorkspace(treeContent = SAMPLE_TREE) {
 
 // ---- readFeatureTree ----
 
-test('FeatureModel.readFeatureTree: 正常文件返回 product + modules', async () => {
+test('FeatureModel.readFeatureTree: v1 文件投影为统一视图（children 兼容）', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
   assert.equal(tree.product.name, '示例产品');
   assert.equal(tree.product.description, '用于 FeatureModel 测试');
+  assert.equal(tree.schema, 1); // v1 磁盘格式标记
   assert.ok(Array.isArray(tree.modules));
   assert.equal(tree.modules.length, 2);
   assert.equal(tree.modules[0].id, 'MOD-PRODUCT');
-  assert.equal(tree.modules[0].features.length, 2);
-  assert.equal(tree.modules[0].features[0].stories.length, 1);
+  assert.equal(tree.modules[0].children.length, 2);
+  assert.equal(tree.modules[0].children[0].stories.length, 1);
+  await rmrf(tmp);
+});
+
+test('FeatureModel.readFeatureTree: v2 文件读取（features → children → children → stories）', async () => {
+  const tmp = await makeWorkspace(V2_SAMPLE_TREE);
+  const tree = await readFeatureTree(tmp);
+  assert.equal(tree.schema, 2);
+  assert.equal(tree.modules[0].id, 'FEAT-001');
+  assert.equal(tree.modules[0].children[0].id, 'FEAT-001-02');
+  assert.equal(tree.modules[0].children[0].children[0].id, 'FEAT-001-02-03');
+  assert.equal(tree.modules[0].children[0].children[0].stories[0].id, 'STORY-001-02-03-01');
   await rmrf(tmp);
 });
 
@@ -148,13 +181,52 @@ test('FeatureModel.featurePath: 兼容旧接口', async () => {
 
 // ---- nodeLevel ----
 
-test('FeatureModel.nodeLevel: Module/Feature/Story 判断正确', async () => {
+test('FeatureModel.nodeLevel: v1 前缀与 v2 嵌套 ID 判断正确', async () => {
   const tmp = await makeWorkspace();
   const tree = await readFeatureTree(tmp);
-  assert.equal(nodeLevel(findNodeById(tree, 'MOD-PRODUCT')), 'module');
-  assert.equal(nodeLevel(findNodeById(tree, 'FEAT-PRODUCT-MGMT')), 'feature');
+  // v1 前缀兼容
+  assert.equal(nodeLevel(findNodeById(tree, 'MOD-PRODUCT')), 'l1');
+  assert.equal(nodeLevel(findNodeById(tree, 'FEAT-PRODUCT-MGMT')), 'l2');
   assert.equal(nodeLevel(findNodeById(tree, 'STORY-PRODUCT-CREATE')), 'story');
+  // v2 嵌套编码按段数判定
+  assert.equal(nodeLevel({ id: 'FEAT-001' }), 'l1');
+  assert.equal(nodeLevel({ id: 'FEAT-001-02' }), 'l2');
+  assert.equal(nodeLevel({ id: 'FEAT-001-02-03' }), 'l3');
+  assert.equal(nodeLevel({ id: 'STORY-001-02-03-01' }), 'story');
   await rmrf(tmp);
+});
+
+// ---- generateNestedId ----
+
+test('FeatureModel.generateNestedId: L1/L2/L3/Story 层级嵌套', async () => {
+  const tree = { modules: [] };
+  const l1 = generateNestedId('l1', null, tree);
+  assert.equal(l1, 'FEAT-001');
+  const l2 = generateNestedId('l2', l1, tree);
+  assert.equal(l2, 'FEAT-001-01');
+  const l3 = generateNestedId('l3', l2, tree);
+  assert.equal(l3, 'FEAT-001-01-01');
+  const story = generateNestedId('story', l3, tree);
+  assert.equal(story, 'STORY-001-01-01-01');
+});
+
+test('FeatureModel.generateNestedId: 冲突递增', () => {
+  const tree = {
+    modules: [
+      { id: 'FEAT-001', children: [] },
+      { id: 'FEAT-002', children: [] },
+    ],
+  };
+  assert.equal(generateNestedId('l1', null, tree), 'FEAT-003');
+  const tree2 = {
+    modules: [{ id: 'FEAT-001', children: [{ id: 'FEAT-001-01', children: [] }] }],
+  };
+  assert.equal(generateNestedId('l2', 'FEAT-001', tree2), 'FEAT-001-02');
+});
+
+test('FeatureModel.generateNestedId: v1 遗留父 ID → slug 派生', () => {
+  const tree = { modules: [{ id: 'MOD-USER', children: [] }] };
+  assert.equal(generateNestedId('l2', 'MOD-USER', tree), 'FEAT-USER-1');
 });
 
 // ---- generateId ----

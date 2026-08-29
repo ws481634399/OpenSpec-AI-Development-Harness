@@ -2,29 +2,38 @@
 
 > 阶段: test
 > 状态转换: developing → testing
-> 产出: evidence/test-report.md
+> 产出: evidence/test-report.md（跨仓聚合）+ 各仓 DU 级测试证据
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/coding/persona-test.md
+
+Phase 2.4 多仓语义：测试在各仓 DU 内执行，DU 级结果回传 Workspace，
+test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 
 ## 前置条件
 - Change 处于 `developing` 状态
-- implementation.md 和 tasks.md 已完成
+- STORY 级 tasks.md 已完成，全部 DU 已物化（du-materialized）
+- 各仓 DU 状态已通过 `openspec du sync-status` 回传（develop → test 前置 du-fan-in-testing）
 
 ## 执行步骤
 
 ### 1. 读取前序 Artifact
 
 读取 `delivery/changes/<CHG>/prd.md`：
-- 验收标准（AC-NNN）→ 测试用例的来源
+- 验收标准（AC-NNN）→ 测试用例的来源（DU Acceptance 按编号引用）
 
 读取 `delivery/changes/<CHG>/design.md`：
 - 接口契约 → 测试入参/出参
+- **跨仓协作契约（§4）** → 集成测试的跨仓场景
 - 业务规则 → 边界 case 设计
 - 风险评估 → 高风险项必须有测试覆盖
 
-读取 `delivery/changes/<CHG>/implementation.md`：
-- 已实现的 Task 清单 → 确认测试范围
-- Commit 记录 → 确认哪些 Task 有测试 Task
+读取 `delivery/changes/<CHG>/implementation.md` 与 STORY 级 tasks.md：
+- DU 清单（仓库/状态/baseline/result）→ 确定各仓测试范围
+- DU Acceptance → 每个 DU 的验收测试点
 
 ### 2. 执行测试
+
+**Phase 2.4：进入各仓目录执行**（`implementation/<repo>/`），按仓运行该仓测试；
+跨仓集成场景按 design.md §4 协作契约执行。
 
 #### 2.1 测试策略
 
@@ -82,11 +91,18 @@
 | AC-5 | 密码强度不足 → 400 | 单元 | ✅ |
 ```
 
-### 3. 记录测试结果
+### 3. 记录测试结果（DU 级 + Workspace 聚合）
 
-在 `delivery/changes/<CHG>/evidence/` 下记录：
-- `evidence/test-output.log` — 完整测试输出日志
-- `evidence/screenshots/` — 截图（如 E2E 测试需要）
+**DU 级证据**写入该仓 DU 目录 `evidence/`：
+
+- 各仓 `.../DU-XXX/evidence/test-output.log` — 该仓完整测试输出日志
+- 各仓 `.../DU-XXX/evidence/evidence.yaml` — 追加 `test-result` 记录（delivery-unit + evidence-ref 指向日志/报告）
+- `evidence/screenshots/` — 截图（如 E2E 测试需要，放 Workspace 聚合侧）
+
+**Workspace 聚合**写入 `delivery/changes/<CHG>/evidence/`：
+
+- `evidence/evidence.yaml` — 按 DU 聚合 test-result 记录（evidence-ref 引用各仓 DU 侧证据，不复制正文）
+- 各仓 DU 全部进入测试后执行 `openspec du sync-status <CHG> <DU-ID>` 回传状态
 
 ### 4. 写 test-report.md
 
@@ -102,6 +118,8 @@
 #### 4.1 报告内容方法论
 
 **§1 测试范围：**
+- **覆盖 DU 清单**（Phase 2.4：如 DU-BE-001 / DU-FE-001）
+- 多仓需求按仓给分仓小节（如 `### 1.1 backend` / `### 1.2 frontend`）
 - 测试的模块/文件清单
 - 测试类型（单元/集成/E2E）
 - 测试环境（Node 版本、数据库等）
@@ -132,8 +150,9 @@
 **§4 证据清单：**
 
 ```markdown
-- [test-output.log](evidence/test-output.log) — 完整测试日志
+- [test-output.log](evidence/test-output.log) — Workspace 聚合日志
 - [screenshots/register-flow.png](evidence/screenshots/register-flow.png) — 注册流程截图
+- evidence-ref: backend DU-BE-001 → implementation/backend/delivery/.../DU-BE-001/evidence/test-output.log（不复制正文）
 ```
 
 **§5 失败项分析（如有）：**
@@ -146,11 +165,14 @@
 ### 5. 质量自检
 
 产出前自检：
+- [ ] tasks.md 中每个 DU 是否都有测试覆盖（du-fan-in-testing）？
 - [ ] PRD 每条验收标准是否有对应测试用例？
+- [ ] design.md §4 跨仓协作契约是否有集成测试覆盖？
 - [ ] 正常路径和异常路径是否都覆盖？
 - [ ] 边界值是否有测试（空值/最小/最大/超长）？
 - [ ] design.md 高风险项是否有测试覆盖？
-- [ ] 测试日志是否完整保存到 evidence/？
+- [ ] 各仓测试日志是否完整保存到该仓 DU evidence/，Workspace 聚合是否一致？
+- [ ] DU 状态是否已回传（sync-status）？
 - [ ] 失败项是否有分析和处理建议？
 - [ ] 通过率是否 ≥ 90%（如有失败，需说明原因）？
 
@@ -232,8 +254,11 @@ test('AC-5: 密码强度不足 → 返回 400', async () => {
 ```
 
 ## 行为规则
+
 - 不修改 implementation.md / tasks.md / design.md / prd.md
-- 产出草稿供用户确认，不直接推进状态
-- 每条 PRD 验收标准必须有至少一个测试用例
+- 每个 DU 至少一个验收测试（对应 DU Acceptance），每条 PRD 验收标准必须有至少一个测试用例
+- 多仓测试在各仓内执行，Workspace 聚合侧只做 evidence-ref 引用，不复制正文
 - 失败项必须有分析和处理建议
-- 测试日志必须完整保存到 evidence/
+- 测试日志必须完整保存到所属仓 DU evidence/
+
+> 通用行为约束（产出草稿供用户确认 / 不直接推进状态等）见 prompts/common/constraints.md。

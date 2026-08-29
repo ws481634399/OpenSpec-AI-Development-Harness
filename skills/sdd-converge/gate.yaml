@@ -11,6 +11,7 @@ machine-checks:
   - required-sections
   - cross-reference-valid
   - all-predecessors-accepted
+  - submodule-pointer-aligned # Phase 2.4：repository-result == 实际 Submodule HEAD
 
 required-front-matter: []
 

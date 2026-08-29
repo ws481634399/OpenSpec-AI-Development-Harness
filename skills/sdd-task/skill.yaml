@@ -16,3 +16,8 @@ requires-state: designed
 produces-state: tasked
 output-artifacts:
   - tasks.md
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - design/persona-task

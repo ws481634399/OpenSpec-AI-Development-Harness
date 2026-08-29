@@ -1,54 +1,45 @@
 # OpenSpec Repository Configuration
 #
-# 版本: v0.1
-# 类型: Repository Metadata
+# 版本: v2（Phase 2.4 起；向后兼容 v1——schema-version 缺失视为 v1）
+# 类型: Repository Registry（OpenSpec 仓库注册表）
 #
-# 用于描述当前 Workspace 关联的代码仓库。
+# 职责分离（硬约束）：
+#   .gitmodules            = Git Repository Mapping（remote URL / local path / commit pointer）
+#   .sdd/repositories.yaml = OpenSpec Repository Registry（本文件）
+# Git remote/url 等 Git 事实一律以 .gitmodules 为准，此处不重复维护。
+#
+# Registry 承担：Repository ID 解析 / Context Loading / Repository Impact /
+#   Delivery Unit Ownership（DU-<alias>-nnn 的 alias 来源）/ Evidence Attribution /
+#   Review Aggregation / Workflow Routing
 
 
 # 仓库模式
 #
-# single:
-#   单仓库项目
-#
-# multi:
-#   多仓库项目
+# single: 单仓库项目（通常一个 repository）
+# multi:  多仓库项目（implementation/ 下多个子仓）
 
 mode: single
 
 
 # 仓库列表
 #
-# single模式:
-#   通常只有一个repository
-#
-# multi模式:
-#   可以配置多个repository
+# id:     仓库标识，Workspace 内唯一（如 main / backend / frontend / ai）
+# path:   指向 implementation/ 下的相对路径（single 通常为 implementation；
+#         multi 如 implementation/backend、implementation/frontend）
+# alias:  DU ID 别名（可选；缺省取 id 前 2-4 字符大写，如 backend → BE），
+#         用于 Delivery Unit 编号 DU-<alias>-<nnn>（如 DU-BE-001）
+# git.submodule: 是否已 submodule 化（doctor 探测写入，只读事实）
 
 repositories:
 
 
-  # 仓库标识
-  #
-  # 用于在 Workspace 中唯一标识一个仓库
-  #
-  # 示例:
-  # main
-  # backend
-  # frontend
+  # 示例（multi 模式）：
+  # - id: backend
+  #   path: implementation/backend
+  #   alias: BE
+  #   git:
+  #     submodule: true
 
   - id: main
-
-
-    # 仓库路径
-    #
-    # 指向 implementation/ 下的相对路径
-    #
-    # single模式:
-    #   通常为 implementation
-    #
-    # multi模式:
-    #   可以是 implementation/backend
-    #   implementation/frontend 等
 
     path: implementation

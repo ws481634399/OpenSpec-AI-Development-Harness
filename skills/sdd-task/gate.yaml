@@ -9,6 +9,8 @@ machine-checks:
   - no-placeholder
   - required-sections
   - cross-reference-valid
+  - du-coverage # Phase 2.4：design 声明仓 ⊆ DU 覆盖 + DU 结构完整性
+  - du-guidance # Phase 2.5：DU Implementation Guidance 完整性（Sketch 必填/Pseudocode 条件/Verification 必填）
 
 required-front-matter: []
 

@@ -3,6 +3,7 @@
 > 阶段: design
 > 状态转换: specified → designed
 > 产出: design.md
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/design/persona-design.md
 
 ## 前置条件
 - Change 处于 `specified` 状态
@@ -48,6 +49,12 @@
 
 读取模板 `templates/artifacts/design.md`，按结构填写。
 
+front-matter（Phase 2.4 多仓）：
+- `affected-repositories`：受影响仓库 id 列表（对应 `.sdd/repositories.yaml`）
+  - 来源：exploration.md 影响分析 + metadata.repositories
+  - 必须与 §3 分仓小节一致（task 阶段 `du-coverage` 机检输入）
+- **硬约束：Design 不产生 DU**（DU-XXX 编号不得出现在 design.md，正式拆分是 sdd-task 职责）
+
 元信息 section（占位符替换）：
 - `{{change-id}}`：Change ID
 - `{{prd-source}}`：`<CHG>/prd.md`
@@ -85,15 +92,40 @@
     - 错误: 400(参数无效) / 409(邮箱已存在)
 ```
 
-**§3 仓库影响：**
+**§3 仓库影响（分仓小节）：**
+
+front-matter `affected-repositories` 必须与此处分仓清单一致。每个受影响仓库一个小节：
+
 ```markdown
-| 仓库 | 模块 | 文件数 | 变更类型 |
-|------|------|--------|---------|
-| main | auth/ | 3 | 新增 |
-| main | models/ | 2 | 修改 |
+### 3.1 backend
+- 技术职责: 注册 API（校验 → 哈希 → 存储 → token 签发）
+- 修改概要: 新增 auth/ 模块，修改 models/ 用户表
+- 涉及模块: auth/, models/
+
+### 3.2 frontend
+- 技术职责: 注册表单 UI 与提交逻辑
+- 修改概要: 新增注册页路由与表单组件
+- 涉及模块: pages/register/
 ```
 
-**§4 数据变更：**
+**§4 跨仓协作（多仓需求必填，单仓写"无"）：**
+
+- **API Contract** — 仓间同步调用接口：路径/方法/入参/出参/错误码/版本策略
+- **Event Contract** — 异步事件：topic、payload schema、投递语义（at-least-once 等）
+- **Data Contract** — 共享数据归属：哪个仓拥有写权限，其他仓只读还是同步副本
+- **Repository Dependencies** — 仓间依赖方向（如 frontend 依赖 backend API）
+- **Integration Boundary** — 集成点清单（网关路径、SDK 版本、环境变量）
+- **Cross-Repository Sequence** — 跨仓关键时序（谁先谁后、失败回滚策略）
+
+示例：
+```markdown
+- 接口契约: frontend → backend `POST /api/auth/register`
+  入参 { email|phone, password }，出参 { userId, token }，错误 400/409
+- 仓库依赖: frontend 依赖 backend（启动顺序 backend → frontend 联调）
+- 跨仓时序: backend API 契约冻结后，frontend 才能进入联调 DU
+```
+
+**§5 数据变更：**
 
 判断是否需要 Migration：
 - 新增表 → 生成 DDL
@@ -112,7 +144,7 @@ CREATE TABLE users (
 );
 ```
 
-**§5 风险评估：**
+**§6 风险评估：**
 
 风险识别维度：
 - **兼容性** — 是否影响现有 API/接口
@@ -129,7 +161,7 @@ CREATE TABLE users (
 | 重复注册并发 | 中 | 数据库唯一约束 + 事务 |
 ```
 
-**§6 待澄清问题：**
+**§7 待澄清问题：**
 - 需用户确认的设计决策（如缓存策略、限流阈值）
 - 需 PRD 补充的业务规则（如 PRD 未明确的边界 case）
 - 需调查的技术可行性（如外部 API 是否可用）
@@ -140,6 +172,9 @@ CREATE TABLE users (
 - [ ] 设计方案是否覆盖 PRD 全部 Scope In 项？
 - [ ] 每个接口是否有明确的入参/出参/错误码？
 - [ ] 数据模型是否覆盖 PRD 全部业务规则？
+- [ ] front-matter `affected-repositories` 是否与 §3 分仓小节一致（task 阶段 du-coverage 机检输入）？
+- [ ] 多仓需求是否给出跨仓协作契约（API/Event/Data + 依赖方向 + 集成边界）？
+- [ ] design.md 是否未出现 DU-XXX 编号（Design 不产生 DU）？
 - [ ] 风险评估是否包含兼容性/性能/安全维度？
 - [ ] 设计是否与 standards/ 已有约定一致？
 - [ ] 是否复用了可复用的现有模块（避免重复造轮子）？
@@ -199,7 +234,7 @@ openspec change status <CHG> --set designed
 约束: email 和 phone 不可同时为空
 ```
 
-**design.md §5 风险评估节选：**
+**design.md §6 风险评估节选：**
 ```
 | 风险项 | 级别 | 缓解措施 |
 |--------|------|---------|
@@ -209,9 +244,15 @@ openspec change status <CHG> --set designed
 ```
 
 ## 行为规则
+
 - 不修改 prd.md / requirement.md / exploration.md
 - 不修改 standards/（只能引用）
 - 不直接写 implementation/ 代码
-- 产出草稿供用户确认，不直接推进状态
+- 不产生 DU（DU-XXX 编号不得出现在 design.md，正式拆分交付单元是 sdd-task 职责）
+- 不写实现级伪代码（Pseudocode / Implementation Sketch 是 sdd-task 在 DU 层产出的 Dev Guidance；design 只保留系统级方案与契约，Phase 2.5）
+- front-matter affected-repositories 必须与 §3 分仓小节一致
+- 多仓需求必须给出 §4 跨仓协作契约（单仓可写"无"）
 - 设计必须与现有架构风格一致，避免引入异构模式
 - 接口设计必须有明确的入参/出参/错误码
+
+> 通用行为约束（产出草稿供用户确认 / 不直接推进状态等）见 prompts/common/constraints.md。

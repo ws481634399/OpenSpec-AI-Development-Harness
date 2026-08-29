@@ -1,35 +1,45 @@
 # OpenSpec Product Feature Tree
 #
-# 版本: v0.2
+# 版本: v2（Phase 2.4 起；v1 兼容读取见 feature-model.js）
 # 类型: Product Knowledge Metadata
+# 唯一权威源：Feature Tree 只维护这一份；CHG metadata.feature-path 是"引用不是副本"
 #
-# 四级结构：Product → Module → Feature → Story
-# Story 为最小可实施单元，直接关联 CHG
+# 固定四级：Level-1 → Level-2 → Level-3 → Story
+# Story 为最小产品能力节点（最小可实施单元），CHG ↔ Story = 1:1，Story 1:N DU
 #
-# ID 规范：
-#   Module:  MOD-<DOMAIN>        如 MOD-USER
-#   Feature: FEAT-<MODULE>-<CAP> 如 FEAT-USER-AUTH
-#   Story:   STORY-<MODULE>-<ACT> 如 STORY-USER-REGISTER
+# ID 规范（层级嵌套编码，目录段一律用 ID 禁止用名称）：
+#   Level-1: FEAT-001
+#   Level-2: FEAT-001-02        （= 父 ID + 段号）
+#   Level-3: FEAT-001-02-03
+#   Story:   STORY-001-02-03-01
 #
 # Story status: planned / in-progress / delivered
+#   delivered 的充分条件：该 Story 下全部 DU completed 且所属 CHG completed
+#
+# v1 兼容：读到含 modules 键的 v1 树按映射转换视图（module→L1、feature→L2、story 直挂 L2.stories）；
+#         写入统一走 v2，存量节点 ID 不改写（ID 稳定原则）
 
 product:
   name: ""
   description: ""
 
-# 产品能力树（modules → features → stories 三级）
+# 产品能力树（features → children → children → stories 四级）
 
-modules: []
+features: []
   # 示例：
-  # - id: MOD-USER
+  # - id: FEAT-001
   #   name: 用户中心
   #   description: 用户注册、登录、个人中心
-  #   features:
-  #     - id: FEAT-USER-AUTH
-  #       name: 用户认证
+  #   children:                       # Level-2
+  #     - id: FEAT-001-02
+  #       name: 账户能力
   #       description: 注册、登录、密码管理
-  #       stories:
-  #         - id: STORY-USER-REGISTER
-  #           name: 用户注册
-  #           description: 支持邮箱/手机号注册
-  #           status: planned
+  #       children:                   # Level-3
+  #         - id: FEAT-001-02-03
+  #           name: 用户认证
+  #           description: 账号认证流程
+  #           stories:
+  #             - id: STORY-001-02-03-01
+  #               name: 用户注册
+  #               description: 支持邮箱/手机号注册
+  #               status: planned

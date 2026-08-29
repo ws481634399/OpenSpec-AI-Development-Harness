@@ -3,10 +3,12 @@
 > 阶段: prd
 > 状态转换: exploring → specified
 > 产出: prd.md
+> 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/explore/persona-prd.md
 
 ## 前置条件
 - Change 处于 `exploring` 状态
 - requirement.md 和 exploration.md 已完成
+- Change 已绑定 feature-path（Phase 2.4：`openspec change bind-feature-path`，见 sdd-explore §7）
 
 ## 执行步骤
 
@@ -193,8 +195,10 @@ Scope Out:
 ```
 
 ## 行为规则
+
 - 不修改 requirement.md / exploration.md
-- 不修改 product/ 或 standards/（知识沉淀在 sdd-converge）
-- 产出草稿供用户确认，不直接推进状态
 - 验收标准必须可测试，拒绝模糊表述（如"界面友好""性能良好"）
+- AC 编号（AC-1、AC-2…）一旦确认保持稳定——task 阶段 DU Acceptance 按编号引用，避免跨仓验收失联
 - 主动解决 exploration 的未知问题，不遗留到设计阶段
+
+> 通用行为约束（产出草稿供用户确认 / 不修改 product/ 或 standards/ 等）见 prompts/common/constraints.md。

@@ -40,6 +40,13 @@ stages:
     from-state: developing
     to-state: testing
     artifact: evidence/test-report.md
+  # Phase 2.2：同态检查点（from-state === to-state）——双门禁通过但不推进 Change 状态
+  # 见 plans/phase-2.2-sdd-review-skill-design.md §3.1
+  - skill: sdd-review
+    gate: review
+    from-state: testing
+    to-state: testing
+    artifact: review-report.md
   - skill: sdd-converge
     gate: converge
     from-state: testing

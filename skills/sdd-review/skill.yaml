@@ -1,0 +1,29 @@
+# OpenSpec SDD Skill 定义（骨架）
+#
+# 版本: v0.1
+# 类型: Skill 元数据 + Artifact Contract
+# Phase 2.2: 同态检查点（requires-state === produces-state，不推进 Change 状态）
+# 见 plans/phase-2.2-sdd-review-skill-design.md §4.1
+
+id: sdd-review
+version: 0.1.0
+stage: review
+description: 评审检查点 Skill——需求一致性 / 设计一致性 / 代码质量 / 知识同步四项检查
+input:
+  - prd.md
+  - design.md
+  - implementation.md
+  - evidence/test-report.md
+  - evidence/evidence.yaml
+  - standards/
+output:
+  - review-report.md
+requires-state: testing
+produces-state: testing
+output-artifacts:
+  - review-report.md
+prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
+  - common/persona-sdd
+  - common/constraints
+  - common/output-format
+  - review/persona-review

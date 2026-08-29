@@ -8,18 +8,20 @@
  *
  * 结构：
  * 1. Skill 角色与目标（id/stage/description）
- * 2. Workspace Context 摘要（阶段应读目录 + 文件清单）
- * 3. 用户输入原文（requirement/title/content/changeId）
- * 4. Artifact 产出（output-artifacts 引用 templates/artifacts/）
- * 5. 外部 Agent 执行指引（推理/非结构化分析/写回 CHG/推进状态）
- * 6. SKILL.md 原文（若有）
+ * 2. Prompt 片段（skill.yaml prompts 引用的片段原文，Phase 2.3；缺失条目标注）
+ * 3. Workspace Context 摘要（阶段应读目录 + 文件清单）
+ * 4. 用户输入原文（requirement/title/content/changeId）
+ * 5. Artifact 产出（output-artifacts 引用 templates/artifacts/）
+ * 6. 外部 Agent 执行指引（推理/非结构化分析/写回 CHG/推进状态）
+ * 7. SKILL.md 原文（若有）
  *
  * @param {object} skill loadSkill 返回值（含 yaml / skillMd）
  * @param {object} context assembleContext 返回值（含 stage / dirs / files）
  * @param {object} [userInput] 用户输入（requirement / title / content / changeId）
+ * @param {Array} [prompts] 已解析的 Prompt 片段数组（resolvePrompts().prompts，可选）
  * @returns {string} Instruction Markdown
  */
-export function buildInstruction(skill, context, userInput = {}) {
+export function buildInstruction(skill, context, userInput = {}, prompts = []) {
   const y = skill.yaml || {};
   const lines = [];
 
@@ -39,7 +41,35 @@ export function buildInstruction(skill, context, userInput = {}) {
     lines.push('');
   }
 
-  // 3. Workspace Context 摘要
+  // 3. Prompt 片段（Phase 2.3：persona + 通用约束 + 输出格式，先于方法论生效）
+  // 片段元素支持缺失占位：{ ref, missing: true }（resolvePrompts 的 missing 由调用方合并传入）
+  if (prompts.length > 0) {
+    lines.push('## Prompt 片段');
+    lines.push('');
+    for (const p of prompts) {
+      lines.push(`### prompts/${p.ref}`);
+      lines.push('');
+      if (p.missing) {
+        lines.push('> （缺失: 文件不存在，请检查 skill.yaml prompts 字段）');
+        lines.push('');
+        continue;
+      }
+      if (p.purpose || p.version || p.category) {
+        const metaBits = [];
+        if (p.category) metaBits.push(`category: ${p.category}`);
+        if (p.version) metaBits.push(`version: ${p.version}`);
+        if (p.purpose) metaBits.push(`purpose: ${p.purpose}`);
+        lines.push(`> ${metaBits.join(' · ')}`);
+        lines.push('');
+      }
+      lines.push(p.body);
+      lines.push('');
+    }
+    lines.push('以上片段与本 Instruction 的其余部分同时生效。');
+    lines.push('');
+  }
+
+  // 4. Workspace Context 摘要
   lines.push('## Workspace Context');
   lines.push('');
   const dirs = context?.dirs || [];

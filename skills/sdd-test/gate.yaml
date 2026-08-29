@@ -9,12 +9,20 @@ machine-checks:
   - no-placeholder
   - required-sections
   - cross-reference-valid
+  - evidence-coverage # Phase 2.1：test-run 覆盖机检
+  - du-fan-in-testing # Phase 2.4：所有 DU status ≥ testing
+
+# Phase 2.1 evidence-coverage 开关（phase-2.1-evidence-system-design.md §4.2）
+evidence-coverage:
+  repos-coverage: false
+  test-coverage: true # 至少 1 条 result != failed 的 test-run 条目
 
 required-front-matter: []
 
 required-replacements:
   - change-id
   - implementation-source
+  - evidence-index
 
 non-empty-ai-sections:
   - "## 2. 测试执行汇总"

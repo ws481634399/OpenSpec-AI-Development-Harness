@@ -9,6 +9,13 @@ machine-checks:
   - no-placeholder
   - required-sections
   - cross-reference-valid
+  - evidence-coverage # Phase 2.1：Commit ↔ Evidence 对齐机检
+  - du-materialized # Phase 2.4：全部 DU 已物化到仓库
+
+# Phase 2.1 evidence-coverage 开关（phase-2.1-evidence-system-design.md §4.2）
+evidence-coverage:
+  repos-coverage: true # implementation.md 每个 Commit 必须有对应 code-change 条目
+  test-coverage: false
 
 required-front-matter: []
 
