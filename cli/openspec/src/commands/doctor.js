@@ -6,7 +6,7 @@ import { outro } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { runSelfCheck } from '../../../../core/workspace/validator.js';
-import { runMultiRepoChecks } from '../../../../core/sdd/doctor-checks.js';
+import { runMultiRepoChecks, runContextRulesChecks } from '../../../../core/sdd/doctor-checks.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { readHarnessVersion } from '../../../../core/workspace/version.js';
 
@@ -31,9 +31,18 @@ export function registerDoctorCommand(program) {
         try {
           const multi = await runMultiRepoChecks(ws);
           issues.push(...multi.issues);
-          multiChecked = multi.checked;
+          multiChecked += multi.checked;
         } catch (e) {
           warn(`多仓检查跳过: ${e.message}`);
+        }
+
+        // Phase 2.6：context-rules.yaml 校验（stage 覆盖/枚举/path 存在性）
+        try {
+          const ctxChecks = await runContextRulesChecks(ws);
+          issues.push(...ctxChecks.issues);
+          multiChecked += ctxChecks.checked;
+        } catch (e) {
+          warn(`Context 规则检查跳过: ${e.message}`);
         }
 
         if (issues.length === 0) {

@@ -13,6 +13,7 @@ import { registerValidateCommand } from './commands/validate.js';
 import { registerReverseCommand } from './commands/reverse.js';
 import { registerFeatureCommand } from './commands/feature.js';
 import { registerDuCommand } from './commands/du.js';
+import { registerContextCommand } from './commands/context.js';
 
 // 解析 Harness 版本作为 CLI 版本
 let version;
@@ -51,5 +52,8 @@ registerFeatureCommand(program);
 
 // Phase 2.4：Delivery Unit 管理操作（多仓交付单元）
 registerDuCommand(program);
+
+// Phase 2.6：Context 装配预览（排障用）
+registerContextCommand(program);
 
 program.parseAsync();

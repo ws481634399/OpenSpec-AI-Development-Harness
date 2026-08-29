@@ -180,7 +180,8 @@ export async function runWorkflow(workspaceRoot, changeId, opts = {}) {
 async function prepareSkillInvocation(workspaceRoot, changeDir, changeId, stage, meta, harnessRoot, opts) {
   const skill = await loadSkill(stage.skill, harnessRoot);
   const stageName = stage.gate; // gate 字段 == stage 名（explore/prd/...）
-  const context = await assembleContext(workspaceRoot, stageName);
+  // Phase 2.6：传 changeDir + metadata → 注入 Change Artifacts（前序产物正文 / STORY tasks.md / DU metadata）
+  const context = await assembleContext(workspaceRoot, stageName, { changeDir, metadata: meta });
   const userInput = {
     changeId,
     requirement: meta.requirement,

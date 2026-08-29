@@ -343,3 +343,32 @@ test('GateValidator: review-report 未 accepted 时 converge machine gate 失败
   );
   await rmrf(tmp);
 });
+
+// ---- Phase 2.6 Context v2（prepareSkillInvocation 传 changeDir → 注入 Change Artifacts）----
+
+test('WorkflowEngine: prd 阶段 .instruction.md 注入 requirement.md 正文（Change Artifacts）', async () => {
+  const { tmp, changeId, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  await writeFile(join(changeDir, 'requirement.md'), 'REQ-CONTEXT-MARKER-2646', 'utf8');
+  const content = await readFile(join(changeDir, 'exploration.md'), 'utf8');
+  const hash = sha256(content);
+  await writeMachineGate(changeDir, 'exploration.md', {
+    status: 'passed',
+    artifactHash: hash,
+    validator: 'sdd-explore',
+  });
+  await writeHumanGate(changeDir, 'exploration.md', {
+    status: 'approved',
+    artifactHash: hash,
+  });
+  // ADVANCED → 下一阶段 sdd-prd：prepareSkillInvocation 传 changeDir/metadata
+  // → .instruction.md 的 Change Artifacts section 含 requirement.md 正文
+  const r = await runWorkflow(tmp, changeId, { harnessRoot });
+  assert.equal(r.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
+  assert.equal(r.stage.skill, 'sdd-prd');
+  const instruction = await readFile(join(changeDir, '.instruction.md'), 'utf8');
+  assert.ok(instruction.includes('## Change Artifacts'), instruction);
+  assert.ok(instruction.includes(`delivery/changes/${changeId}/requirement.md`), instruction);
+  assert.ok(instruction.includes('REQ-CONTEXT-MARKER-2646'), 'requirement.md 正文应注入 Instruction');
+  await rmrf(tmp);
+});

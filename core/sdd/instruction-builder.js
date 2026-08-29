@@ -69,26 +69,80 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
-  // 4. Workspace Context 摘要
-  lines.push('## Workspace Context');
+  // 4. Context（Phase 2.6 v2：Change Artifacts + 内联文件 + 文件清单三 section）
+  const allFiles = context?.files || [];
+  const artifacts = allFiles.filter((f) => f.source === 'change-artifact' || f.source === 'auto');
+  const inlineCtx = allFiles.filter(
+    (f) => f.source === 'rule' && f.mode !== 'outline' && f.content,
+  );
+  const outlineCtx = allFiles.filter(
+    (f) => f.source === 'rule' && (f.mode === 'outline' || !f.content),
+  );
+
+  // 4a. Change Artifacts：本 CHG 前序产物正文（Agent 的核心输入）
+  lines.push('## Change Artifacts');
   lines.push('');
-  const dirs = context?.dirs || [];
-  lines.push(`阶段 \`${context?.stage || y.stage || ''}\` 应读取的目录：${dirs.length > 0 ? dirs.join(', ') : '(none)'}`);
-  lines.push('');
-  const files = context?.files || [];
-  if (files.length > 0) {
-    lines.push(`上下文文件清单（共 ${files.length} 个）：`);
+  if (artifacts.length > 0) {
+    lines.push(`本 Change（${userInput.changeId || ''}）已有产物，内容如下（作为本次任务的核心输入）：`);
     lines.push('');
-    for (const f of files) {
+    for (const f of artifacts) {
+      lines.push(`### ${f.path}`);
+      lines.push('');
+      lines.push('````');
+      lines.push(f.content);
+      lines.push('````');
+      lines.push('');
+    }
+  } else {
+    lines.push('（无）');
+    lines.push('');
+  }
+  const missing = context?.missingArtifacts || [];
+  if (missing.length > 0) {
+    lines.push(`缺失产物（${missing.join('；')}）——尚未产出或无法定位，如与你的任务相关请先确认前置阶段已完成。`);
+    lines.push('');
+  }
+
+  // 4b. Workspace Context 内联文件（standards/product 等知识正文）
+  lines.push('## Workspace Context（内联文件）');
+  lines.push('');
+  if (inlineCtx.length > 0) {
+    lines.push(`阶段 \`${context?.stage || y.stage || ''}\` 的知识上下文（正文已内联，无需回读）：`);
+    lines.push('');
+    for (const f of inlineCtx) {
+      lines.push(`### ${f.path}`);
+      lines.push('');
+      lines.push('````');
+      lines.push(f.content);
+      lines.push('````');
+      lines.push('');
+    }
+  } else {
+    lines.push('（无内联文件）');
+    lines.push('');
+  }
+
+  // 4c. Workspace Context 文件清单（outline 级：仅路径，Agent 按需读取）
+  lines.push('## Workspace Context（文件清单）');
+  lines.push('');
+  lines.push(`阶段 \`${context?.stage || y.stage || ''}\` 的 outline 级上下文（仅路径，按需读取）：`);
+  lines.push('');
+  if (outlineCtx.length > 0) {
+    for (const f of outlineCtx) {
       lines.push(`- \`${f.path}\``);
     }
     lines.push('');
   } else {
-    lines.push('（无上下文文件）');
+    lines.push('（无）');
+    lines.push('');
+  }
+  const skipped = context?.skipped || [];
+  if (skipped.length > 0) {
+    lines.push(`因预算截断未装载的文件：${skipped.join('；')}`);
     lines.push('');
   }
 
-  // 4. 用户输入
+  // 5. 用户输入
   lines.push('## 用户输入');
   lines.push('');
   if (userInput.requirement) lines.push(`- Requirement: ${userInput.requirement}`);
@@ -107,14 +161,14 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
-  // 5. Artifact 产出
+  // 6. Artifact 产出
   lines.push('## Artifact 产出');
   lines.push('');
-  const artifacts = Array.isArray(y['output-artifacts']) ? y['output-artifacts'] : [];
-  if (artifacts.length > 0) {
+  const outputArtifacts = Array.isArray(y['output-artifacts']) ? y['output-artifacts'] : [];
+  if (outputArtifacts.length > 0) {
     lines.push('本次 Skill 需产出以下 Artifact（由外部 Agent 按 templates/artifacts/ 模板补充非结构化分析）：');
     lines.push('');
-    for (const a of artifacts) {
+    for (const a of outputArtifacts) {
       lines.push(`- \`${a}\``);
     }
     lines.push('');
@@ -123,7 +177,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
-  // 6. 执行指引
+  // 7. 执行指引
   lines.push('## 执行指引');
   lines.push('');
   lines.push('你（外部 Agent：Trae / Cursor / Claude Code）负责：');
@@ -138,7 +192,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
-  // 7. SKILL.md 原文（若有）
+  // 8. SKILL.md 原文（若有）
   if (skill.skillMd) {
     lines.push('---');
     lines.push('');

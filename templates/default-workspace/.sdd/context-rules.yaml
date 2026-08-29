@@ -1,148 +1,118 @@
 # OpenSpec Context Rules Configuration
 #
-# 版本: v0.1
+# 版本: v0.2（Phase 2.6：结构化条目 + Change Artifacts + 预算；基线 v0.1）
 # 类型: AI Context Loading Rules
 #
-# 定义 AI Agent 在不同 SDD 阶段
-# 应该读取的 Workspace 上下文。
+# 定义 AI Agent 在不同 SDD 阶段应该读取的 Workspace 上下文。
+# 装配逻辑见 core/sdd/context-assembler.js；规则是确定性的：
+# 同一 rules + 同一 Workspace 状态 → 同一 Context。
+#
+# read 条目格式（v0.2）：
+#   - path: <workspace 相对路径，目录或单文件>
+#     category: knowledge | artifact | code | meta   # 可选，语义分组（缺省按路径前缀推断）
+#     mode: inline | outline                          # inline=正文内联；outline=仅路径清单（缺省 inline）
+#     include: ["**/*.md"]                            # 可选 glob 白名单（相对 path 匹配）
+#     exclude: ["**/*.png"]                           # 可选 glob 黑名单
+#     max-files: 20                                   # 可选，条目级文件数上限
+#     max-bytes: 65536                                # 可选，条目级总字节上限
+#   v0.1 兼容：字符串条目（如 - standards/）等价于 { path, mode: inline }。
+#
+# change-artifacts：本 CHG 前序产物（相对 CHG 目录），正文注入 Instruction；
+#   task/dev/test/review/converge 阶段还会自动注入 STORY 级 tasks.md 与 DU-*/metadata.yaml
+#   （feature-path 未绑定时在 Instruction 中标注缺失）。
+#
+# limits：全局预算（超限确定性截断，清单列入 Instruction 的 skipped 段）。
 
+version: 0.2
 
-# 不同开发阶段上下文规则
+limits:
+  total-max-bytes: 262144 # 256KB
+  total-max-files: 200
 
 stages:
 
-
-  # 探索阶段
-  #
-  # 目标：
-  # - 理解需求
-  # - 分析业务上下文
-  # - 识别影响范围
-
+  # 探索阶段：理解需求 / 分析业务上下文 / 识别影响范围
   explore:
-
     read:
+      - path: standards/
+        mode: inline
+      - path: product/
+        mode: inline
+    change-artifacts: [] # requirement.md 尚未产出
 
-      - standards/
-
-      - product/
-
-
-
-  # 产品规格阶段
-  #
-  # 目标：
-  # - 生成产品规格
-  # - 定义验收标准
-  # - 明确业务规则
-
+  # 产品规格阶段：生成产品规格 / 定义验收标准 / 明确业务规则
   prd:
-
     read:
+      - path: product/
+        mode: inline
+    change-artifacts:
+      - requirement.md
 
-      - product/
-
-      - delivery/
-
-
-
-  # 设计阶段
-  #
-  # 目标：
-  # - 生成技术设计
-  # - 分析架构影响
-  # - 评估风险
-
+  # 设计阶段：生成技术设计 / 分析架构影响 / 评估风险
   design:
-
     read:
+      - path: standards/
+        mode: inline
+      - path: product/
+        mode: outline
+      - path: implementation/
+        mode: outline # 多仓：仅结构清单，代码正文按需读取
+    change-artifacts:
+      - requirement.md
+      - prd.md
 
-      - standards/
-
-      - product/
-
-      - implementation/
-
-
-
-  # 任务拆分阶段
-  #
-  # 目标：
-  # - 拆分设计为可执行任务
-  # - 明确修改范围
-  # - 定义验证方式
-
+  # 任务拆分阶段：拆解为 Delivery Unit / 产出 Implementation Guidance
   task:
-
     read:
+      - path: standards/
+        mode: outline
+      - path: delivery/
+        mode: outline
+    change-artifacts:
+      - requirement.md
+      - prd.md
+      - design.md
 
-      - delivery/
-
-
-
-  # 开发阶段
-  #
-  # 目标：
-  # - 执行 Task
-  # - 修改实现代码
-  # - 遵循工程规范
-
+  # 开发阶段：按 DU Scope 在各仓实施 / 消费 repo task.md 全 9 节
   dev:
-
     read:
+      - path: standards/
+        mode: outline
+      - path: implementation/
+        mode: outline # 仅结构清单；repo 侧正文按 DU metadata 的 repository-delivery.path 定位
+    change-artifacts:
+      - prd.md
+      - design.md
 
-      - delivery/
-
-      - implementation/
-
-
-
-  # 测试阶段
-  #
-  # 目标：
-  # - 验证实现
-  # - 生成 Evidence
-  # - 检查质量
-
+  # 测试阶段：验证实现 / 生成 Evidence / 检查质量
   test:
-
     read:
+      - path: standards/
+        mode: outline
+      - path: implementation/
+        mode: outline
+    change-artifacts:
+      - prd.md
+      - design.md
 
-      - delivery/
-
-      - implementation/
-
-
-
-  # 评审检查点阶段（Phase 2.2）
-  #
-  # 目标：
-  # - 需求一致性检查
-  # - 设计一致性检查
-  # - 代码质量检查
-  # - 知识同步候选识别
-
+  # 评审检查点阶段（Phase 2.2）：需求/设计一致性 / 代码质量 / 知识同步候选
   review:
-
     read:
+      - path: standards/
+        mode: outline
+      - path: implementation/
+        mode: outline
+    change-artifacts:
+      - requirement.md
+      - prd.md
+      - design.md
 
-      - delivery/
-
-      - implementation/
-
-
-
-  # 知识沉淀阶段
-  #
-  # 目标：
-  # - 逆向分析
-  # - 更新项目知识
-  # - 沉淀经验
-
+  # 知识沉淀阶段：逆向分析 / 更新项目知识 / 沉淀经验
   converge:
-
     read:
-
-      - delivery/
-
-      - implementation/
+      - path: product/
+        mode: inline
+      - path: standards/
+        mode: outline
+    change-artifacts:
+      - design.md

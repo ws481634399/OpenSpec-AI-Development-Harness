@@ -196,7 +196,7 @@ test('InstructionBuilder: 组装 Instruction 含 Skill + Context + 用户输入'
   const context = {
     stage: 'explore',
     dirs: ['standards', 'product'],
-    files: [{ path: 'standards/sdd/test.md', content: '# Test' }],
+    files: [{ path: 'standards/sdd/test.md', content: '# Test', category: 'knowledge', mode: 'inline', source: 'rule' }],
   };
   const userInput = { title: 'Test title', content: 'Test content', changeId: 'CHG-0001' };
   const instruction = buildInstruction(skill, context, userInput);
@@ -214,10 +214,12 @@ test('InstructionBuilder: 组装 Instruction 含 Skill + Context + 用户输入'
 
 test('InstructionBuilder: 无 SKILL.md 时不报错', () => {
   const skill = { yaml: { id: 'test', stage: 'test', 'produces-state': 'testing' } };
-  const context = { stage: 'test', dirs: [], files: [] };
+  const context = { stage: 'test', dirs: [], files: [], missingArtifacts: [], skipped: [] };
   const instruction = buildInstruction(skill, context, {});
   assert.ok(instruction.includes('test'));
-  assert.ok(instruction.includes('（无上下文文件）'));
+  // Phase 2.6 v2：空 Context → Change Artifacts（无）+ 内联文件（无内联文件）
+  assert.ok(instruction.includes('## Change Artifacts'));
+  assert.ok(instruction.includes('（无内联文件）'));
 });
 
 // ---- ArtifactWriter ----

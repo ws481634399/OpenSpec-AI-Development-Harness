@@ -160,3 +160,120 @@ export async function runMultiRepoChecks(workspaceRoot) {
 
   return { issues, checked };
 }
+
+// ---- Phase 2.6：context-rules.yaml 确定性校验（plans/phase-2.6-context-rules-design.md §9）----
+
+const CONTEXT_STAGES = ['explore', 'prd', 'design', 'task', 'dev', 'test', 'review', 'converge'];
+const CONTEXT_CATEGORIES = ['knowledge', 'artifact', 'code', 'meta'];
+const CONTEXT_MODES = ['inline', 'outline'];
+
+/**
+ * context-rules.yaml v0.2 校验：stage 覆盖 / 枚举合法 / 数值字段 / path 存在性（warning 级）。
+ * @param {string} workspaceRoot Workspace 根目录
+ * @returns {Promise<{issues:string[], checked:number}>}
+ */
+export async function runContextRulesChecks(workspaceRoot) {
+  const issues = [];
+  let checked = 0;
+  const rulesPath = join(workspaceRoot, '.sdd', 'context-rules.yaml');
+  let raw;
+  try {
+    raw = await readFile(rulesPath, 'utf8');
+  } catch (e) {
+    if (e.code === 'ENOENT') {
+      issues.push(".sdd/context-rules.yaml 缺失（运行 'openspec init' 生成）");
+      return { issues, checked };
+    }
+    throw e;
+  }
+  checked++;
+  let doc;
+  try {
+    doc = parse(raw);
+  } catch (e) {
+    issues.push(`context-rules.yaml 解析失败: ${e.message}`);
+    return { issues, checked };
+  }
+
+  const version = String(doc?.version || '0.1');
+  if (version === '0.1') {
+    issues.push('context-rules.yaml 为 v0.1 格式（建议升级 v0.2：结构化条目 + change-artifacts + limits）');
+  }
+
+  const stages = doc?.stages;
+  if (!stages || typeof stages !== 'object') {
+    issues.push('context-rules.yaml: 缺少 stages 段');
+    return { issues, checked };
+  }
+  for (const s of CONTEXT_STAGES) {
+    if (!stages[s]) issues.push(`context-rules.yaml: 缺少阶段 '${s}'`);
+  }
+
+  for (const [name, rule] of Object.entries(stages)) {
+    if (!CONTEXT_STAGES.includes(name)) {
+      issues.push(`context-rules.yaml: 未知阶段 '${name}'（允许: ${CONTEXT_STAGES.join('/')}）`);
+    }
+    if (!rule || !Array.isArray(rule.read)) {
+      issues.push(`context-rules.yaml: 阶段 '${name}' 缺少 read 数组`);
+      continue;
+    }
+    rule.read.forEach((r, i) => {
+      const tag = `stages.${name}.read[${i}]`;
+      if (typeof r === 'string') return; // v0.1 兼容
+      if (!r || typeof r !== 'object' || !r.path) {
+        issues.push(`context-rules.yaml: ${tag} 缺少 path`);
+        return;
+      }
+      if (r.mode !== undefined && !CONTEXT_MODES.includes(r.mode)) {
+        issues.push(`context-rules.yaml: ${tag} mode 非法 '${r.mode}'（允许: ${CONTEXT_MODES.join('/')}）`);
+      }
+      if (r.category !== undefined && !CONTEXT_CATEGORIES.includes(r.category)) {
+        issues.push(`context-rules.yaml: ${tag} category 非法 '${r.category}'（允许: ${CONTEXT_CATEGORIES.join('/')}）`);
+      }
+      for (const k of ['max-files', 'max-bytes']) {
+        if (r[k] !== undefined && (!Number.isInteger(r[k]) || r[k] <= 0)) {
+          issues.push(`context-rules.yaml: ${tag} ${k} 须为正整数`);
+        }
+      }
+      if (r.include !== undefined && !Array.isArray(r.include)) {
+        issues.push(`context-rules.yaml: ${tag} include 须为数组`);
+      }
+      if (r.exclude !== undefined && !Array.isArray(r.exclude)) {
+        issues.push(`context-rules.yaml: ${tag} exclude 须为数组`);
+      }
+    });
+    if (rule['change-artifacts'] !== undefined && !Array.isArray(rule['change-artifacts'])) {
+      issues.push(`context-rules.yaml: stages.${name}.change-artifacts 须为数组`);
+    } else if (Array.isArray(rule['change-artifacts'])) {
+      rule['change-artifacts'].forEach((a, j) => {
+        if (typeof a === 'string') return;
+        if (!a || typeof a !== 'object' || !a.path) {
+          issues.push(`context-rules.yaml: stages.${name}.change-artifacts[${j}] 缺少 path`);
+        }
+      });
+    }
+  }
+
+  if (doc.limits !== undefined) {
+    for (const k of ['total-max-bytes', 'total-max-files']) {
+      const v = doc.limits?.[k];
+      if (v !== undefined && (!Number.isInteger(v) || v <= 0)) {
+        issues.push(`context-rules.yaml: limits.${k} 须为正整数`);
+      }
+    }
+  }
+
+  // path 存在性（warning 级：允许模板先行，Workspace 内容后补）
+  for (const [name, rule] of Object.entries(stages)) {
+    if (!rule || !Array.isArray(rule.read)) continue;
+    for (const r of rule.read) {
+      const p = typeof r === 'string' ? r : r?.path;
+      if (!p) continue;
+      if (!(await pathExists(join(workspaceRoot, p)))) {
+        issues.push(`context-rules.yaml: stages.${name} 条目 path 不存在: ${p}（warning）`);
+      }
+    }
+  }
+
+  return { issues, checked };
+}

@@ -690,6 +690,38 @@ Harness 更新 SKILL.md 或 Prompt 片段后，旧 Workspace 需同步：
 openspec skill sync    # 从 Harness 复制最新 skills/ 与 prompts/ 到 Workspace
 ```
 
+### 9.7 Context 规则（Phase 2.6）
+
+`.sdd/context-rules.yaml` 定义 AI Agent 在各阶段读取哪些 Workspace 上下文。装配是确定性的：同一规则 + 同一 Workspace 状态 → 同一 Context。规则升级到 v0.2 后，Instruction 的 Context 部分拆为三个 section：**Change Artifacts**（本 CHG 前序产物正文）、**Workspace Context（内联文件）**（知识正文直接内联，无需回读）、**Workspace Context（文件清单）**（outline 级仅列路径，按需读取）。
+
+```yaml
+version: 0.2
+
+limits:                    # 全局预算（超限确定性截断，清单进入 Instruction 的 skipped 段）
+  total-max-bytes: 262144  # 256KB
+  total-max-files: 200
+
+stages:
+  design:
+    read:
+      - path: standards/
+        mode: inline       # inline=正文内联；outline=仅路径清单
+      - path: implementation/
+        mode: outline      # 多仓：仅结构清单，代码按需读取
+        include: ["**/*.ts"]   # 可选 glob 白名单
+        exclude: ["**/*.png"]  # 可选 glob 黑名单
+        max-files: 20      # 可选条目级上限
+        max-bytes: 65536
+    change-artifacts:      # 本 CHG 前序产物（相对 CHG 目录），正文注入 Instruction
+      - requirement.md
+      - prd.md
+```
+
+- **v0.1 兼容**：字符串条目（如 `- standards/`）等价于 `{ path, mode: inline }`
+- **自动注入**：task/dev/test/review/converge 阶段自动注入 STORY 级 `tasks.md` 与 `DU-*/metadata.yaml` 正文（feature-path 未绑定时标注缺失）
+- **单文件上限**：单文件最多内联 16KB，超出截断
+- **校验与排障**：`openspec doctor` 检查规则格式（阶段覆盖/枚举值/预算数值/path 存在性）；`openspec context <stage> [--change <CHG>]` 预览装配结果（文件数/字节、missing、skipped、预算占用）
+
 ---
 
 ## 10. CLI 命令参考
@@ -739,6 +771,7 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 与 prompts/ 到 Works
 | `openspec workflow list`                       | 列出 Workflow              |
 | `openspec workflow show default`               | 查看 Workflow 配置         |
 | `openspec workflow run default --change <CHG>` | 执行 Workflow 下一步       |
+| `openspec context <stage> [--change <CHG>]`    | 预览阶段 Context 装配结果（Phase 2.6，排障用） |
 
 ### 10.4 Workflow 状态
 
