@@ -168,7 +168,39 @@ const CONTEXT_CATEGORIES = ['knowledge', 'artifact', 'code', 'meta'];
 const CONTEXT_MODES = ['inline', 'outline'];
 
 /**
- * context-rules.yaml v0.2 校验：stage 覆盖 / 枚举合法 / 数值字段 / path 存在性（warning 级）。
+ * 校验单个 read 条目（workspace 级 read 与 per-repo 段 read 共用，Phase 2.7）。
+ * @param {object|string} r 条目
+ * @param {string} tag 错误信息定位（如 stages.dev.read[0]）
+ * @param {string[]} issues 累积 issue
+ */
+function validateContextEntry(r, tag, issues) {
+  if (typeof r === 'string') return; // v0.1 兼容
+  if (!r || typeof r !== 'object' || !r.path) {
+    issues.push(`context-rules.yaml: ${tag} 缺少 path`);
+    return;
+  }
+  if (r.mode !== undefined && !CONTEXT_MODES.includes(r.mode)) {
+    issues.push(`context-rules.yaml: ${tag} mode 非法 '${r.mode}'（允许: ${CONTEXT_MODES.join('/')}）`);
+  }
+  if (r.category !== undefined && !CONTEXT_CATEGORIES.includes(r.category)) {
+    issues.push(`context-rules.yaml: ${tag} category 非法 '${r.category}'（允许: ${CONTEXT_CATEGORIES.join('/')}）`);
+  }
+  for (const k of ['max-files', 'max-bytes']) {
+    if (r[k] !== undefined && (!Number.isInteger(r[k]) || r[k] <= 0)) {
+      issues.push(`context-rules.yaml: ${tag} ${k} 须为正整数`);
+    }
+  }
+  if (r.include !== undefined && !Array.isArray(r.include)) {
+    issues.push(`context-rules.yaml: ${tag} include 须为数组`);
+  }
+  if (r.exclude !== undefined && !Array.isArray(r.exclude)) {
+    issues.push(`context-rules.yaml: ${tag} exclude 须为数组`);
+  }
+}
+
+/**
+ * context-rules.yaml 校验（v0.3，Phase 2.6 §9 + Phase 2.7 §9）：
+ * stage 覆盖 / 枚举合法 / 数值字段 / repos 段（repoId 合法性）/ path 存在性（warning 级）。
  * @param {string} workspaceRoot Workspace 根目录
  * @returns {Promise<{issues:string[], checked:number}>}
  */
@@ -205,6 +237,8 @@ export async function runContextRulesChecks(workspaceRoot) {
     issues.push('context-rules.yaml: 缺少 stages 段');
     return { issues, checked };
   }
+  // repositories.yaml id 集合（repos 段 repoId 校验用；缺失 → 空）
+  const registryIds = new Set((await readRepositories(workspaceRoot)).map((r) => r.id));
   for (const s of CONTEXT_STAGES) {
     if (!stages[s]) issues.push(`context-rules.yaml: 缺少阶段 '${s}'`);
   }
@@ -217,31 +251,7 @@ export async function runContextRulesChecks(workspaceRoot) {
       issues.push(`context-rules.yaml: 阶段 '${name}' 缺少 read 数组`);
       continue;
     }
-    rule.read.forEach((r, i) => {
-      const tag = `stages.${name}.read[${i}]`;
-      if (typeof r === 'string') return; // v0.1 兼容
-      if (!r || typeof r !== 'object' || !r.path) {
-        issues.push(`context-rules.yaml: ${tag} 缺少 path`);
-        return;
-      }
-      if (r.mode !== undefined && !CONTEXT_MODES.includes(r.mode)) {
-        issues.push(`context-rules.yaml: ${tag} mode 非法 '${r.mode}'（允许: ${CONTEXT_MODES.join('/')}）`);
-      }
-      if (r.category !== undefined && !CONTEXT_CATEGORIES.includes(r.category)) {
-        issues.push(`context-rules.yaml: ${tag} category 非法 '${r.category}'（允许: ${CONTEXT_CATEGORIES.join('/')}）`);
-      }
-      for (const k of ['max-files', 'max-bytes']) {
-        if (r[k] !== undefined && (!Number.isInteger(r[k]) || r[k] <= 0)) {
-          issues.push(`context-rules.yaml: ${tag} ${k} 须为正整数`);
-        }
-      }
-      if (r.include !== undefined && !Array.isArray(r.include)) {
-        issues.push(`context-rules.yaml: ${tag} include 须为数组`);
-      }
-      if (r.exclude !== undefined && !Array.isArray(r.exclude)) {
-        issues.push(`context-rules.yaml: ${tag} exclude 须为数组`);
-      }
-    });
+    rule.read.forEach((r, i) => validateContextEntry(r, `stages.${name}.read[${i}]`, issues));
     if (rule['change-artifacts'] !== undefined && !Array.isArray(rule['change-artifacts'])) {
       issues.push(`context-rules.yaml: stages.${name}.change-artifacts 须为数组`);
     } else if (Array.isArray(rule['change-artifacts'])) {
@@ -251,6 +261,27 @@ export async function runContextRulesChecks(workspaceRoot) {
           issues.push(`context-rules.yaml: stages.${name}.change-artifacts[${j}] 缺少 path`);
         }
       });
+    }
+    // Phase 2.7：per-repo 规则段（v0.3）
+    if (rule.repos !== undefined) {
+      if (Number(version) < 0.3) {
+        issues.push(`context-rules.yaml: stages.${name}.repos 需要 version >= 0.3（当前 ${version}）`);
+      }
+      if (!rule.repos || typeof rule.repos !== 'object' || Array.isArray(rule.repos)) {
+        issues.push(`context-rules.yaml: stages.${name}.repos 须为对象（repoId → { read }）`);
+      } else {
+        for (const [repoId, sec] of Object.entries(rule.repos)) {
+          const rtag = `stages.${name}.repos.${repoId}`;
+          if (!registryIds.has(repoId)) {
+            issues.push(`context-rules.yaml: ${rtag} repoId 不在 .sdd/repositories.yaml（warning）`);
+          }
+          if (!sec || !Array.isArray(sec.read)) {
+            issues.push(`context-rules.yaml: ${rtag} 缺少 read 数组`);
+          } else {
+            sec.read.forEach((r, i) => validateContextEntry(r, `${rtag}.read[${i}]`, issues));
+          }
+        }
+      }
     }
   }
 
@@ -263,14 +294,24 @@ export async function runContextRulesChecks(workspaceRoot) {
     }
   }
 
-  // path 存在性（warning 级：允许模板先行，Workspace 内容后补）
+  // path 存在性（warning 级：允许模板先行，Workspace 内容后补；含 per-repo 段条目）
   for (const [name, rule] of Object.entries(stages)) {
     if (!rule || !Array.isArray(rule.read)) continue;
-    for (const r of rule.read) {
-      const p = typeof r === 'string' ? r : r?.path;
-      if (!p) continue;
+    const checkPath = async (p, tag) => {
+      if (!p) return;
       if (!(await pathExists(join(workspaceRoot, p)))) {
-        issues.push(`context-rules.yaml: stages.${name} 条目 path 不存在: ${p}（warning）`);
+        issues.push(`context-rules.yaml: ${tag} 条目 path 不存在: ${p}（warning）`);
+      }
+    };
+    for (const r of rule.read) {
+      await checkPath(typeof r === 'string' ? r : r?.path, `stages.${name}`);
+    }
+    if (rule.repos && typeof rule.repos === 'object' && !Array.isArray(rule.repos)) {
+      for (const [repoId, sec] of Object.entries(rule.repos)) {
+        if (!sec || !Array.isArray(sec.read)) continue;
+        for (const r of sec.read) {
+          await checkPath(typeof r === 'string' ? r : r?.path, `stages.${name}.repos.${repoId}`);
+        }
       }
     }
   }

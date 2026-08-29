@@ -1,12 +1,17 @@
-// ContextAssembler：消费 context-rules.yaml 装配 Workspace Context（Phase 2.6 v2）
+// ContextAssembler：消费 context-rules.yaml 装配 Workspace Context（Phase 2.6 v2 + Phase 2.7 DU 绑定）
 //
-// 规则模型（plans/phase-2.6-context-rules-design.md §4）：
+// 规则模型（plans/phase-2.6-context-rules-design.md §4 + phase-2.7-du-repo-context-design.md §4）：
 // - read 条目：字符串（v0.1 兼容 → { path, mode: 'inline' }）或结构化对象
 //   { path, category: knowledge|artifact|code|meta, mode: inline|outline,
 //     include?, exclude?, max-files?, max-bytes? }
 // - change-artifacts：本 CHG 前序产物（相对 CHG 目录），显式条目 + 确定性自动注入
 //   （STORY 级 tasks.md / DU-*/metadata.yaml，见 §4.3）
 // - limits：全局预算（total-max-bytes 默认 256KB / total-max-files 默认 200），确定性截断入 skipped
+// - repos（v0.3）：stages[stage].repos.<repoId>.read per-repo 规则段，仅绑定 DU 且
+//   DU.repository === repoId 时激活（Phase 2.7 §4）
+//
+// DU 绑定（Phase 2.7 §5）：opts.du 传入 DU id 后确定性注入 repo 侧上下文
+// （task.md / metadata.yaml inline；implementation.md / evidence/ outline），返回 duBinding。
 //
 // 纯函数，依赖 node:fs/promises + yaml，无 CLI/@clack 依赖；stage 名与 rules 对齐：
 // explore/prd/design/task/dev/test/review/converge
@@ -16,6 +21,8 @@ import { join, relative } from 'node:path';
 import { parse } from 'yaml';
 import { listFiles } from './fs-walker.js';
 import { featurePathDirs } from './artifact-path.js';
+import { readMetadata } from './change-model.js';
+import { readRepositories, findRepository, readWorkspaceDus } from './delivery-unit.js';
 
 // 单文件最多读取字节数（避免大文件撑爆 Instruction）
 const MAX_FILE_BYTES = 16384;
@@ -112,13 +119,14 @@ async function collectEntryFiles(workspaceRoot, entryPath) {
 }
 
 /**
- * 装配指定阶段的 Workspace Context（v2）。
+ * 装配指定阶段的 Workspace Context（v2 + Phase 2.7 DU 绑定）。
  *
  * @param {string} workspaceRoot Workspace 根目录绝对路径
  * @param {string} stage SDD 阶段名
- * @param {{changeDir?:string, metadata?:object}} [opts]
+ * @param {{changeDir?:string, metadata?:object, du?:string|{id:string, repository?:string}}} [opts]
  *   changeDir：CHG 目录绝对路径（Change Artifacts 注入 + feature-path 解析）
  *   metadata：readMetadata 结果（避免重复读；changeDir 缺省时忽略）
+ *   du：绑定的 Delivery Unit id（Phase 2.7；注入 repo 侧上下文 + 激活 per-repo 规则段）
  * @returns {Promise<{
  *   stage:string,
  *   dirs:string[],
@@ -126,8 +134,11 @@ async function collectEntryFiles(workspaceRoot, entryPath) {
  *   missingArtifacts:string[],
  *   skipped:string[],
  *   budget:{usedBytes:number,usedFiles:number,limitBytes:number,limitFiles:number},
+ *   rulesVersion:string,
+ *   duBinding:{duId:string,repository:string,repoPath:string,materialized:boolean,
+ *              activatedRepos:string[],guidance:object|null}|null,
  * }>}
- * @throws {Error} context-rules.yaml 缺失或 stage 未定义
+ * @throws {Error} context-rules.yaml 缺失、stage 未定义、DU 不存在或 repository 不合法
  */
 export async function assembleContext(workspaceRoot, stage, opts = {}) {
   const rulesPath = join(workspaceRoot, '.sdd', 'context-rules.yaml');
@@ -146,6 +157,8 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
     throw new Error(`No context rules for stage: ${stage}`);
   }
   const rulesVersion = String(doc.version || '0.1');
+  const changeDir = opts.changeDir;
+  const changeId = changeDir ? toPosix(relative(workspaceRoot, changeDir)).split('/').pop() : null;
 
   // 全局预算（limits 仅 v0.2 生效；v0.1 文件用缺省值兜底）
   const limits = doc.limits || {};
@@ -173,7 +186,12 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
     )
     .filter((r) => r.path);
 
-  for (const entry of readEntries) {
+  /**
+   * 装配单个 read 条目（workspace 级与 per-repo 段共用同一管道，Phase 2.7）。
+   * @param {object} entry 规范化条目 { path, mode, category?, include?, exclude?, max-files?, max-bytes? }
+   * @param {'rule'|'repo'} source 来源标记
+   */
+  const processEntry = async (entry, source) => {
     const entryPath = toPosix(String(entry.path)).replace(/\/+$/, '');
     const category = entry.category || inferCategory(entryPath);
     const mode = entry.mode === 'outline' ? 'outline' : 'inline';
@@ -203,7 +221,7 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
         }
         budget.usedFiles += 1;
         entryCount += 1;
-        files.push({ path: f, content: '', category, mode, source: 'rule' });
+        files.push({ path: f, content: '', category, mode, source });
         continue;
       }
       // inline：读正文
@@ -221,14 +239,16 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
       entryCount += 1;
       budget.usedBytes += size;
       budget.usedFiles += 1;
-      files.push({ path: f, content, category, mode, source: 'rule' });
+      files.push({ path: f, content, category, mode, source });
     }
+  };
+
+  for (const entry of readEntries) {
+    await processEntry(entry, 'rule');
   }
 
   // ---- 2. Change Artifacts（显式 + 自动注入，§4.3）----
-  const changeDir = opts.changeDir;
   if (changeDir) {
-    const changeId = toPosix(relative(workspaceRoot, changeDir)).split('/').pop();
     const meta = opts.metadata || null;
     const explicit = (Array.isArray(stageRule['change-artifacts']) ? stageRule['change-artifacts'] : [])
       .map((a) => (typeof a === 'string' ? a : a?.path))
@@ -303,8 +323,131 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
     }
   }
 
+  // ---- 3. DU 绑定（Phase 2.7 §5：repo 侧确定性注入 + per-repo 规则段激活）----
+  const duOpt = typeof opts.du === 'string' ? { id: opts.du } : opts.du || null;
+  let duBinding = null;
+  if (duOpt?.id) {
+    if (!changeDir) {
+      throw new Error('绑定 DU 需要提供 changeDir（CLI 传 --change <CHG>）');
+    }
+    const meta = opts.metadata || (await readMetadata(changeDir));
+    const dus = await readWorkspaceDus(changeDir, meta);
+    const du = dus.find((d) => d.id === duOpt.id);
+    if (!du) {
+      const known = dus.map((d) => d.id).join(', ') || '无';
+      throw new Error(`Workspace DU not found: ${duOpt.id}（当前 Change 可用 DU: ${known}）`);
+    }
+    const repository = du.metadata.repository || '';
+    if (duOpt.repository && duOpt.repository !== repository) {
+      throw new Error(`DU ${du.id} repository 不匹配（metadata: ${repository}，传入: ${duOpt.repository}）`);
+    }
+    const repos = await readRepositories(workspaceRoot);
+    const repo = findRepository(repos, repository);
+    if (!repo) {
+      throw new Error(`repository '${repository}' 不在 .sdd/repositories.yaml（DU ${du.id} 1:1 硬约束）`);
+    }
+
+    // repo 侧交付目录：优先 repository-delivery.path（materialize 回填），缺省按物化规则推导
+    const fp = featurePathDirs(meta);
+    const deliveryPath = du.metadata['repository-delivery']?.path;
+    const repoPath =
+      deliveryPath ||
+      (fp ? `${String(repo.path).replace(/\\/g, '/')}/delivery/${changeId}/${fp.join('/')}/${du.id}` : null);
+
+    let materialized = false;
+    if (repoPath) {
+      try {
+        await stat(join(workspaceRoot, repoPath, 'metadata.yaml'));
+        materialized = true;
+      } catch {
+        materialized = false;
+      }
+    }
+
+    /**
+     * 注入 repo 侧单文件（source=repo）。missingReason 缺省的条目（implementation.md /
+     * evidence/）缺失时静默跳过——设计 §5：仅 metadata.yaml 与 task.md 必需。
+     */
+    const pushRepoFile = async (relPath, mode, missingReason) => {
+      const abs = join(workspaceRoot, relPath);
+      let st;
+      try {
+        st = await stat(abs);
+      } catch {
+        if (missingReason) missingArtifacts.push(`${relPath} (${missingReason})`);
+        return;
+      }
+      if (!st.isFile()) return;
+      if (mode === 'outline') {
+        if (!fitsBudget(0)) {
+          skipped.push(`${relPath} (over budget)`);
+          return;
+        }
+        budget.usedFiles += 1;
+        files.push({ path: relPath, content: '', category: 'artifact', mode, source: 'repo' });
+        return;
+      }
+      const content = await readContent(abs);
+      const size = Buffer.byteLength(content, 'utf8');
+      if (!fitsBudget(size)) {
+        skipped.push(`${relPath} (over budget)`);
+        return;
+      }
+      budget.usedBytes += size;
+      budget.usedFiles += 1;
+      files.push({ path: relPath, content, category: 'artifact', mode, source: 'repo' });
+    };
+
+    const notMaterializedReason = `not materialized — run: openspec du materialize ${changeId} ${du.id}`;
+    if (!materialized) {
+      if (repoPath) {
+        missingArtifacts.push(`${repoPath}/metadata.yaml (${notMaterializedReason})`);
+        missingArtifacts.push(`${repoPath}/task.md (${notMaterializedReason})`);
+      }
+    } else {
+      await pushRepoFile(`${repoPath}/metadata.yaml`, 'inline');
+      await pushRepoFile(`${repoPath}/task.md`, 'inline');
+      // implementation.md（Agent 将写入的 Actual 记录）与 evidence/ 仅 outline，不标 missing
+      await pushRepoFile(`${repoPath}/implementation.md`, 'outline');
+      try {
+        const evidenceFiles = await listFiles(join(workspaceRoot, repoPath, 'evidence'));
+        for (const f of evidenceFiles) {
+          await pushRepoFile(`${repoPath}/evidence/${f}`, 'outline');
+        }
+      } catch {
+        // evidence/ 未创建 → 跳过
+      }
+    }
+
+    // per-repo 规则段（v0.3）：仅激活 DU.repository 对应段（DU 1:1 Repository）
+    const activated = [];
+    const repoSection =
+      stageRule.repos && typeof stageRule.repos === 'object' && !Array.isArray(stageRule.repos)
+        ? stageRule.repos[repository]
+        : null;
+    if (repoSection && Array.isArray(repoSection.read)) {
+      activated.push(repository);
+      for (const entry of repoSection.read) {
+        if (typeof entry === 'string') {
+          await processEntry({ path: entry, mode: 'inline' }, 'repo');
+        } else if (entry?.path) {
+          await processEntry({ ...entry, mode: entry.mode || 'inline' }, 'repo');
+        }
+      }
+    }
+
+    duBinding = {
+      duId: du.id,
+      repository,
+      repoPath,
+      materialized,
+      activatedRepos: activated,
+      guidance: du.metadata['implementation-guidance'] || null,
+    };
+  }
+
   // dirs 兼容保留：read 条目的顶层目录（v1 形态）
   const dirs = [...new Set(readEntries.map((e) => toPosix(String(e.path)).replace(/\/+$/, '')))];
 
-  return { stage, dirs, files, missingArtifacts, skipped, budget, rulesVersion };
+  return { stage, dirs, files, missingArtifacts, skipped, budget, rulesVersion, duBinding };
 }

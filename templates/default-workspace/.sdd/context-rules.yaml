@@ -1,6 +1,6 @@
 # OpenSpec Context Rules Configuration
 #
-# 版本: v0.2（Phase 2.6：结构化条目 + Change Artifacts + 预算；基线 v0.1）
+# 版本: v0.3（Phase 2.7：per-repo 规则段 + DU 绑定装配；基线 v0.1 / v0.2）
 # 类型: AI Context Loading Rules
 #
 # 定义 AI Agent 在不同 SDD 阶段应该读取的 Workspace 上下文。
@@ -21,9 +21,14 @@
 #   task/dev/test/review/converge 阶段还会自动注入 STORY 级 tasks.md 与 DU-*/metadata.yaml
 #   （feature-path 未绑定时在 Instruction 中标注缺失）。
 #
-# limits：全局预算（超限确定性截断，清单列入 Instruction 的 skipped 段）。
+# repos（v0.3，Phase 2.7）：per-repo 规则段（repoId → { read }），仅当 workflow run
+#   显式绑定 DU（--du）且 DU.repository === repoId 时激活；条目格式与 read 完全一致。
+#   绑定 DU 后还会确定性注入 repo 侧上下文（task.md / metadata.yaml 正文，
+#   implementation.md / evidence/ 清单）——见 plans/phase-2.7-du-repo-context-design.md §5。
+#
+# limits：全局预算（超限确定性截断，清单列入 Instruction 的 skipped 段；per-repo 段同受约束）。
 
-version: 0.2
+version: 0.3
 
 limits:
   total-max-bytes: 262144 # 256KB
@@ -73,18 +78,30 @@ stages:
       - prd.md
       - design.md
 
-  # 开发阶段：按 DU Scope 在各仓实施 / 消费 repo task.md 全 9 节
+  # 开发阶段：绑定 DU 实施 / 消费 repo task.md 全 9 节
+  # repos 段为 opt-in：按项目仓库取消注释并替换为实际 repoId（须与 .sdd/repositories.yaml 一致）
   dev:
     read:
       - path: standards/
         mode: outline
       - path: implementation/
-        mode: outline # 仅结构清单；repo 侧正文按 DU metadata 的 repository-delivery.path 定位
+        mode: outline # 仅结构清单；repo 侧正文由 DU 绑定自动注入
     change-artifacts:
       - prd.md
       - design.md
+    # repos:                                   # ← 取消注释启用 per-repo 规则段（version 0.3）
+    #   backend:
+    #     read:
+    #       - path: implementation/backend/
+    #         mode: outline
+    #         exclude: ["**/node_modules/**", "**/dist/**", "**/target/**"]
+    #   frontend:
+    #     read:
+    #       - path: implementation/frontend/
+    #         mode: outline
+    #         exclude: ["**/node_modules/**", "**/dist/**"]
 
-  # 测试阶段：验证实现 / 生成 Evidence / 检查质量
+  # 测试阶段：验证实现 / 生成 Evidence / 检查质量（repos 段同 dev，按需配置）
   test:
     read:
       - path: standards/

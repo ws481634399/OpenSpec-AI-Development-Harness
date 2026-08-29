@@ -74,6 +74,10 @@ export function registerWorkflowCommand(program) {
   workflow
     .command('run <name>')
     .requiredOption('--change <chg>', 'Change id (CHG-XXXX)')
+    .option(
+      '--du <du-id>',
+      '绑定 Delivery Unit（DU-<别名>-NNN）：dev/test 阶段注入 repo 侧上下文并激活 per-repo 规则段（Phase 2.7）'
+    )
     .action(async (name, opts) => {
       const ws = resolveWorkspaceRoot();
       try {
@@ -84,6 +88,7 @@ export function registerWorkflowCommand(program) {
         const result = await runWorkflow(ws, opts.change, {
           workflowName: name,
           harnessRoot,
+          du: opts.du,
         });
 
         switch (result.result) {

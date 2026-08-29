@@ -89,3 +89,69 @@ test('rule 条目无正文（content 为空）归入文件清单 section', () =>
   assert.ok(listSection.includes('standards/missing.md'));
   assert.ok(!md.includes('### standards/missing.md'), '无正文不应出现在内联 section');
 });
+
+// ---- Phase 2.7：DU 绑定 section + Repository Delivery Context ----
+
+const DU_BINDING = {
+  duId: 'DU-BE-001',
+  repository: 'backend',
+  repoPath: 'implementation/backend/delivery/CHG-0001/FEAT-001/FEAT-001-01/FEAT-001-01-01/STORY-001-01-01-01/DU-BE-001',
+  materialized: true,
+  activatedRepos: ['backend'],
+  guidance: { sketch: true, pseudocode: true, 'complexity-trigger': ['business-flow'] },
+};
+
+test('DU 绑定 section：元信息 + Repo Delivery + guidance 渲染（pseudocode 必填）', () => {
+  const md = buildInstruction(SKILL, mkContext([], { duBinding: DU_BINDING }), { changeId: 'CHG-0001' });
+  assert.ok(md.includes('## DU 绑定'));
+  assert.ok(md.includes('- Delivery Unit: DU-BE-001（repository: backend）'));
+  assert.ok(md.includes('- Repo Delivery: `implementation/backend/delivery/CHG-0001/'));
+  assert.ok(md.includes('Pseudocode 必填（trigger: business-flow）'));
+  assert.ok(md.includes('Implementation Sketch 必填'));
+  assert.ok(md.includes('Verification 必填'));
+});
+
+test('DU 绑定 section：未声明触发器 → Pseudocode 条件必填文案', () => {
+  const md = buildInstruction(
+    SKILL,
+    mkContext([], { duBinding: { ...DU_BINDING, guidance: { sketch: true, pseudocode: false, 'complexity-trigger': [] } } }),
+    { changeId: 'CHG-0001' }
+  );
+  assert.ok(md.includes('Pseudocode 条件必填（本 DU 未声明触发器，未命中时写 N/A + 理由）'));
+});
+
+test('Repository Delivery Context：repo 正文内联；repo outline 条目进文件清单（repo 标记）', () => {
+  const ctx = mkContext(
+    [
+      { path: 'implementation/backend/delivery/CHG-0001/DU-BE-001/task.md', content: 'REPO-TASK-MARKER', category: 'artifact', mode: 'inline', source: 'repo' },
+      { path: 'implementation/backend/src/A.java', content: '', category: 'code', mode: 'outline', source: 'repo' },
+    ],
+    { duBinding: DU_BINDING }
+  );
+  const md = buildInstruction(SKILL, ctx, { changeId: 'CHG-0001' });
+  assert.ok(md.includes('## Repository Delivery Context'));
+  assert.ok(md.includes('### implementation/backend/delivery/CHG-0001/DU-BE-001/task.md'));
+  assert.ok(md.includes('REPO-TASK-MARKER'));
+  const listSection = md.split('## Workspace Context（文件清单）')[1] || '';
+  assert.ok(listSection.includes('- `implementation/backend/src/A.java`（repo）'), listSection);
+});
+
+test('DU 绑定但 repo 无内联文件 → （无 repo 侧内联文件）占位', () => {
+  const md = buildInstruction(SKILL, mkContext([], { duBinding: DU_BINDING }), { changeId: 'CHG-0001' });
+  assert.ok(md.includes('（无 repo 侧内联文件）'));
+});
+
+test('未物化 → DU 绑定 section 提示 materialize 命令', () => {
+  const md = buildInstruction(
+    SKILL,
+    mkContext([], { duBinding: { ...DU_BINDING, materialized: false } }),
+    { changeId: 'CHG-0001' }
+  );
+  assert.ok(md.includes('openspec du materialize CHG-0001 DU-BE-001'));
+});
+
+test('未绑定 DU → 不输出 DU 绑定与 Repository Delivery Context', () => {
+  const md = buildInstruction(SKILL, mkContext([]), {});
+  assert.ok(!md.includes('## DU 绑定'));
+  assert.ok(!md.includes('## Repository Delivery Context'));
+});

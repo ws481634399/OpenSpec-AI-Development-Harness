@@ -722,6 +722,50 @@ stages:
 - **单文件上限**：单文件最多内联 16KB，超出截断
 - **校验与排障**：`openspec doctor` 检查规则格式（阶段覆盖/枚举值/预算数值/path 存在性）；`openspec context <stage> [--change <CHG>]` 预览装配结果（文件数/字节、missing、skipped、预算占用）
 
+#### per-repo 规则段与 DU 绑定（Phase 2.7，v0.3）
+
+多仓项目下，dev/test 阶段可通过 `--du` 显式绑定 Delivery Unit 执行，装配器自动完成两件事：
+
+**1) Repo 侧上下文自动注入**——绑定 DU 后确定性注入 repo 侧交付目录内容，Agent 无需手动导航 repo 文件：
+
+| 文件 | 注入方式 |
+| --- | --- |
+| `<repo>/delivery/.../<DU-ID>/task.md` | inline（正文） |
+| `<repo>/delivery/.../<DU-ID>/metadata.yaml` | inline（正文） |
+| `<repo>/delivery/.../<DU-ID>/implementation.md` | outline（清单） |
+| `<repo>/delivery/.../<DU-ID>/evidence/` | outline（清单） |
+
+repo 侧目录未物化时标注 missing 并提示 `openspec du materialize <CHG> <DU>`。
+
+**2) per-repo 规则段激活**——context-rules.yaml v0.3 新增 `repos` 段（repoId → `{ read }`），仅当绑定的 `DU.repository === repoId` 时激活，条目格式与 `read` 完全一致，实现按仓差异化上下文：
+
+```yaml
+version: 0.3
+stages:
+  dev:
+    read:
+      - path: implementation/
+        mode: outline
+    repos:                        # opt-in：repoId 须与 .sdd/repositories.yaml 一致
+      backend:
+        read:
+          - path: implementation/backend/
+            mode: outline
+            exclude: ["**/node_modules/**", "**/dist/**", "**/target/**"]
+```
+
+使用方式：
+
+```bash
+# dev/test 阶段绑定 DU 执行（其他阶段忽略 --du）
+openspec workflow run default --change CHG-0001 --du DU-BE-001
+
+# 预览绑定后的装配结果（排障用）
+openspec context dev --change CHG-0001 --du DU-BE-001
+```
+
+Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / repo 交付路径 / guidance 要求，未物化时给出 materialize 提示）与 **Repository Delivery Context**（repo 侧内联文件正文）。校验方面，`openspec doctor` 对 v0.3 增加 repos 段检查（version >= 0.3、repos 须为对象、repoId 已注册、read 数组与条目合法性、path 存在性 warning）。
+
 ---
 
 ## 10. CLI 命令参考
@@ -770,8 +814,8 @@ stages:
 | `openspec validate --all`                      | 校验全部 Change            |
 | `openspec workflow list`                       | 列出 Workflow              |
 | `openspec workflow show default`               | 查看 Workflow 配置         |
-| `openspec workflow run default --change <CHG>` | 执行 Workflow 下一步       |
-| `openspec context <stage> [--change <CHG>]`    | 预览阶段 Context 装配结果（Phase 2.6，排障用） |
+| `openspec workflow run default --change <CHG> [--du <DU>]` | 执行 Workflow 下一步（`--du` 仅 dev/test 生效，Phase 2.7） |
+| `openspec context <stage> [--change <CHG>] [--du <DU>]`    | 预览阶段 Context 装配结果（Phase 2.6，排障用；`--du` 预览 DU 绑定装配） |
 
 ### 10.4 Workflow 状态
 

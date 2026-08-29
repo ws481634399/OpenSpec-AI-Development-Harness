@@ -145,3 +145,85 @@ test('path 不存在 → warning 级 issue', async () => {
   assert.ok(r.issues.some((i) => i.includes('path 不存在: no-such-dir/')), r.issues.join('; '));
   await rmrf(tmp);
 });
+
+// ---- Phase 2.7：repos 段（per-repo 规则段）校验 ----
+
+test('repos 段：version < 0.3 → 提示升级；repoId 未注册 → warning', async () => {
+  const tmp = await initWorkspace();
+  await writeRules(
+    tmp,
+    ['version: 0.2', 'stages:', '  dev:', '    read: []', '    repos:', '      backend:', '        read:', '          - path: implementation/'].join('\n')
+  );
+  const r = await runContextRulesChecks(tmp);
+  assert.ok(r.issues.some((i) => i.includes('repos 需要 version >= 0.3')), r.issues.join('; '));
+  assert.ok(r.issues.some((i) => i.includes('repos.backend repoId 不在 .sdd/repositories.yaml')), r.issues.join('; '));
+  await rmrf(tmp);
+});
+
+test('repos 段：非对象 / 条目缺 read / 条目非法', async () => {
+  const tmp = await initWorkspace();
+  await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []', '    repos: 42'].join('\n'));
+  let r = await runContextRulesChecks(tmp);
+  assert.ok(r.issues.some((i) => i.includes('repos 须为对象')), r.issues.join('; '));
+
+  await writeRules(
+    tmp,
+    ['version: 0.3', 'stages:', '  dev:', '    read: []', '    repos:', '      main: {}'].join('\n')
+  );
+  r = await runContextRulesChecks(tmp);
+  assert.ok(r.issues.some((i) => i.includes('repos.main 缺少 read 数组')), r.issues.join('; '));
+
+  await writeRules(
+    tmp,
+    ['version: 0.3', 'stages:', '  dev:', '    read: []', '    repos:', '      main:', '        read:', '          - mode: bad'].join('\n')
+  );
+  r = await runContextRulesChecks(tmp);
+  assert.ok(r.issues.some((i) => i.includes('repos.main.read[0] 缺少 path')), r.issues.join('; '));
+  await rmrf(tmp);
+});
+
+test('repos 段合法配置（repoId 已注册 + path 存在）→ 无 issue', async () => {
+  const tmp = await initWorkspace();
+  await writeRules(
+    tmp,
+    [
+      'version: 0.3',
+      'stages:',
+      '  explore:',
+      '    read: []',
+      '  prd:',
+      '    read: []',
+      '  design:',
+      '    read: []',
+      '  task:',
+      '    read: []',
+      '  dev:',
+      '    read: []',
+      '    repos:',
+      '      main:',
+      '        read:',
+      '          - path: implementation/',
+      '            mode: outline',
+      '  test:',
+      '    read: []',
+      '  review:',
+      '    read: []',
+      '  converge:',
+      '    read: []',
+    ].join('\n')
+  );
+  const r = await runContextRulesChecks(tmp);
+  assert.deepEqual(r.issues, [], r.issues.join('; '));
+  await rmrf(tmp);
+});
+
+test('repos 段 path 不存在 → warning 级 issue', async () => {
+  const tmp = await initWorkspace();
+  await writeRules(
+    tmp,
+    ['version: 0.3', 'stages:', '  dev:', '    read: []', '    repos:', '      main:', '        read:', '          - path: no-such-repo/'].join('\n')
+  );
+  const r = await runContextRulesChecks(tmp);
+  assert.ok(r.issues.some((i) => i.includes('repos.main 条目 path 不存在: no-such-repo/')), r.issues.join('; '));
+  await rmrf(tmp);
+});

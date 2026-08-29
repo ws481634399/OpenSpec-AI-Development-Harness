@@ -69,14 +69,41 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
-  // 4. Context（Phase 2.6 v2：Change Artifacts + 内联文件 + 文件清单三 section）
+  // 3.5 DU 绑定（Phase 2.7：仅绑定时输出，先于 Context 生效）
+  const duBinding = context?.duBinding || null;
+  if (duBinding) {
+    lines.push('## DU 绑定');
+    lines.push('');
+    lines.push(`- Delivery Unit: ${duBinding.duId}（repository: ${duBinding.repository}）`);
+    if (duBinding.repoPath) {
+      lines.push(`- Repo Delivery: \`${duBinding.repoPath}\``);
+    }
+    if (duBinding.materialized === false) {
+      lines.push(
+        `- 注意: repo 侧交付目录未物化——先运行 \`openspec du materialize ${userInput.changeId || ''} ${duBinding.duId}\``
+      );
+    }
+    const g = duBinding.guidance || {};
+    const pseudoText =
+      g.pseudocode === true
+        ? `Pseudocode 必填（trigger: ${(g['complexity-trigger'] || []).join(', ') || 'declared'}）`
+        : 'Pseudocode 条件必填（本 DU 未声明触发器，未命中时写 N/A + 理由）';
+    lines.push(`- Guidance: Implementation Sketch 必填；${pseudoText}；Verification 必填`);
+    lines.push('');
+  }
+
+  // 4. Context（Phase 2.6 v2：Change Artifacts + 内联文件 + 文件清单三 section；
+  //    Phase 2.7：DU 绑定时增加 Repository Delivery Context section）
   const allFiles = context?.files || [];
   const artifacts = allFiles.filter((f) => f.source === 'change-artifact' || f.source === 'auto');
   const inlineCtx = allFiles.filter(
     (f) => f.source === 'rule' && f.mode !== 'outline' && f.content,
   );
+  const repoInline = allFiles.filter(
+    (f) => f.source === 'repo' && f.mode !== 'outline' && f.content,
+  );
   const outlineCtx = allFiles.filter(
-    (f) => f.source === 'rule' && (f.mode === 'outline' || !f.content),
+    (f) => (f.source === 'rule' || f.source === 'repo') && (f.mode === 'outline' || !f.content),
   );
 
   // 4a. Change Artifacts：本 CHG 前序产物正文（Agent 的核心输入）
@@ -122,6 +149,27 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
+  // 4b+. Repository Delivery Context（Phase 2.7：DU 绑定时 repo 侧正文内联）
+  if (duBinding) {
+    lines.push('## Repository Delivery Context');
+    lines.push('');
+    if (repoInline.length > 0) {
+      lines.push(`绑定 DU \`${duBinding.duId}\` 的 repo 侧上下文（正文已内联，无需回读）：`);
+      lines.push('');
+      for (const f of repoInline) {
+        lines.push(`### ${f.path}`);
+        lines.push('');
+        lines.push('````');
+        lines.push(f.content);
+        lines.push('````');
+        lines.push('');
+      }
+    } else {
+      lines.push('（无 repo 侧内联文件）');
+      lines.push('');
+    }
+  }
+
   // 4c. Workspace Context 文件清单（outline 级：仅路径，Agent 按需读取）
   lines.push('## Workspace Context（文件清单）');
   lines.push('');
@@ -129,7 +177,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
   lines.push('');
   if (outlineCtx.length > 0) {
     for (const f of outlineCtx) {
-      lines.push(`- \`${f.path}\``);
+      lines.push(`- \`${f.path}\`${f.source === 'repo' ? '（repo）' : ''}`);
     }
     lines.push('');
   } else {
@@ -156,6 +204,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
   if (userInput.changeId) lines.push(`- Change: ${userInput.changeId}`);
+  if (userInput.duId) lines.push(`- Delivery Unit: ${userInput.duId}（repository: ${userInput.repository || ''}）`);
   if (!userInput.requirement && !userInput.title && !userInput.content && !userInput.changeId) {
     lines.push('（无）');
     lines.push('');

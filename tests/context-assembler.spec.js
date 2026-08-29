@@ -303,3 +303,180 @@ test('context-rules.yaml 缺失 → 抛错；stage 未定义 → 抛错', async 
   await assert.rejects(() => assembleContext(tmp, 'prd'), /No context rules for stage: prd/);
   await rmrf(tmp);
 });
+
+// ---- Phase 2.7：DU 绑定 + per-repo 规则段（plans/phase-2.7-du-repo-context-design.md §5/§6）----
+
+const FP_REL = 'FEAT-001/FEAT-001-01/FEAT-001-01-01/STORY-001-01-01-01';
+
+// Workspace DU metadata.yaml（readWorkspaceDus 消费 repository / repository-delivery.path / guidance）
+const duYaml = (duId, repoId, repoPath) =>
+  [
+    `id: ${duId}`,
+    `repository: ${repoId}`,
+    'repository-delivery:',
+    `  path: "${repoPath}"`,
+    'status: pending',
+    'implementation-guidance:',
+    '  sketch: true',
+    '  pseudocode: true',
+    '  complexity-trigger: [business-flow]',
+  ].join('\n');
+
+const REPO_REGISTRY = ['repositories:', '  - id: backend', '    path: implementation/backend'].join('\n');
+
+/**
+ * 构造 DU fixture：Workspace DU metadata + repo 侧交付目录。
+ * @param {object} o { duId, repoId, materialized, wsDuRepoPath 覆写 Workspace DU 记录的 path }
+ */
+async function writeDuFixture(tmp, { duId = 'DU-BE-001', repoId = 'backend', materialized = true, wsDuRepoPath } = {}) {
+  await writeDeep(tmp, '.sdd/repositories.yaml', REPO_REGISTRY);
+  const repoPath = `implementation/${repoId}/delivery/CHG-0001/${FP_REL}/${duId}`;
+  const recorded = wsDuRepoPath !== undefined ? wsDuRepoPath : materialized ? repoPath : '';
+  await writeDeep(tmp, `delivery/changes/CHG-0001/${FP_REL}/tasks.md`, 'STORY-TASKS-MARKER');
+  await writeDeep(tmp, `delivery/changes/CHG-0001/${FP_REL}/${duId}/metadata.yaml`, duYaml(duId, repoId, recorded));
+  if (materialized) {
+    await writeDeep(tmp, `${repoPath}/metadata.yaml`, 'REPO-META-MARKER');
+    await writeDeep(tmp, `${repoPath}/task.md`, 'REPO-TASK-MARKER');
+    await writeDeep(tmp, `${repoPath}/implementation.md`, 'REPO-IMPL-MARKER');
+    await writeDeep(tmp, `${repoPath}/evidence/evidence.yaml`, 'EV-MARKER');
+  }
+  return repoPath;
+}
+
+const changeDirOf = (tmp) => join(tmp, 'delivery', 'changes', 'CHG-0001');
+
+test('Phase 2.7 DU 绑定：已物化 → repo task.md/metadata inline + implementation.md/evidence outline', async () => {
+  const tmp = await mkWs();
+  await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []'].join('\n'));
+  const repoPath = await writeDuFixture(tmp);
+  const ctx = await assembleContext(tmp, 'dev', { changeDir: changeDirOf(tmp), metadata: FP_META, du: 'DU-BE-001' });
+
+  const task = ctx.files.find((f) => f.path === `${repoPath}/task.md`);
+  assert.ok(task, 'repo task.md 应注入');
+  assert.equal(task.content, 'REPO-TASK-MARKER');
+  assert.equal(task.source, 'repo');
+  assert.equal(task.mode, 'inline');
+  assert.equal(task.category, 'artifact');
+  const metaF = ctx.files.find((f) => f.path === `${repoPath}/metadata.yaml`);
+  assert.equal(metaF.content, 'REPO-META-MARKER');
+  const impl = ctx.files.find((f) => f.path === `${repoPath}/implementation.md`);
+  assert.ok(impl, 'implementation.md 应以 outline 收集');
+  assert.equal(impl.mode, 'outline');
+  const ev = ctx.files.find((f) => f.path === `${repoPath}/evidence/evidence.yaml`);
+  assert.ok(ev, 'evidence 清单应收集');
+  assert.equal(ev.mode, 'outline');
+  assert.deepEqual(ctx.missingArtifacts, []);
+  assert.deepEqual(ctx.duBinding, {
+    duId: 'DU-BE-001',
+    repository: 'backend',
+    repoPath,
+    materialized: true,
+    activatedRepos: [],
+    guidance: { sketch: true, pseudocode: true, 'complexity-trigger': ['business-flow'] },
+  });
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 DU 绑定：未物化 → metadata/task.md 标 missing 并提示 materialize', async () => {
+  const tmp = await mkWs();
+  await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []'].join('\n'));
+  const repoPath = await writeDuFixture(tmp, { materialized: false });
+  const ctx = await assembleContext(tmp, 'dev', { changeDir: changeDirOf(tmp), metadata: FP_META, du: 'DU-BE-001' });
+  assert.equal(ctx.duBinding.materialized, false);
+  assert.equal(ctx.duBinding.repoPath, repoPath, '未记录 path 时按物化规则推导');
+  assert.equal(ctx.missingArtifacts.length, 2);
+  for (const m of ctx.missingArtifacts) {
+    assert.ok(m.includes('(not materialized — run: openspec du materialize CHG-0001 DU-BE-001)'), m);
+  }
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 DU 绑定：DU 不存在 → 抛错并列出可用 DU', async () => {
+  const tmp = await mkWs();
+  await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []'].join('\n'));
+  await writeDuFixture(tmp);
+  await assert.rejects(
+    () => assembleContext(tmp, 'dev', { changeDir: changeDirOf(tmp), metadata: FP_META, du: 'DU-BE-999' }),
+    /Workspace DU not found: DU-BE-999/
+  );
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 DU 绑定：repository 不在 Registry → 抛错', async () => {
+  const tmp = await mkWs();
+  await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []'].join('\n'));
+  await writeDeep(tmp, '.sdd/repositories.yaml', REPO_REGISTRY);
+  await writeDeep(tmp, `delivery/changes/CHG-0001/${FP_REL}/DU-GH-001/metadata.yaml`, duYaml('DU-GH-001', 'ghost', ''));
+  await assert.rejects(
+    () => assembleContext(tmp, 'dev', { changeDir: changeDirOf(tmp), metadata: FP_META, du: 'DU-GH-001' }),
+    /repository 'ghost' 不在 \.sdd\/repositories\.yaml/
+  );
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 per-repo 规则段：绑定 DU 激活对应仓（source=repo），其他仓不激活', async () => {
+  const tmp = await mkWs();
+  await writeRules(
+    tmp,
+    [
+      'version: 0.3',
+      'stages:',
+      '  dev:',
+      '    read: []',
+      '    repos:',
+      '      backend:',
+      '        read:',
+      '          - path: implementation/backend/src/',
+      '            mode: inline',
+      '      frontend:',
+      '        read:',
+      '          - path: implementation/frontend/src/',
+      '            mode: inline',
+    ].join('\n')
+  );
+  await writeDuFixture(tmp, { materialized: false }); // 未物化避免注入占用预算干扰断言
+  await writeDeep(tmp, 'implementation/backend/src/A.java', 'BACKEND-SRC-MARKER');
+  await writeDeep(tmp, 'implementation/frontend/src/B.ts', 'FRONTEND-SRC-MARKER');
+  const ctx = await assembleContext(tmp, 'dev', { changeDir: changeDirOf(tmp), metadata: FP_META, du: 'DU-BE-001' });
+  const backend = ctx.files.find((f) => f.path === 'implementation/backend/src/A.java');
+  assert.ok(backend, '绑定仓的 src 应内联');
+  assert.equal(backend.content, 'BACKEND-SRC-MARKER');
+  assert.equal(backend.source, 'repo');
+  assert.ok(!ctx.files.some((f) => f.path === 'implementation/frontend/src/B.ts'), '未绑定仓不激活');
+  assert.deepEqual(ctx.duBinding.activatedRepos, ['backend']);
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 未绑定 DU → repos 段不激活，duBinding 为 null', async () => {
+  const tmp = await mkWs();
+  await writeRules(
+    tmp,
+    ['version: 0.3', 'stages:', '  dev:', '    read: []', '    repos:', '      backend:', '        read:', '          - path: implementation/backend/src/'].join('\n')
+  );
+  await writeDeep(tmp, 'implementation/backend/src/A.java', 'BACKEND-SRC-MARKER');
+  const ctx = await assembleContext(tmp, 'dev');
+  assert.equal(ctx.duBinding, null);
+  assert.deepEqual(ctx.files, []);
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 per-repo 条目受全局 limits 约束', async () => {
+  const tmp = await mkWs();
+  await writeRules(
+    tmp,
+    ['version: 0.3', 'limits:', '  total-max-bytes: 10', 'stages:', '  dev:', '    read: []', '    repos:', '      backend:', '        read:', '          - path: implementation/backend/src/'].join('\n')
+  );
+  await writeDuFixture(tmp, { materialized: false });
+  await writeDeep(tmp, 'implementation/backend/src/A.java', 'A'.repeat(20));
+  const ctx = await assembleContext(tmp, 'dev', { changeDir: changeDirOf(tmp), metadata: FP_META, du: 'DU-BE-001' });
+  assert.deepEqual(ctx.files, []);
+  assert.ok(ctx.skipped.includes('implementation/backend/src/A.java (over budget)'), ctx.skipped.join(';'));
+  await rmrf(tmp);
+});
+
+test('Phase 2.7 DU 绑定未传 changeDir → 抛错', async () => {
+  const tmp = await mkWs();
+  await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []'].join('\n'));
+  await assert.rejects(() => assembleContext(tmp, 'dev', { du: 'DU-BE-001' }), /changeDir/);
+  await rmrf(tmp);
+});

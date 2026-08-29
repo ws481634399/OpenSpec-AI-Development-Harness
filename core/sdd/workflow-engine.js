@@ -48,7 +48,8 @@ export const WORKFLOW_RESULT = {
  *
  * @param {string} workspaceRoot Workspace 根目录
  * @param {string} changeId CHG-XXXX
- * @param {object} [opts] { workflowName='default', harnessRoot, skillInput={} }
+ * @param {object} [opts] { workflowName='default', harnessRoot, skillInput={}, du? }
+ *   du：绑定的 Delivery Unit id（Phase 2.7，仅 dev/test 阶段生效；其他阶段忽略）
  * @returns {Promise<{result:string, stage?:object, reason:string, instruction?:string}>}
  */
 export async function runWorkflow(workspaceRoot, changeId, opts = {}) {
@@ -181,13 +182,25 @@ async function prepareSkillInvocation(workspaceRoot, changeDir, changeId, stage,
   const skill = await loadSkill(stage.skill, harnessRoot);
   const stageName = stage.gate; // gate 字段 == stage 名（explore/prd/...）
   // Phase 2.6：传 changeDir + metadata → 注入 Change Artifacts（前序产物正文 / STORY tasks.md / DU metadata）
-  const context = await assembleContext(workspaceRoot, stageName, { changeDir, metadata: meta });
+  // Phase 2.7：opts.du 仅对 dev/test 生效（设计 §8——其他阶段忽略，保持幂等）；
+  //   DU 存在性与 repository 合法性由 assembleContext 校验（不存在/非法时抛错）
+  const du = stageName === 'dev' || stageName === 'test' ? opts.du : undefined;
+  const context = await assembleContext(workspaceRoot, stageName, {
+    changeDir,
+    metadata: meta,
+    ...(du ? { du } : {}),
+  });
   const userInput = {
     changeId,
     requirement: meta.requirement,
     title: meta.title,
     ...opts.skillInput,
   };
+  // Phase 2.7：绑定 DU 时把 DU 信息带入用户输入段展示
+  if (context.duBinding) {
+    userInput.duId = context.duBinding.duId;
+    userInput.repository = context.duBinding.repository;
+  }
   // Phase 2.3：解析 skill.yaml prompts 引用的片段（Workspace 优先），缺失条目以占位标注
   const resolved = await resolvePrompts(skill, { harnessRoot, workspaceRoot });
   const promptItems = [

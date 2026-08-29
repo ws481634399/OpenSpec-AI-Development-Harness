@@ -9,7 +9,7 @@ import { loadWorkflow, listWorkflows, findStageByToState } from '../core/sdd/wor
 import { runWorkflow, WORKFLOW_RESULT } from '../core/sdd/workflow-engine.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
 import { runInit } from '../core/workspace/workspace-initializer.js';
-import { runChangeCreate, readMetadata, patchStatus } from '../core/sdd/change-model.js';
+import { runChangeCreate, readMetadata, patchStatus, patchMetadata } from '../core/sdd/change-model.js';
 import { writeMachineGate, writeHumanGate, readGateResult } from '../core/sdd/gate-repository.js';
 import { sha256 } from '../core/sdd/artifact-hash.js';
 
@@ -370,5 +370,28 @@ test('WorkflowEngine: prd 阶段 .instruction.md 注入 requirement.md 正文（
   assert.ok(instruction.includes('## Change Artifacts'), instruction);
   assert.ok(instruction.includes(`delivery/changes/${changeId}/requirement.md`), instruction);
   assert.ok(instruction.includes('REQ-CONTEXT-MARKER-2646'), 'requirement.md 正文应注入 Instruction');
+  await rmrf(tmp);
+});
+
+// ---- Phase 2.7 DU 绑定执行（--du 透传，plans/phase-2.7-du-repo-context-design.md §8）----
+
+test('WorkflowEngine: 非 dev/test 阶段忽略 --du（不存在 DU 也不抛错）', async () => {
+  const { tmp, changeId } = await setupChange();
+  // created → explore stage；若透传 du 会因 DU 不存在抛错，被忽略则正常返回
+  const r = await runWorkflow(tmp, changeId, { harnessRoot, du: 'DU-NOPE-999' });
+  assert.equal(r.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
+  assert.equal(r.stage.skill, 'sdd-explore');
+  assert.ok(r.instruction);
+  await rmrf(tmp);
+});
+
+test('WorkflowEngine: dev 阶段 --du 透传生效（DU 不存在 → 抛错）', async () => {
+  const { tmp, changeId, changeDir } = await setupChange();
+  await advanceTo(changeDir, 'developing');
+  // tasks.md（Story 级 artifact）不存在 → WAITING_FOR_ARTIFACT 分支 → assembleContext 校验 DU
+  await assert.rejects(
+    () => runWorkflow(tmp, changeId, { harnessRoot, du: 'DU-NOPE-999' }),
+    /Workspace DU not found: DU-NOPE-999/
+  );
   await rmrf(tmp);
 });
