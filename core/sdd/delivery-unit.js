@@ -49,6 +49,8 @@ baseline:
   commit: "" # materialize 时记录的仓库 HEAD（可选，du sync-status 刷新）
 result:
   commit: "" # completed 时的仓库 HEAD（可选）
+  paths: [] # 实现影响路径（可选，repo 相对路径；completed 时 Agent 回填，如 auth/service.go）
+  symbols: [] # 关键代码符号（可选，格式 <file>::<symbol>，如 auth/service.go::Login）
 `;
 
 const REPO_DU_METADATA_TEMPLATE = `# OpenSpec Repository Delivery Unit Metadata
@@ -76,6 +78,8 @@ baseline:
   commit: ""
 result:
   commit: ""
+  paths: [] # 实现影响路径（可选，repo 相对路径；completed 时 Agent 回填）
+  symbols: [] # 关键代码符号（可选，格式 <file>::<symbol>）
 `;
 
 const REPO_TASK_TEMPLATE = `# DU Task — {{du-id}}
@@ -144,9 +148,10 @@ const REPO_IMPLEMENTATION_TEMPLATE = `# DU Implementation — {{du-id}}
 `;
 
 /**
- * 读取 .sdd/repositories.yaml 完整条目（id + path）。
+ * 读取 .sdd/repositories.yaml 完整条目（id + path + kind + alias）。
+ * kind: 'git'（默认，独立 git 仓库/submodule）| 'dir'（普通目录，单仓多模块场景，无独立 .git）
  * @param {string} workspaceRoot
- * @returns {Promise<Array<{id:string, path:string}>>}
+ * @returns {Promise<Array<{id:string, path:string, kind:string, alias:string}>>}
  */
 export async function readRepositories(workspaceRoot) {
   const file = join(workspaceRoot, '.sdd', 'repositories.yaml');
@@ -159,7 +164,14 @@ export async function readRepositories(workspaceRoot) {
   }
   const doc = parse(raw);
   const repos = Array.isArray(doc?.repositories) ? doc.repositories : [];
-  return repos.map((r) => ({ id: r?.id || '', path: r?.path || '' })).filter((r) => r.id);
+  return repos
+    .map((r) => ({
+      id: r?.id || '',
+      path: r?.path || '',
+      kind: r?.kind === 'dir' ? 'dir' : 'git',
+      alias: r?.alias || '',
+    }))
+    .filter((r) => r.id);
 }
 
 /**

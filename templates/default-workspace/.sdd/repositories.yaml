@@ -26,6 +26,10 @@ mode: single
 # id:     仓库标识，Workspace 内唯一（如 main / backend / frontend / ai）
 # path:   指向 implementation/ 下的相对路径（single 通常为 implementation；
 #         multi 如 implementation/backend、implementation/frontend）
+# kind:   仓库形态（可选，默认 git）：
+#         - git: 独立 git 仓库 / submodule，doctor 校验 HEAD 可解析
+#         - dir: 普通目录（单仓多模块：同一仓内多个 module 子目录，无独立 .git），
+#                doctor 只校验目录存在；DU result commit 对齐检查自动跳过
 # alias:  DU ID 别名（可选；缺省取 id 前 2-4 字符大写，如 backend → BE），
 #         用于 Delivery Unit 编号 DU-<alias>-<nnn>（如 DU-BE-001）
 # git.submodule: 是否已 submodule 化（doctor 探测写入，只读事实）
@@ -39,6 +43,12 @@ repositories:
   #   alias: BE
   #   git:
   #     submodule: true
+
+  # 示例（单仓多模块：main 仓内 module-a / module-b 为普通目录）：
+  # - id: module-a
+  #   path: implementation/module-a
+  #   alias: MA
+  #   kind: dir
 
   - id: main
 

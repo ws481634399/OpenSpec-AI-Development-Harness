@@ -78,6 +78,35 @@ test('DoctorMultiRepo: .gitmodules path 未注册 → 报 issue', async () => {
   await rmrf(tmp);
 });
 
+test('DoctorMultiRepo: kind:dir 单仓多模块（无 .git）→ 跳过 HEAD 检查；目录缺失 → 报 issue', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'doc-mr-dir-'));
+  await mkdir(join(tmp, '.sdd'), { recursive: true });
+  await mkdir(join(tmp, 'implementation', 'module-a'), { recursive: true });
+  // module-a 为 kind:dir 普通目录（无 .git）；module-b 注册但目录不存在
+  await writeFile(
+    join(tmp, '.sdd', 'repositories.yaml'),
+    [
+      'mode: multi',
+      'repositories:',
+      '  - id: module-a',
+      '    path: implementation/module-a',
+      '    kind: dir',
+      '  - id: module-b',
+      '    path: implementation/module-b',
+      '    kind: dir',
+      '',
+    ].join('\n'),
+    'utf8'
+  );
+  const { issues } = await runMultiRepoChecks(tmp);
+  // module-a 存在且 kind:dir → 无 HEAD 告警
+  assert.ok(!issues.some((i) => i.includes("repository 'module-a'")));
+  // module-b 目录缺失 → 报 issue
+  assert.ok(issues.some((i) => i.includes("repository 'module-b': kind:dir 模块目录不存在")));
+  // 对照：无 kind 字段的条目默认 git 形态（第 5 项检查已在其他用例覆盖）
+  await rmrf(tmp);
+});
+
 test('DoctorMultiRepo: DU repository 未注册 → 报 issue', async () => {
   const tmp = await setupMultiRepoWorkspace();
   const { id: chg1, changeDir: dir1 } = await runChangeCreate(tmp, { title: 't', repositories: ['backend'] }, harnessRoot);

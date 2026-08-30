@@ -81,8 +81,15 @@ export async function runMultiRepoChecks(workspaceRoot) {
     if (!inGitmodules) continue; // 普通目录注册合法（greenfield 无 remote 场景）
   }
 
-  // 4. 子仓 HEAD 可解析
+  // 4. 子仓 HEAD 可解析（kind:dir 普通目录无独立 .git，只检查路径存在——单仓多模块形态）
   for (const r of repos) {
+    if (r.kind === 'dir') {
+      if (!(await pathExists(join(workspaceRoot, r.path)))) {
+        issues.push(`repository '${r.id}': kind:dir 模块目录不存在（${r.path}）`);
+      }
+      checked++;
+      continue;
+    }
     const head = await resolveSubmoduleHead(workspaceRoot, r.path);
     if (head === null) {
       const kind = await pathExists(join(workspaceRoot, r.path));

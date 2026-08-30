@@ -154,6 +154,10 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
   （允许偏离但须记录 Deviations），dev/test 阶段回传状态（Fan-in），驱动 Workspace 状态推进
 - **Git 边界**：Workspace 独立 Git 仓，不包含 `implementation/` 内容（.gitignore 排除）；
   各子仓独立 Git，Workspace 通过 repositories.yaml / .gitmodules 引用其 commit 指针
+- **仓库形态（kind）**：repositories.yaml 每条目可选 `kind` 字段——
+  `git`（默认，独立仓库/submodule，doctor 校验 HEAD）或
+  `dir`（普通目录，**单仓多模块**：同一仓内多个 module 子目录无独立 .git，doctor 只校验目录存在，
+  DU result commit 对齐检查自动跳过）
 - **多仓机检**：`feature-path-bound` / `du-coverage` / `du-guidance` / `du-materialized` /
   `du-fan-in-testing` / `du-fan-in-complete` / `submodule-pointer-aligned`
 
@@ -321,6 +325,10 @@ openspec du sync-status <CHG> DU-BE-001
 
 Workspace 级 implementation.md 只做跨仓汇总引用（Reference do not duplicate）。
 develop → test 阶段前置 `du-fan-in-testing`（全部 DU 进入测试）。
+
+**Evidence 归因字段**（DU metadata `result:` 段，可选不强制，completed 时 Agent 回填）：
+`commit`（HEAD）、`paths`（实现影响路径，repo 相对）、`symbols`（关键符号，`<file>::<symbol>` 格式）——
+补齐 Roadmap Evidence 体系的 Repository / Commit / Path / Symbol 四要素。
 
 ### 4.7 测试（sdd-test）
 
@@ -925,8 +933,15 @@ openspec upgrade
 
 - **绝不触碰** `standards/`、`product/`、`delivery/`、`implementation/`（用户数据）
 - **幂等**：重复执行显示「Workspace 已是最新」，零写入
-- **可回滚**：报告 `touchedFiles` 清单，`git checkout -- <files>` 即可回滚
+- **可回滚**：`openspec upgrade --rollback`（见下）
 - **前置检查**：`.sdd/version.yaml` 缺失（过旧 Workspace）则拒绝自动升级
+
+**`openspec upgrade --rollback`**：回滚最近一次未回滚的升级。
+
+- 每次升级成功后写入 `.sdd/upgrade-log.yaml`（from/to 版本、gitRevertFiles、gitNewFiles）
+- 回滚动作：`git checkout` 恢复被更新的文件 → 删除升级新增文件（untracked）→ `version.yaml` 恢复升级前值
+- 前提：Workspace 为 git 管理仓库；当前 `harness.version` 必须与日志记录一致（升级后发生过其他版本变更则拒绝自动回滚，提示手动处理）
+- 已回滚的记录标记 `rolledBack`，不可重复回滚
 
 **doctor 版本检查**（分级）：`openspec doctor` 新增版本健康检查——
 

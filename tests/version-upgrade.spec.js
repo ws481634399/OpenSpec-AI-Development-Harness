@@ -13,7 +13,7 @@ import {
 } from '../core/workspace/version.js';
 import { diffSkills, syncSkills } from '../core/sdd/skill-registry.js';
 import { runMigrations, MIGRATIONS } from '../core/workspace/schema-migrations.js';
-import { planUpgrade, applyUpgrade, MANAGED_DIRS } from '../core/workspace/workspace-upgrader.js';
+import { planUpgrade, applyUpgrade, planRollback, markRolledBack, MANAGED_DIRS } from '../core/workspace/workspace-upgrader.js';
 import { runVersionChecks } from '../core/sdd/doctor-checks.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
 
@@ -243,6 +243,90 @@ test('applyUpgrade: 幂等（二次执行 upToDate）', async () => {
   assert.deepEqual(second.touchedFiles, []);
   await rmrf(tmp);
 });
+
+// ---- 升级日志与回滚（Phase 3.1+：Roadmap「Upgrade 支持回滚」补齐）----
+// git checkout 与新增文件删除在 CLI 层（core 不执行 git），此处覆盖 core 的日志/校验/恢复
+
+test('applyUpgrade: 写升级日志（from/to/gitRevertFiles/gitNewFiles）', async () => {
+  const tmp = await makeOldWorkspace('uplog-');
+  const report = await applyUpgrade(tmp, harnessRoot);
+
+  const { parse } = await import('yaml');
+  const log = parse(await readFile(join(tmp, '.sdd', 'upgrade-log.yaml'), 'utf8'));
+  assert.equal(log.upgrades.length, 1);
+  const u = log.upgrades[0];
+  assert.equal(u.from.harness, '0.1.0');
+  assert.equal(u.to.harness, harnessVersion);
+  assert.equal(u.rolledBack, null);
+  assert.ok(u.touchedFiles.length > 0);
+  // version.yaml/迁移文件属 git 恢复类；升级前不存在的 skills 更新属恢复类（fixture 中 sdd-explore 已存在）
+  assert.ok(u.gitRevertFiles.some((f) => f.includes('version.yaml')));
+  assert.ok(u.gitRevertFiles.some((f) => f.includes('context-rules.yaml')));
+  // 升级前不存在的 Skill 目录 → 新增删除类
+  const wsSkills = readWorkspaceVersions(tmp);
+  assert.ok(wsSkills); // fixture 自身版本可读
+  await rmrf(tmp);
+});
+
+test('planRollback: 正常检出 / 版本不一致拒绝 / 无日志拒绝 / 已回滚拒绝', async () => {
+  const tmp = await makeOldWorkspace('rback-');
+  await applyUpgrade(tmp, harnessRoot);
+
+  // 1. 正常：返回最近未回滚记录
+  const record = await planRollback(tmp);
+  assert.equal(record.to.harness, harnessVersion);
+  assert.equal(record.from.harness, '0.1.0');
+
+  // 2. 版本不一致（升级后又变更）→ 拒绝
+  await writeFile(
+    join(tmp, '.sdd', 'version.yaml'),
+    'harness:\n  version: "9.9.9"\nworkspace-template:\n  version: "9.9.9"\nschema:\n  version: "0.1.0"\n'
+  );
+  await assert.rejects(() => planRollback(tmp), /拒绝自动回滚/);
+
+  // 3. 无日志 → 拒绝
+  const noLog = await mkdtemp(join(tmpdir(), 'rback-nolog-'));
+  await mkdir(join(noLog, '.sdd'), { recursive: true });
+  await writeFile(join(noLog, '.sdd', 'version.yaml'), 'harness:\n  version: "0.1.0"\n');
+  await assert.rejects(() => planRollback(noLog), /没有可回滚的升级/);
+
+  // 4. 已回滚 → 拒绝
+  await markRolledBack(tmp, record);
+  await assert.rejects(() => planRollback(tmp), /没有未回滚的升级记录/);
+
+  await rmrf(tmp);
+  await rmrf(noLog);
+});
+
+test('markRolledBack: version.yaml 恢复 from（注释保留）+ 日志标记', async () => {
+  const tmp = await makeOldWorkspace('rmark-');
+  await applyUpgrade(tmp, harnessRoot);
+  const record = await planRollback(tmp);
+  await markRolledBack(tmp, record);
+
+  // version.yaml 恢复为 0.1.0，且注释保留（Document API）
+  const verRaw = await readFile(join(tmp, '.sdd', 'version.yaml'), 'utf8');
+  assert.ok(verRaw.includes('version: "0.1.0"'));
+  assert.ok(verRaw.includes('# 版本记录（测试 fixture）'));
+
+  // 日志标记 rolledBack
+  const { parse } = await import('yaml');
+  const log = parse(await readFile(join(tmp, '.sdd', 'upgrade-log.yaml'), 'utf8'));
+  assert.ok(log.upgrades[0].rolledBack);
+
+  await rmrf(tmp);
+});
+
+test('syncSkills/syncPrompts: 返回 added/updated 分组（回滚分类依据）', async () => {
+  const tmp = await makeOldWorkspace('rgrp-');
+  const r = await syncSkills(harnessRoot, tmp, { dryRun: true });
+  assert.ok(Array.isArray(r.added) && Array.isArray(r.updated));
+  assert.ok(r.updated.includes('sdd-explore')); // fixture 旧版本 → updated
+  assert.ok(r.added.length > 0); // 其余 Skill 未安装 → added
+  assert.deepEqual([...r.added, ...r.updated].sort(), [...r.changed].sort());
+  await rmrf(tmp);
+});
+
 
 // ---- doctor runVersionChecks ----
 

@@ -447,24 +447,14 @@ OpenSpec Harness v1.x 默认包含：
 
 ---
 
-# 10.1 sdd-workflow
+# 10.1 sdd-workflow（已由 Workflow Engine 替代）
 
-## 职责
-
-管理当前开发状态。
-
-输入：
-
-```
-Workspace
-```
-
-输出：
-
-```
-Current Stage
-Next Action
-```
+> **演进说明**：本 Skill 的「管理开发状态」职责在 Phase 1.5 落地时由
+> **Gate-driven Workflow Engine**（`openspec workflow run` 命令族）替代——
+> 状态推进必须经 Transition Service，不再是 Agent 可执行的 Skill（避免绕过 Gate）。
+> Agent 侧的「当前阶段 / 下一步行动」通过 `openspec status` 与 `openspec workflow run`
+> 返回状态（WAITING_FOR_* / ADVANCED / COMPLETED）获取。
+> skills/ 目录中因此不再包含 sdd-workflow；后续 Skill 编号从 sdd-explore 起。
 
 ---
 

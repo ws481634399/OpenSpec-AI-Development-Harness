@@ -212,8 +212,10 @@ export async function syncSkills(harnessRoot, workspaceRoot, opts = {}) {
     });
   const localOnly = diff.filter((d) => d.status === 'local-only').map((d) => `${d.id}: local-only（保留，不覆盖）`);
   const changed = diff.filter((d) => d.status === 'added' || d.status === 'updated').map((d) => d.id);
+  const added = diff.filter((d) => d.status === 'added').map((d) => d.id);
+  const updated = diff.filter((d) => d.status === 'updated').map((d) => d.id);
 
-  return { synced: changed.length, details: [...details, ...localOnly], changed };
+  return { synced: changed.length, details: [...details, ...localOnly], changed, added, updated };
 }
 
 /**
@@ -246,8 +248,10 @@ export async function syncPrompts(harnessRoot, workspaceRoot, opts = {}) {
         : `prompts/${d.path}: unchanged`
   );
   const changed = diff.filter((d) => d.status !== 'unchanged').map((d) => d.path);
+  const added = diff.filter((d) => d.status === 'added').map((d) => d.path);
+  const updated = diff.filter((d) => d.status === 'updated').map((d) => d.path);
 
-  return { synced: opts.dryRun ? changed.length : diff.length, details, changed };
+  return { synced: opts.dryRun ? changed.length : diff.length, details, changed, added, updated };
 }
 
 /**
