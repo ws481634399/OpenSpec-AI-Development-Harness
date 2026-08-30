@@ -139,10 +139,10 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 
 **两级 Delivery：**
 
-| 层级 | 位置 | 职责 |
-| ---- | ---- | ---- |
-| Workspace Delivery | `delivery/changes/<CHG>/` | 需求探索 → PRD → 设计 → DU 分解 → 跨仓汇总/知识收敛 |
-| Repository Delivery | `implementation/<repo>/delivery/.../DU-XXX/` | 仓内实施（代码/证据/Commit） |
+| 层级                | 位置                                         | 职责                                                |
+| ------------------- | -------------------------------------------- | --------------------------------------------------- |
+| Workspace Delivery  | `delivery/changes/<CHG>/`                    | 需求探索 → PRD → 设计 → DU 分解 → 跨仓汇总/知识收敛 |
+| Repository Delivery | `implementation/<repo>/delivery/.../DU-XXX/` | 仓内实施（代码/证据/Commit）                        |
 
 **核心机制：**
 
@@ -181,12 +181,12 @@ openspec init my-project
 
 项目模板（与项目类型正交：类型定项目新旧，模板定技术栈标准预置）：
 
-| 模板 | `standards/` 预置内容 |
-| --- | --- |
-| `empty`（默认） | 通用工程标准 + SDD 标准，无技术栈包 |
-| `spring-cloud` | + 后端包（架构 / API / 服务 / 数据访问 / 框架） |
-| `vue` | + 前端包（组件 / 路由 / 状态管理 / 性能） |
-| `ai-agent` | + AI 包（Agent / Prompt / Tool 调用 / 知识 / 评估） |
+| 模板            | `standards/` 预置内容                               |
+| --------------- | --------------------------------------------------- |
+| `empty`（默认） | 通用工程标准 + SDD 标准，无技术栈包                 |
+| `spring-cloud`  | + 后端包（架构 / API / 服务 / 数据访问 / 框架）     |
+| `vue`           | + 前端包（组件 / 路由 / 状态管理 / 性能）           |
+| `ai-agent`      | + AI 包（Agent / Prompt / Tool 调用 / 知识 / 评估） |
 
 也可非交互指定模板（其余步骤仍交互）：
 
@@ -231,11 +231,11 @@ init 自动完成：
 
 `openspec ide <target>` 生成 AI IDE 项目规则，Agent 对话开始时自动获得 OpenSpec 工作流上下文（结构、启动约定、状态推进方式、禁止事项、常用命令）。
 
-| target | 生成文件 | 说明 |
-| --- | --- | --- |
-| `trae` | `.trae/rules/openspec-workflow.md` | front-matter `alwaysApply: true`，始终生效 |
-| `cursor` | `.cursor/rules/openspec-workflow.mdc` | .mdc 格式（plain .md 会被 Cursor 忽略） |
-| `claude-code` | `CLAUDE.md` | 标记块注入：`<!-- openspec:begin/end -->` 之间由 OpenSpec 管理，**块外内容永不修改** |
+| target        | 生成文件                              | 说明                                                                                 |
+| ------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
+| `trae`        | `.trae/rules/openspec-workflow.md`    | front-matter `alwaysApply: true`，始终生效                                           |
+| `cursor`      | `.cursor/rules/openspec-workflow.mdc` | .mdc 格式（plain .md 会被 Cursor 忽略）                                              |
+| `claude-code` | `CLAUDE.md`                           | 标记块注入：`<!-- openspec:begin/end -->` 之间由 OpenSpec 管理，**块外内容永不修改** |
 
 更新语义（确定性，无交互）：
 
@@ -591,15 +591,15 @@ Agent 写 Artifact 草稿
 
 Phase 2.4 多仓检查项（按阶段注册）：
 
-| 检查项                    | 阶段    | 说明                                        |
-| ------------------------- | ------- | ------------------------------------------- |
-| feature-path-bound        | design  | Change 已绑定四级 feature-path              |
-| du-coverage               | task    | design.affected-repositories 全部有 DU 覆盖 |
-| du-guidance               | task    | DU Implementation Guidance 完整性（Sketch 必填 / Pseudocode 条件必填 / Verification 必填 / trigger 枚举合法，Phase 2.5） |
-| du-materialized           | dev     | 全部 DU 已物化到所属仓 delivery/            |
-| du-fan-in-testing         | dev→test| 全部 DU 进入 testing                        |
-| du-fan-in-complete        | review  | 全部 DU completed                           |
-| submodule-pointer-aligned | converge| Workspace 引用的子仓 commit 与 HEAD 一致    |
+| 检查项                    | 阶段     | 说明                                                                                                                     |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------ |
+| feature-path-bound        | design   | Change 已绑定四级 feature-path                                                                                           |
+| du-coverage               | task     | design.affected-repositories 全部有 DU 覆盖                                                                              |
+| du-guidance               | task     | DU Implementation Guidance 完整性（Sketch 必填 / Pseudocode 条件必填 / Verification 必填 / trigger 枚举合法，Phase 2.5） |
+| du-materialized           | dev      | 全部 DU 已物化到所属仓 delivery/                                                                                         |
+| du-fan-in-testing         | dev→test | 全部 DU 进入 testing                                                                                                     |
+| du-fan-in-complete        | review   | 全部 DU completed                                                                                                        |
+| submodule-pointer-aligned | converge | Workspace 引用的子仓 commit 与 HEAD 一致                                                                                 |
 
 ### 7.3 Human Gate 审批
 
@@ -751,22 +751,22 @@ openspec skill sync    # 从 Harness 复制最新 skills/ 与 prompts/ 到 Works
 ```yaml
 version: 0.2
 
-limits:                    # 全局预算（超限确定性截断，清单进入 Instruction 的 skipped 段）
-  total-max-bytes: 262144  # 256KB
+limits: # 全局预算（超限确定性截断，清单进入 Instruction 的 skipped 段）
+  total-max-bytes: 262144 # 256KB
   total-max-files: 200
 
 stages:
   design:
     read:
       - path: standards/
-        mode: inline       # inline=正文内联；outline=仅路径清单
+        mode: inline # inline=正文内联；outline=仅路径清单
       - path: implementation/
-        mode: outline      # 多仓：仅结构清单，代码按需读取
-        include: ["**/*.ts"]   # 可选 glob 白名单
-        exclude: ["**/*.png"]  # 可选 glob 黑名单
-        max-files: 20      # 可选条目级上限
+        mode: outline # 多仓：仅结构清单，代码按需读取
+        include: ["**/*.ts"] # 可选 glob 白名单
+        exclude: ["**/*.png"] # 可选 glob 黑名单
+        max-files: 20 # 可选条目级上限
         max-bytes: 65536
-    change-artifacts:      # 本 CHG 前序产物（相对 CHG 目录），正文注入 Instruction
+    change-artifacts: # 本 CHG 前序产物（相对 CHG 目录），正文注入 Instruction
       - requirement.md
       - prd.md
 ```
@@ -782,12 +782,12 @@ stages:
 
 **1) Repo 侧上下文自动注入**——绑定 DU 后确定性注入 repo 侧交付目录内容，Agent 无需手动导航 repo 文件：
 
-| 文件 | 注入方式 |
-| --- | --- |
-| `<repo>/delivery/.../<DU-ID>/task.md` | inline（正文） |
-| `<repo>/delivery/.../<DU-ID>/metadata.yaml` | inline（正文） |
+| 文件                                            | 注入方式        |
+| ----------------------------------------------- | --------------- |
+| `<repo>/delivery/.../<DU-ID>/task.md`           | inline（正文）  |
+| `<repo>/delivery/.../<DU-ID>/metadata.yaml`     | inline（正文）  |
 | `<repo>/delivery/.../<DU-ID>/implementation.md` | outline（清单） |
-| `<repo>/delivery/.../<DU-ID>/evidence/` | outline（清单） |
+| `<repo>/delivery/.../<DU-ID>/evidence/`         | outline（清单） |
 
 repo 侧目录未物化时标注 missing 并提示 `openspec du materialize <CHG> <DU>`。
 
@@ -800,7 +800,7 @@ stages:
     read:
       - path: implementation/
         mode: outline
-    repos:                        # opt-in：repoId 须与 .sdd/repositories.yaml 一致
+    repos: # opt-in：repoId 须与 .sdd/repositories.yaml 一致
       backend:
         read:
           - path: implementation/backend/
@@ -826,52 +826,52 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 ### 10.1 用户命令（手动运行）
 
-| 命令                   | 用途                      | 何时使用                        |
-| ---------------------- | ------------------------- | ------------------------------- |
-| `openspec init [path] [--stack <stack>]` | 初始化 Workspace（--stack 预设项目模板） | 项目开始时                      |
-| `openspec skill sync`  | 同步 Skill 与 Prompt 更新 | Harness 更新 SKILL.md/prompts 后 |
-| `openspec version`     | 版本全景（Harness/Workspace/Skill） | 想了解当前版本与差异时 |
-| `openspec upgrade`     | 升级 Workspace 到当前 Harness 版本 | Harness 升级后（建议先 `--dry-run`） |
-| `openspec ide <target>` | 生成 AI IDE 项目规则（trae/cursor/claude-code） | init 后按需；详见 §4.1.1 |
+| 命令                                     | 用途                                            | 何时使用                             |
+| ---------------------------------------- | ----------------------------------------------- | ------------------------------------ |
+| `openspec init [path] [--stack <stack>]` | 初始化 Workspace（--stack 预设项目模板）        | 项目开始时                           |
+| `openspec skill sync`                    | 同步 Skill 与 Prompt 更新                       | Harness 更新 SKILL.md/prompts 后     |
+| `openspec version`                       | 版本全景（Harness/Workspace/Skill）             | 想了解当前版本与差异时               |
+| `openspec upgrade`                       | 升级 Workspace 到当前 Harness 版本              | Harness 升级后（建议先 `--dry-run`） |
+| `openspec ide <target>`                  | 生成 AI IDE 项目规则（trae/cursor/claude-code） | init 后按需；详见 §4.1.1             |
 
 ### 10.2 Agent 命令（Agent 自动调用）
 
-| 命令                                                       | 用途                              |
-| ---------------------------------------------------------- | --------------------------------- |
-| `openspec change create --title <t> [--requirement <r>]`   | 创建 CHG                          |
-| `openspec change list [--status <s>]`                      | 列出 Change                       |
-| `openspec change show <CHG>`                               | 查看 Change 详情                  |
-| `openspec change status <CHG>`                             | 查看 Change 状态                  |
-| `openspec change status <CHG> --set <target>`              | 推进状态（经 TransitionService）  |
-| `openspec change archive <CHG>`                            | 归档 Change                       |
-| `openspec change bind-feature-path <CHG> --story <ID>`     | 绑定四级 feature-path（Phase 2.4） |
+| 命令                                                                                                     | 用途                                                       |
+| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `openspec change create --title <t> [--requirement <r>]`                                                 | 创建 CHG                                                   |
+| `openspec change list [--status <s>]`                                                                    | 列出 Change                                                |
+| `openspec change show <CHG>`                                                                             | 查看 Change 详情                                           |
+| `openspec change status <CHG>`                                                                           | 查看 Change 状态                                           |
+| `openspec change status <CHG> --set <target>`                                                            | 推进状态（经 TransitionService）                           |
+| `openspec change archive <CHG>`                                                                          | 归档 Change                                                |
+| `openspec change bind-feature-path <CHG> --story <ID>`                                                   | 绑定四级 feature-path（Phase 2.4）                         |
 | `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明） |
-| `openspec du materialize <CHG> <DU>`                       | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架） |
-| `openspec du list <CHG>` / `du show <CHG> <DU>`            | 查看 DU                           |
-| `openspec du sync-status <CHG> <DU>`                       | 回传 DU baseline/result commit    |
-| `openspec feature list [--module <id>] [--json]`           | 列出 Feature Tree                 |
-| `openspec feature show <id>`                               | 查看 Feature 节点                 |
-| `openspec feature add module/feature/story ...`            | 添加节点                          |
-| `openspec feature update <id> [--name <n>] [--status <s>]` | 更新节点                          |
-| `openspec feature remove <id>`                             | 删除节点                          |
-| `openspec gate check <CHG>`                                | Machine Gate 校验                 |
-| `openspec gate approve <CHG>`                              | Human Gate 审批                   |
-| `openspec gate status <CHG>`                               | 查看 Gate 状态                    |
-| `openspec skill list`                                      | 列出 Skill                        |
-| `openspec skill show <id>`                                 | 查看 Skill 元数据 + SKILL.md 路径 |
+| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）       |
+| `openspec du list <CHG>` / `du show <CHG> <DU>`                                                          | 查看 DU                                                    |
+| `openspec du sync-status <CHG> <DU>`                                                                     | 回传 DU baseline/result commit                             |
+| `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                          |
+| `openspec feature show <id>`                                                                             | 查看 Feature 节点                                          |
+| `openspec feature add module/feature/story ...`                                                          | 添加节点                                                   |
+| `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                   |
+| `openspec feature remove <id>`                                                                           | 删除节点                                                   |
+| `openspec gate check <CHG>`                                                                              | Machine Gate 校验                                          |
+| `openspec gate approve <CHG>`                                                                            | Human Gate 审批                                            |
+| `openspec gate status <CHG>`                                                                             | 查看 Gate 状态                                             |
+| `openspec skill list`                                                                                    | 列出 Skill                                                 |
+| `openspec skill show <id>`                                                                               | 查看 Skill 元数据 + SKILL.md 路径                          |
 
 ### 10.3 工具命令
 
-| 命令                                           | 用途                       |
-| ---------------------------------------------- | -------------------------- |
-| `openspec doctor`                              | Workspace 自检             |
-| `openspec status`                              | 状态概览                   |
-| `openspec status --json`                       | 状态概览（JSON，供 Agent） |
-| `openspec validate <CHG>`                      | 校验 Change                |
-| `openspec validate --all`                      | 校验全部 Change            |
-| `openspec workflow list`                       | 列出 Workflow              |
-| `openspec workflow show default`               | 查看 Workflow 配置         |
-| `openspec workflow run default --change <CHG> [--du <DU>]` | 执行 Workflow 下一步（`--du` 仅 dev/test 生效，Phase 2.7） |
+| 命令                                                       | 用途                                                                    |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `openspec doctor`                                          | Workspace 自检                                                          |
+| `openspec status`                                          | 状态概览                                                                |
+| `openspec status --json`                                   | 状态概览（JSON，供 Agent）                                              |
+| `openspec validate <CHG>`                                  | 校验 Change                                                             |
+| `openspec validate --all`                                  | 校验全部 Change                                                         |
+| `openspec workflow list`                                   | 列出 Workflow                                                           |
+| `openspec workflow show default`                           | 查看 Workflow 配置                                                      |
+| `openspec workflow run default --change <CHG> [--du <DU>]` | 执行 Workflow 下一步（`--du` 仅 dev/test 生效，Phase 2.7）              |
 | `openspec context <stage> [--change <CHG>] [--du <DU>]`    | 预览阶段 Context 装配结果（Phase 2.6，排障用；`--du` 预览 DU 绑定装配） |
 
 ### 10.4 Workflow 状态
@@ -890,11 +890,11 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 **三层版本模型**（记录于 `.sdd/version.yaml`，模板注释详尽）：
 
-| 层                 | 含义                     | 更新时机                     |
-| ------------------ | ------------------------ | ---------------------------- |
-| `harness.version`        | Workspace 正在使用的 Harness 版本 | `openspec upgrade` 时更新 |
-| `workspace-template.version` | Workspace 基于的模板版本       | `openspec upgrade` 时对齐 |
-| `schema.version`         | 配置文件结构版本             | 仅结构迁移时变化（upgrade 不动） |
+| 层                           | 含义                              | 更新时机                         |
+| ---------------------------- | --------------------------------- | -------------------------------- |
+| `harness.version`            | Workspace 正在使用的 Harness 版本 | `openspec upgrade` 时更新        |
+| `workspace-template.version` | Workspace 基于的模板版本          | `openspec upgrade` 时对齐        |
+| `schema.version`             | 配置文件结构版本                  | 仅结构迁移时变化（upgrade 不动） |
 
 **`openspec version [--json]`**：一条命令看版本全景。
 
@@ -911,6 +911,42 @@ Skills (11): 1 outdated, 10 up-to-date, 0 local-only
 - 不在 Workspace 内运行时仅显示 Harness 版本 + Skill 列表。
 - `--json` 输出结构化字段（`harness` / `workspace` / `skills[]`），供 Agent/脚本消费。
 - Skill 差异状态：`updated`（Workspace 版本旧）/ `added`（Harness 新增）/ `local-only`（Workspace 自建，upgrade 不删除）。
+
+**标准升级流程（实操）**：从旧版本 Workspace 升级到当前 Harness 的完整步骤。
+
+前提：
+
+- Harness 本身是最新版（`git pull` 或本地已是目标版本）；
+- Workspace 为 git 管理仓库（回滚依赖），工作区干净（先 commit 未提交变更）；
+- `.sdd/version.yaml` 存在（Phase 1.1 之后 init 的均有）。
+
+```bash
+cd <工作区目录>
+
+# 1. 健康检查（版本落后会以 info 提示升级）
+openspec doctor
+
+# 2. 查看版本差异全景
+openspec version
+
+# 3. 预览升级计划（零写入）
+openspec upgrade --dry-run
+
+# 4. 执行升级
+openspec upgrade
+
+# 5. 升级后验证
+openspec doctor          # 应无 error，版本落后 info 消失
+openspec version         # Workspace 三层版本应为当前版本
+openspec status          # 既有 Change 状态完好
+```
+
+特殊情况：
+
+- **极旧 Workspace（无 `version.yaml`）**：`upgrade` 拒绝并提示。手动从 Harness 模板补齐
+  `version.yaml`（harness/workspace-template 填旧版本号）后重跑，或重新 `openspec init` 迁移；
+- **跨大版本（如 0.x → 1.x）**：doctor 报 error 要求人工评估迁移，不自动升级；
+- **升级后异常**：`openspec upgrade --rollback` 回滚（见下）。
 
 **`openspec upgrade [--dry-run]`**：将旧 Workspace 确定性升级到当前 Harness 版本。
 
@@ -945,11 +981,11 @@ openspec upgrade
 
 **doctor 版本检查**（分级）：`openspec doctor` 新增版本健康检查——
 
-| 情形                                    | 级别  | 提示                                       |
-| --------------------------------------- | ----- | ------------------------------------------ |
-| harness.version 落后（同 major）        | info  | 运行 `openspec upgrade --dry-run` 预览升级 |
-| harness.version 跨 major                | error | 需人工评估迁移                             |
-| schema.version 高于 Harness 支持版本    | error | Workspace 可能由更新版本创建               |
+| 情形                                      | 级别  | 提示                                       |
+| ----------------------------------------- | ----- | ------------------------------------------ |
+| harness.version 落后（同 major）          | info  | 运行 `openspec upgrade --dry-run` 预览升级 |
+| harness.version 跨 major                  | error | 需人工评估迁移                             |
+| schema.version 高于 Harness 支持版本      | error | Workspace 可能由更新版本创建               |
 | workspace.yaml 与 version.yaml 记录不一致 | error | 两个记录点应对齐                           |
 
 **skill sync 版本感知**：`openspec skill sync --dry-run` 输出逐 Skill 版本对比（`sdd-task: updated 0.1.0 → 0.2.0`），不复制文件。
