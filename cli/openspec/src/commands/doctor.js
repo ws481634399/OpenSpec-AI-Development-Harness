@@ -4,7 +4,7 @@
 import { Command } from 'commander';
 import { outro } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
-import { ok, warn, error } from '../lib/logger.js';
+import { ok, warn, error, dim } from '../lib/logger.js';
 import { runSelfCheck } from '../../../../core/workspace/validator.js';
 import { runMultiRepoChecks, runContextRulesChecks, runVersionChecks, runIdeRulesChecks } from '../../../../core/sdd/doctor-checks.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
