@@ -9,7 +9,7 @@
 # 用户可直接调用能力 B（独立添加知识）。
 
 id: sdd-knowledge
-version: 0.1.0
+version: 0.2.0
 stage: knowledge
 description: 知识管理——沉淀/添加/索引/检索，维护 standards/ 和 product/ 知识库
 input:

@@ -6,7 +6,7 @@ import { outro } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { runSelfCheck } from '../../../../core/workspace/validator.js';
-import { runMultiRepoChecks, runContextRulesChecks } from '../../../../core/sdd/doctor-checks.js';
+import { runMultiRepoChecks, runContextRulesChecks, runVersionChecks } from '../../../../core/sdd/doctor-checks.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { readHarnessVersion } from '../../../../core/workspace/version.js';
 
@@ -45,6 +45,17 @@ export function registerDoctorCommand(program) {
           warn(`Context 规则检查跳过: ${e.message}`);
         }
 
+        // Phase 3.1：版本健康检查（分级：跨 major=error / 可升级=info / schema 超前=error）
+        let versionInfos = [];
+        try {
+          const v = runVersionChecks(ws, harnessRoot);
+          issues.push(...v.issues);
+          versionInfos = v.infos;
+          multiChecked += v.checked;
+        } catch (e) {
+          warn(`版本检查跳过: ${e.message}`);
+        }
+
         if (issues.length === 0) {
           ok(`Workspace healthy — all checks passed.${multiChecked ? ` (${multiChecked} multi-repo checks)` : ''}`);
         } else {
@@ -52,6 +63,10 @@ export function registerDoctorCommand(program) {
           for (const issue of issues) {
             warn(`  ! ${issue}`);
           }
+        }
+        // 版本 info 提示（非问题，仅为升级建议）
+        for (const info of versionInfos) {
+          dim(`  ℹ ${info}`);
         }
         outro('Done.');
       } catch (e) {

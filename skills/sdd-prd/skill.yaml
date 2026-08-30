@@ -7,7 +7,7 @@
 # v0.1 由外部 Agent 按 Instruction 执行，产出写回 CHG 目录，再用 openspec change status --set 推进状态。
 
 id: sdd-prd
-version: 0.1.0
+version: 0.2.0
 stage: prd
 description: 产品规格阶段 Skill——将需求转化为产品规格，定义业务规则与验收标准
 input:

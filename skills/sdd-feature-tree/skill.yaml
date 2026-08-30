@@ -8,7 +8,7 @@
 # Agent 读取 SKILL.md 执行，产出 Feature Tree 节点草稿供用户确认。
 
 id: sdd-feature-tree
-version: 0.1.0
+version: 0.2.0
 stage: feature-tree
 description: 特性树生成——分析需求，自动创建 Module/Feature/Story 节点，返回匹配的 Story ID
 input:

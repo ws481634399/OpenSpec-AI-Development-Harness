@@ -11,8 +11,10 @@
 // 8. Workspace Pointer 与 HEAD 对齐（CHG repository-result vs 子仓 HEAD）
 
 import { readFile, stat, readdir } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse } from 'yaml';
+import { readWorkspaceVersions, readHarnessVersion, readTemplateVersions, compareSemver } from '../workspace/version.js';
 import { readRepositories } from './delivery-unit.js';
 import { parseGitmodules, resolveSubmoduleHead } from './git-submodule.js';
 import { readFeatureTree, findNodeById } from './feature-model.js';
@@ -317,4 +319,63 @@ export async function runContextRulesChecks(workspaceRoot) {
   }
 
   return { issues, checked };
+}
+
+/**
+ * 版本健康检查（Phase 3.1 plans/phase-3.1-version-upgrade-design.md §6.5）：
+ * version.yaml 存在性 / harness.version 兼容性（跨 major=error，落后=info）/
+ * schema.version 超前=warning / workspace.yaml 记录点不一致=warning。
+ * @param {string} workspaceRoot Workspace 根目录
+ * @param {string} harnessRoot Harness 根目录
+ * @returns {{issues:string[], infos:string[], checked:number}}
+ */
+export function runVersionChecks(workspaceRoot, harnessRoot) {
+  const issues = [];
+  const infos = [];
+  let checked = 0;
+
+  const ws = readWorkspaceVersions(workspaceRoot);
+  checked++;
+  if (!ws) {
+    issues.push('.sdd/version.yaml 缺失（Workspace 过旧，无法自动升级；可重新 init 或手动补齐）');
+    return { issues, infos, checked };
+  }
+
+  if (!ws.harness) {
+    issues.push('version.yaml: harness.version 缺失');
+  } else {
+    const hv = readHarnessVersion(harnessRoot);
+    const wsMajor = String(ws.harness).split('.')[0];
+    const hvMajor = String(hv).split('.')[0];
+    if (wsMajor !== hvMajor) {
+      issues.push(
+        `version.yaml: harness.version ${ws.harness} 与当前 Harness ${hv} 跨 major 版本，需人工评估迁移`
+      );
+    } else if (compareSemver(ws.harness, hv) < 0) {
+      infos.push(`Harness 有新版本 ${hv}（当前 Workspace ${ws.harness}）——运行 'openspec upgrade --dry-run' 预览升级`);
+    }
+
+    // schema 超前：Workspace schema.version 高于 Harness 模板支持的 schema 版本
+    if (ws.schema) {
+      const tpl = readTemplateVersions(harnessRoot);
+      if (tpl.schema && compareSemver(ws.schema, tpl.schema) > 0) {
+        issues.push(
+          `warning: version.yaml schema.version ${ws.schema} 高于当前 Harness 支持的 ${tpl.schema}（Workspace 可能由更新版本的 Harness 创建）`
+        );
+      }
+    }
+  }
+
+  // 两个记录点一致性：workspace.yaml 的 workspace.harness.version vs version.yaml 的 harness.version
+  try {
+    const wsYaml = parse(readFileSync(join(workspaceRoot, '.sdd', 'workspace.yaml'), 'utf8'));
+    const rec = wsYaml?.workspace?.harness?.version;
+    if (rec != null && ws.harness != null && String(rec) !== String(ws.harness)) {
+      issues.push(`warning: workspace.yaml 记录的 harness.version ${rec} 与 version.yaml ${ws.harness} 不一致`);
+    }
+  } catch {
+    // workspace.yaml 缺失/解析失败由 runSelfCheck 负责，此处静默
+  }
+
+  return { issues, infos, checked };
 }

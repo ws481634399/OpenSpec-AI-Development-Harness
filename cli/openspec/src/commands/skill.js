@@ -98,11 +98,12 @@ export function registerSkillCommand(program) {
     }
   });
 
-  // sync：从 Harness 同步 skills/ 到 Workspace
+  // sync：从 Harness 同步 skills/ 到 Workspace（Phase 3.1：版本对比 + --dry-run）
   skill
     .command("sync")
-    .description("从 Harness 同步内置 Skills 到 Workspace")
-    .action(async () => {
+    .description("从 Harness 同步内置 Skills/Prompts 到 Workspace（按版本对比）")
+    .option("--dry-run", "仅对比版本并预览变化，不写入任何文件")
+    .action(async (opts) => {
       try {
         const harnessRoot = getHarnessRoot();
         let workspaceRoot;
@@ -114,16 +115,21 @@ export function registerSkillCommand(program) {
           process.exit(1);
         }
 
-        const result = await syncSkills(harnessRoot, workspaceRoot);
-        const promptResult = await syncPrompts(harnessRoot, workspaceRoot);
+        const dryRun = opts.dryRun === true;
+        const result = await syncSkills(harnessRoot, workspaceRoot, { dryRun });
+        const promptResult = await syncPrompts(harnessRoot, workspaceRoot, { dryRun });
+        const prefix = dryRun ? "[dry-run] 将" : "已";
         ok(
-          `已同步 ${result.synced} 个 Skill 到 Workspace skills/，` +
-            `${promptResult.synced} 个 Prompt 片段到 Workspace prompts/`
+          `${prefix}同步 ${result.changed.length} 个 Skill（共 ${result.synced} 变化）到 Workspace skills/，` +
+            `${promptResult.changed.length} 个 Prompt 片段到 Workspace prompts/`
         );
         note(
           [...result.details, ...promptResult.details].join("\n"),
-          "Sync Details"
+          dryRun ? "Sync Plan" : "Sync Details"
         );
+        if (dryRun) {
+          note("未写入任何文件。去掉 --dry-run 执行实际同步。", "dry-run");
+        }
         outro("Done.");
       } catch (e) {
         error(e.message);

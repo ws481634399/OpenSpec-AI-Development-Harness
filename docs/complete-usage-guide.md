@@ -776,6 +776,8 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 | ---------------------- | ------------------------- | ------------------------------- |
 | `openspec init [path]` | 初始化 Workspace          | 项目开始时                      |
 | `openspec skill sync`  | 同步 Skill 与 Prompt 更新 | Harness 更新 SKILL.md/prompts 后 |
+| `openspec version`     | 版本全景（Harness/Workspace/Skill） | 想了解当前版本与差异时 |
+| `openspec upgrade`     | 升级 Workspace 到当前 Harness 版本 | Harness 升级后（建议先 `--dry-run`） |
 
 ### 10.2 Agent 命令（Agent 自动调用）
 
@@ -828,6 +830,67 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 | WAITING_FOR_HUMAN       | 等待用户审批      | 展示草稿，等待确认 |
 | ADVANCED                | 已推进状态        | 继续下一步         |
 | COMPLETED               | Change 完成       | 执行归档           |
+
+### 10.5 版本管理与升级（Phase 3.1）
+
+**三层版本模型**（记录于 `.sdd/version.yaml`，模板注释详尽）：
+
+| 层                 | 含义                     | 更新时机                     |
+| ------------------ | ------------------------ | ---------------------------- |
+| `harness.version`        | Workspace 正在使用的 Harness 版本 | `openspec upgrade` 时更新 |
+| `workspace-template.version` | Workspace 基于的模板版本       | `openspec upgrade` 时对齐 |
+| `schema.version`         | 配置文件结构版本             | 仅结构迁移时变化（upgrade 不动） |
+
+**`openspec version [--json]`**：一条命令看版本全景。
+
+```
+Harness:            0.2.0
+Workspace:
+  harness.version:  0.1.0  ← 落后，可 upgrade
+  workspace-template: 0.1.0
+  schema:           0.1.0
+Skills (11): 1 outdated, 10 up-to-date, 0 local-only
+  updated:  sdd-explore 0.1.0 → 0.2.0
+```
+
+- 不在 Workspace 内运行时仅显示 Harness 版本 + Skill 列表。
+- `--json` 输出结构化字段（`harness` / `workspace` / `skills[]`），供 Agent/脚本消费。
+- Skill 差异状态：`updated`（Workspace 版本旧）/ `added`（Harness 新增）/ `local-only`（Workspace 自建，upgrade 不删除）。
+
+**`openspec upgrade [--dry-run]`**：将旧 Workspace 确定性升级到当前 Harness 版本。
+
+```bash
+# 推荐：先预览（零写入）
+openspec upgrade --dry-run
+
+# 执行升级
+openspec upgrade
+```
+
+执行四步（全部确定性，无 AI 参与）：
+
+1. **skills/prompts 同步**：与 `openspec skill sync` 同策略，全量覆盖 Harness 拥有部分
+2. **补齐模板新增文件**：仅限受管目录（`.sdd/`）内 Workspace 缺失的文件
+3. **schema 迁移**：执行有序迁移表（如 context-rules v0.1 → v0.3，字符串条目转结构化，注释保留）
+4. **版本记录更新**：`harness.version` 与 `workspace-template.version` 对齐当前版本
+
+边界保障：
+
+- **绝不触碰** `standards/`、`product/`、`delivery/`、`implementation/`（用户数据）
+- **幂等**：重复执行显示「Workspace 已是最新」，零写入
+- **可回滚**：报告 `touchedFiles` 清单，`git checkout -- <files>` 即可回滚
+- **前置检查**：`.sdd/version.yaml` 缺失（过旧 Workspace）则拒绝自动升级
+
+**doctor 版本检查**（分级）：`openspec doctor` 新增版本健康检查——
+
+| 情形                                    | 级别  | 提示                                       |
+| --------------------------------------- | ----- | ------------------------------------------ |
+| harness.version 落后（同 major）        | info  | 运行 `openspec upgrade --dry-run` 预览升级 |
+| harness.version 跨 major                | error | 需人工评估迁移                             |
+| schema.version 高于 Harness 支持版本    | error | Workspace 可能由更新版本创建               |
+| workspace.yaml 与 version.yaml 记录不一致 | error | 两个记录点应对齐                           |
+
+**skill sync 版本感知**：`openspec skill sync --dry-run` 输出逐 Skill 版本对比（`sdd-task: updated 0.1.0 → 0.2.0`），不复制文件。
 
 ---
 

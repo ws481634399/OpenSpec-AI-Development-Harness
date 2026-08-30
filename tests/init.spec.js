@@ -24,8 +24,8 @@ const harnessRoot = getHarnessRoot();
 const harnessVersion = readHarnessVersion(harnessRoot);
 const templateDir = resolveDefaultWorkspace(harnessRoot);
 
-test('readHarnessVersion 返回 0.1.0', () => {
-  assert.equal(harnessVersion, '0.1.0');
+test('readHarnessVersion 返回合法 semver', () => {
+  assert.match(harnessVersion, /^\d+\.\d+\.\d+$/);
 });
 
 test('readHarnessVersion 非法格式抛错', async () => {
@@ -135,11 +135,13 @@ test('patchVersionYaml: harness.version 修补，其他两层不动', async () =
   const tmp = await mkdtemp(join(tmpdir(), 'sdd-pv-'));
   await mkdir(join(tmp, '.sdd'));
   await copyFile(join(templateDir, '.sdd/version.yaml'), join(tmp, '.sdd/version.yaml'));
+  // 模板当前基线（patch 只动 harness.version，其余两层保持模板值）
+  const tplDoc = parse(readFileSync(join(templateDir, '.sdd', 'version.yaml'), 'utf8'));
   patchVersionYaml(tmp, '0.1.0');
   const doc = parse(readFileSync(join(tmp, '.sdd', 'version.yaml'), 'utf8'));
   assert.equal(doc.harness.version, '0.1.0');
-  assert.equal(doc['workspace-template'].version, '0.1.0');
-  assert.equal(doc.schema.version, '0.1.0');
+  assert.equal(doc['workspace-template'].version, tplDoc['workspace-template'].version);
+  assert.equal(doc.schema.version, tplDoc.schema.version);
   await rmrf(tmp);
 });
 

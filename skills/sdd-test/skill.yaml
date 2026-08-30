@@ -4,7 +4,7 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-test
-version: 0.1.0
+version: 0.2.0
 stage: test
 description: 测试阶段 Skill——验证实现，生成 Evidence，检查质量
 input:

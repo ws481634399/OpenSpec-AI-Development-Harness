@@ -14,6 +14,8 @@ import { registerReverseCommand } from './commands/reverse.js';
 import { registerFeatureCommand } from './commands/feature.js';
 import { registerDuCommand } from './commands/du.js';
 import { registerContextCommand } from './commands/context.js';
+import { registerVersionCommand } from './commands/version.js';
+import { registerUpgradeCommand } from './commands/upgrade.js';
 
 // 解析 Harness 版本作为 CLI 版本
 let version;
@@ -55,5 +57,9 @@ registerDuCommand(program);
 
 // Phase 2.6：Context 装配预览（排障用）
 registerContextCommand(program);
+
+// Phase 3.1：版本全景 + Workspace 升级
+registerVersionCommand(program);
+registerUpgradeCommand(program);
 
 program.parseAsync();

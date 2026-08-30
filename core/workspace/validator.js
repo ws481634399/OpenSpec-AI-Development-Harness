@@ -11,10 +11,10 @@ import { parse } from 'yaml';
  * - standards/ product/ delivery/ skills/ 四世界目录存在
  * - workspace.yaml.name/type 非空
  * - repositories.yaml.mode 合法、repositories ≥ 1、每项有 id+path
- * - version.yaml.harness.version === 期望值
+ * - version.yaml.harness.version 字段存在（版本兼容性分级检查由 runVersionChecks 负责）
  *
  * @param {string} targetDir 目标项目目录
- * @param {string} expectedHarnessVersion 期望的 Harness 版本（读自 .version）
+ * @param {string} [expectedHarnessVersion] 已废弃（保留参数位以兼容调用方），版本比较移交 runVersionChecks
  * @returns {{ ok: boolean, issues: string[] }}
  */
 export function runSelfCheck(targetDir, expectedHarnessVersion) {
@@ -68,14 +68,11 @@ export function runSelfCheck(targetDir, expectedHarnessVersion) {
     }
   }
 
-  // version.yaml 版本一致性
+  // version.yaml 字段存在性（版本兼容性分级检查由 doctor runVersionChecks 负责，Phase 3.1）
   const vPath = join(targetDir, '.sdd', 'version.yaml');
   if (existsSync(vPath)) {
     const v = parse(readFileSync(vPath, 'utf8'));
-    must(
-      v?.harness?.version === expectedHarnessVersion,
-      `version.yaml: harness.version mismatch (expected ${expectedHarnessVersion}, got ${v?.harness?.version})`
-    );
+    must(v?.harness?.version, 'version.yaml: harness.version missing');
   }
 
   return { ok: issues.length === 0, issues };

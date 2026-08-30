@@ -1,6 +1,6 @@
 // 交互式问答：收集 init 配置（@clack/prompts）
 import * as p from '@clack/prompts';
-import { scanImplementationRepos } from '../../../../../core/sdd/git-submodule.js';
+import { scanImplementationRepos } from '../../../../core/sdd/git-submodule.js';
 
 /**
  * 取消处理：显示 cancel 并退出。
