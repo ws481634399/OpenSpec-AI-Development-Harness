@@ -94,6 +94,17 @@ test('config-writer: workspace.yaml 字段填充且保留注释', async () => {
   assert.equal(doc.workspace.type, 'greenfield');
   assert.equal(doc.workspace.harness.version, '0.1.0');
   assert.ok(content.includes('#'), '模板注释应保留');
+  // Phase 3.2：config 无 stack 时不写入（runInit 负责补默认值）
+  assert.equal(doc.workspace.stack, undefined);
+  await rmrf(tmp);
+});
+
+test('writeWorkspaceYaml: stack 字段写入（Phase 3.2）', async () => {
+  const tmp = await mkdtemp(join(tmpdir(), 'sdd-ws-stack-'));
+  await mkdir(join(tmp, '.sdd'), { recursive: true });
+  writeWorkspaceYaml(templateDir, tmp, { name: 'test-proj', type: 'greenfield', stack: 'spring-cloud' }, '0.1.0');
+  const doc = parse(readFileSync(join(tmp, '.sdd', 'workspace.yaml'), 'utf8'));
+  assert.equal(doc.workspace.stack, 'spring-cloud');
   await rmrf(tmp);
 });
 

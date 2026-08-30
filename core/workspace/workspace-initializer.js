@@ -1,10 +1,10 @@
-// WorkspaceInitializer：编排 定位 → 复制 → 复制 Skills → 生成 → 自检（纯函数，无 CLI 依赖）
+// WorkspaceInitializer：编排 定位 → 复制 → 叠加 Stack → 复制 Skills → 生成 → 自检（纯函数，无 CLI 依赖）
 import { existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { cp, mkdir } from 'node:fs/promises';
-import { resolveDefaultWorkspace } from './template-resolver.js';
+import { resolveDefaultWorkspace, resolveStackOverlay } from './template-resolver.js';
 import { readHarnessVersion } from './version.js';
-import { copyTemplate } from './copier.js';
+import { copyTemplate, copyStackOverlay } from './copier.js';
 import { writeWorkspaceYaml, writeRepositoriesYaml, patchVersionYaml } from './config-writer.js';
 import { runSelfCheck } from './validator.js';
 
@@ -27,13 +27,13 @@ export async function copyBuiltinSkills(harnessRoot, workspaceDir) {
 /**
  * 执行 init 核心逻辑（纯函数，可测试，不经过 @clack 交互）。
  *
- * 流程：检测已存在 → 复制模板 → 复制 Skills → 生成配置 → 自检。
+ * 流程：检测已存在 → 复制模板（Empty 基座）→ 叠加技术栈 overlay → 复制 Skills → 生成配置 → 自检。
  *
- * @param {object} config { name, type, mode, repos, shouldCreateImplementation, force }
+ * @param {object} config { name, type, stack?, mode, repos, shouldCreateImplementation, force }
  * @param {string} targetDir 目标目录绝对路径
  * @param {string} harnessRoot Harness 根目录绝对路径
  * @returns {Promise<{selfCheck:{ok:boolean,issues:string[]}}>}
- * @throws {Error} 若目标已含 .sdd 且未指定 force
+ * @throws {Error} 若目标已含 .sdd 且未指定 force；stack 非法
  */
 export async function runInit(config, targetDir, harnessRoot) {
   const templateDir = resolveDefaultWorkspace(harnessRoot);
@@ -46,10 +46,14 @@ export async function runInit(config, targetDir, harnessRoot) {
 
   await copyTemplate(templateDir, targetDir, config);
 
+  // Phase 3.2：叠加技术栈 overlay（empty 无 overlay；force 时跳过——standards 受保护）
+  const overlayDir = resolveStackOverlay(config.stack || 'empty', harnessRoot);
+  await copyStackOverlay(overlayDir, targetDir, config);
+
   // 复制 Harness 内置 skills/ 到 Workspace（Agent 从本地副本读取 SKILL.md）
   await copyBuiltinSkills(harnessRoot, targetDir);
 
-  writeWorkspaceYaml(templateDir, targetDir, config, harnessVersion);
+  writeWorkspaceYaml(templateDir, targetDir, { ...config, stack: config.stack || 'empty' }, harnessVersion);
   writeRepositoriesYaml(templateDir, targetDir, config);
   patchVersionYaml(targetDir, harnessVersion);
 

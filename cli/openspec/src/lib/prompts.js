@@ -38,6 +38,7 @@ function generateDefaultRepos(mode) {
  * 1. 项目名称（text，默认目录 basename）
  * 2. 项目类型（select: greenfield / brownfield）
  * 3. 代码是否已存在（confirm，仅 brownfield）
+ * 3.5 项目模板（select: empty / spring-cloud / vue / ai-agent；--stack 传入时跳过）
  * 4. 仓库模式（select: single / multi）
  *
  * 仓库 id 和路径自动生成，用户无需输入。
@@ -48,9 +49,10 @@ function generateDefaultRepos(mode) {
  *
  * @param {string} defaultName 默认项目名（目标目录 basename）
  * @param {string} [targetDir] 目标目录（brownfield 检测用）
- * @returns {Promise<{name:string,type:string,mode:string,repos:Array<{id:string,path:string,git?:{submodule?:boolean}}>,shouldCreateImplementation:boolean,codeExists:boolean,detectedRepos:number}>}
+ * @param {{stack?: string}} [opts] --stack 预设（跳过模板选择步）
+ * @returns {Promise<{name:string,type:string,stack:string,mode:string,repos:Array<{id:string,path:string,git?:{submodule?:boolean}}>,shouldCreateImplementation:boolean,codeExists:boolean,detectedRepos:number}>}
  */
-export async function askInitConfig(defaultName, targetDir) {
+export async function askInitConfig(defaultName, targetDir, opts = {}) {
   // 1. 项目名称
   const name = await p.text({
     message: '项目名称？',
@@ -82,6 +84,23 @@ export async function askInitConfig(defaultName, targetDir) {
     });
     if (p.isCancel(ce)) bail('已取消');
     codeExists = ce;
+  }
+
+  // 3.5 项目模板（Phase 3.2；--stack 传入时跳过，非法值由 resolver 报错）
+  let stack = opts?.stack;
+  if (!stack) {
+    const st = await p.select({
+      message: '项目模板？',
+      initialValue: 'empty',
+      options: [
+        { value: 'empty', label: 'Empty', hint: '通用工程标准 + SDD 标准（默认）' },
+        { value: 'spring-cloud', label: 'Spring Cloud', hint: '+ 后端规范包（架构/API/服务/数据访问/框架）' },
+        { value: 'vue', label: 'Vue', hint: '+ 前端规范包（组件/路由/状态/性能）' },
+        { value: 'ai-agent', label: 'AI Agent', hint: '+ AI 规范包（Agent/Prompt/Tool/知识/评估）' },
+      ],
+    });
+    if (p.isCancel(st)) bail('已取消');
+    stack = st;
   }
 
   // 4. 仓库模式
@@ -131,5 +150,5 @@ export async function askInitConfig(defaultName, targetDir) {
   // greenfield → 创建；brownfield + 代码不存在 → 创建；brownfield + 代码已存在 → 不创建
   const shouldCreateImplementation = type === 'greenfield' || !codeExists;
 
-  return { name: nameVal, type, mode, repos, shouldCreateImplementation, codeExists, detectedRepos };
+  return { name: nameVal, type, stack, mode, repos, shouldCreateImplementation, codeExists, detectedRepos };
 }

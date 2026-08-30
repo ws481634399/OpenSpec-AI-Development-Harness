@@ -68,7 +68,7 @@ OpenSpec 是一套 **SDD（Spec-Driven Development）框架**，为 AI Coding Ag
 npm link
 
 # 验证
-openspec --version    # 输出 0.1.0
+openspec --version    # 输出 0.2.0
 openspec doctor       # 自检
 ```
 
@@ -167,12 +167,30 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 openspec init my-project
 ```
 
-交互式选择（4 步）：
+交互式选择（5 步）：
 
 - 项目名称
 - 类型：greenfield（新项目）/ brownfield（已有代码）
 - 代码是否已存在（仅 brownfield 询问）
+- 项目模板：Empty（默认）/ Spring Cloud / Vue / AI Agent（Phase 3.2）
 - 仓库模式：single（单仓）/ multi（多仓）
+
+项目模板（与项目类型正交：类型定项目新旧，模板定技术栈标准预置）：
+
+| 模板 | `standards/` 预置内容 |
+| --- | --- |
+| `empty`（默认） | 通用工程标准 + SDD 标准，无技术栈包 |
+| `spring-cloud` | + 后端包（架构 / API / 服务 / 数据访问 / 框架） |
+| `vue` | + 前端包（组件 / 路由 / 状态管理 / 性能） |
+| `ai-agent` | + AI 包（Agent / Prompt / Tool 调用 / 知识 / 评估） |
+
+也可非交互指定模板（其余步骤仍交互）：
+
+```bash
+openspec init my-project --stack spring-cloud   # 非法值直接报错退出
+```
+
+选择结果记录于 `.sdd/workspace.yaml` 的 `workspace.stack` 字段。已初始化 Workspace 不受模板影响（standards 为用户数据，upgrade 永不触碰）；后续想补栈标准，直接把对应标准文件放入 `standards/engineering/<backend|frontend|ai>/` 即可。
 
 仓库 id 和路径自动生成，无需手动输入：
 
@@ -350,7 +368,7 @@ Change 移到 delivery/archive/，生命周期完成。
 ```bash
 # 在已有项目根目录
 openspec init
-# 选择 brownfield → 代码是否已存在 → 仓库模式
+# 选择 brownfield → 代码是否已存在 → 项目模板 → 仓库模式
 # 仓库路径自动生成（implementation/）
 ```
 
@@ -774,7 +792,7 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 | 命令                   | 用途                      | 何时使用                        |
 | ---------------------- | ------------------------- | ------------------------------- |
-| `openspec init [path]` | 初始化 Workspace          | 项目开始时                      |
+| `openspec init [path] [--stack <stack>]` | 初始化 Workspace（--stack 预设项目模板） | 项目开始时                      |
 | `openspec skill sync`  | 同步 Skill 与 Prompt 更新 | Harness 更新 SKILL.md/prompts 后 |
 | `openspec version`     | 版本全景（Harness/Workspace/Skill） | 想了解当前版本与差异时 |
 | `openspec upgrade`     | 升级 Workspace 到当前 Harness 版本 | Harness 升级后（建议先 `--dry-run`） |

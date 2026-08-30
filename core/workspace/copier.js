@@ -65,3 +65,19 @@ export async function copyTemplate(templateDir, targetDir, config) {
   // 确保 .sdd/ 存在（workspace.yaml/repositories.yaml 被排除时目录仍需存在）
   await mkdir(join(targetDir, '.sdd'), { recursive: true });
 }
+
+/**
+ * 复制技术栈 overlay 到目标目录（Phase 3.2）。
+ *
+ * - overlay 目录结构即目标相对路径（stacks/<stack>/standards/... → target/standards/...）
+ * - 整文件覆盖（overlay 优先；当前栈包与 base 无文件交集，规则仅为防御未来误配）
+ * - --force 时跳过（standards 为受保护目录，与 base 复制规则一致）
+ *
+ * @param {string} overlayDir overlay 根目录（templates/stacks/<stack>）
+ * @param {string} targetDir 目标项目目录
+ * @param {object} config 含 force
+ */
+export async function copyStackOverlay(overlayDir, targetDir, config) {
+  if (!overlayDir || config.force) return;
+  await cp(overlayDir, targetDir, { recursive: true, force: true });
+}

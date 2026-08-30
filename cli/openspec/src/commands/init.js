@@ -3,6 +3,7 @@ import { Command } from 'commander';
 import { outro, note } from '@clack/prompts';
 import { askInitConfig } from '../lib/prompts.js';
 import { runInit } from '../../../../core/workspace/workspace-initializer.js';
+import { resolveStackOverlay } from '../../../../core/workspace/template-resolver.js';
 import { printBanner } from '../lib/banner.js';
 import { readHarnessVersion } from '../../../../core/workspace/version.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
@@ -20,6 +21,7 @@ function printSuccess(config, harnessVersion, selfCheck) {
     [
       `Project: ${config.name}`,
       `Type: ${config.type}`,
+      `Stack: ${config.stack || 'empty'}`,
       `Mode: ${modeLabel}`,
       `Harness: ${harnessVersion}`,
       '',
@@ -46,6 +48,7 @@ export function registerInitCommand(program) {
     .command('init')
     .argument('[project-path]', '目标目录，默认当前目录')
     .option('-f, --force', '覆写已存在的 .sdd/*.yaml 与 README-OpenSpec.md')
+    .option('--stack <stack>', '项目模板预设（empty|spring-cloud|vue|ai-agent），跳过模板选择步')
     .action(async (projectPath, opts) => {
       const harnessRoot = getHarnessRoot();
       const harnessVersion = readHarnessVersion(harnessRoot);
@@ -55,13 +58,23 @@ export function registerInitCommand(program) {
       const targetDir = projectPath ? resolve(process.cwd(), projectPath) : process.cwd();
       const defaultName = basename(targetDir) || 'openspec-project';
 
+      // Phase 3.2：--stack 非法值直接报错退出（不回退交互）
+      if (opts.stack) {
+        try {
+          resolveStackOverlay(opts.stack, harnessRoot);
+        } catch (e) {
+          error(e.message);
+          process.exit(1);
+        }
+      }
+
       if (projectPath && !existsSync(targetDir)) {
         await mkdir(targetDir, { recursive: true });
       }
 
       let config;
       try {
-        config = await askInitConfig(defaultName, targetDir);
+        config = await askInitConfig(defaultName, targetDir, { stack: opts.stack });
       } catch (e) {
         error(e.message);
         outro('Initialization canceled.');

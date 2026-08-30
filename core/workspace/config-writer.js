@@ -17,6 +17,8 @@ export function writeWorkspaceYaml(templateDir, targetDir, config, harnessVersio
   const doc = parseDocument(readFileSync(src, 'utf8'));
   doc.setIn(['workspace', 'name'], config.name);
   doc.setIn(['workspace', 'type'], config.type);
+  // Phase 3.2：项目模板（empty 也显式记录，显式优于隐式）
+  if (config.stack) doc.setIn(['workspace', 'stack'], config.stack);
   doc.setIn(['workspace', 'harness', 'version'], harnessVersion);
   writeFileSync(join(targetDir, '.sdd', 'workspace.yaml'), doc.toString(), 'utf8');
 }

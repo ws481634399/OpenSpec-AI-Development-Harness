@@ -44,6 +44,7 @@ test('integration: greenfield + single 完整初始化', async () => {
   const ws = parse(readFileSync(join(tmp, '.sdd', 'workspace.yaml'), 'utf8'));
   assert.equal(ws.workspace.name, 'test-green');
   assert.equal(ws.workspace.type, 'greenfield');
+  assert.equal(ws.workspace.stack, 'empty'); // Phase 3.2：未显式传 stack → 默认 empty
   assert.equal(ws.workspace.harness.version, harnessVersion);
 
   const rep = parse(readFileSync(join(tmp, '.sdd', 'repositories.yaml'), 'utf8'));
