@@ -6,7 +6,7 @@ import { outro } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { runSelfCheck } from '../../../../core/workspace/validator.js';
-import { runMultiRepoChecks, runContextRulesChecks, runVersionChecks } from '../../../../core/sdd/doctor-checks.js';
+import { runMultiRepoChecks, runContextRulesChecks, runVersionChecks, runIdeRulesChecks } from '../../../../core/sdd/doctor-checks.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { readHarnessVersion } from '../../../../core/workspace/version.js';
 
@@ -54,6 +54,15 @@ export function registerDoctorCommand(program) {
           multiChecked += v.checked;
         } catch (e) {
           warn(`版本检查跳过: ${e.message}`);
+        }
+
+        // Phase 3.3：IDE 规则版本检查（可选件：落后=info / 不存在=不提示）
+        try {
+          const ide = await runIdeRulesChecks(ws, harnessRoot);
+          versionInfos.push(...ide.infos);
+          multiChecked += ide.checked;
+        } catch {
+          // IDE 规则检查是可选增强，失败静默
         }
 
         if (issues.length === 0) {

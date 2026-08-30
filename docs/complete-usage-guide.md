@@ -205,13 +205,41 @@ openspec doctor    # 验证完整性
 openspec status    # 查看状态
 ```
 
+如使用 AI IDE（Trae / Cursor / Claude Code），再生成项目规则，让 Agent 对话开始时自动了解 OpenSpec 工作流：
+
+```bash
+openspec ide trae          # → .trae/rules/openspec-workflow.md
+openspec ide cursor        # → .cursor/rules/openspec-workflow.mdc
+openspec ide claude-code   # → CLAUDE.md（标记块注入，已有内容不受影响）
+```
+
+详见 §4.1.1「IDE 适配」。
+
 init 自动完成：
 
 - 创建四世界目录（standards/product/delivery/skills）
-- 复制 5 个 Standards 种子到 standards/
+- 按项目模板预置 standards/（Phase 3.2：Empty 基座 + 可选技术栈包）
 - 复制 11 个 Skill 到 skills/
 - 复制 14 个 Prompt 片段到 prompts/（Phase 2.3）
 - 生成知识索引（INDEX.md + knowledge-index.json）
+
+#### 4.1.1 IDE 适配（Phase 3.3）
+
+`openspec ide <target>` 生成 AI IDE 项目规则，Agent 对话开始时自动获得 OpenSpec 工作流上下文（结构、启动约定、状态推进方式、禁止事项、常用命令）。
+
+| target | 生成文件 | 说明 |
+| --- | --- | --- |
+| `trae` | `.trae/rules/openspec-workflow.md` | front-matter `alwaysApply: true`，始终生效 |
+| `cursor` | `.cursor/rules/openspec-workflow.mdc` | .mdc 格式（plain .md 会被 Cursor 忽略） |
+| `claude-code` | `CLAUDE.md` | 标记块注入：`<!-- openspec:begin/end -->` 之间由 OpenSpec 管理，**块外内容永不修改** |
+
+更新语义（确定性，无交互）：
+
+- 文件不存在 → 生成；已生成且版本一致 → up-to-date（零写入）；版本落后 → 自动更新（报告 from → to）
+- trae/cursor 落位文件已存在但**无** OpenSpec 版本标记（用户自建）→ 报错退出，绝不覆盖；`--force` 显式授权后才覆盖
+- 内容尾部带 `<!-- openspec-ide-rules: vX.Y.Z -->` 版本标记，`openspec doctor` 检测落后时给出 info 提示
+
+规则内容是「工作流引导」而非知识复制——方法论真相源始终是 `skills/`，避免双份内容漂移。
 
 ### 4.2 需求探索（sdd-explore）
 
@@ -796,6 +824,7 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 | `openspec skill sync`  | 同步 Skill 与 Prompt 更新 | Harness 更新 SKILL.md/prompts 后 |
 | `openspec version`     | 版本全景（Harness/Workspace/Skill） | 想了解当前版本与差异时 |
 | `openspec upgrade`     | 升级 Workspace 到当前 Harness 版本 | Harness 升级后（建议先 `--dry-run`） |
+| `openspec ide <target>` | 生成 AI IDE 项目规则（trae/cursor/claude-code） | init 后按需；详见 §4.1.1 |
 
 ### 10.2 Agent 命令（Agent 自动调用）
 

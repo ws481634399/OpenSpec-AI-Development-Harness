@@ -379,3 +379,39 @@ export function runVersionChecks(workspaceRoot, harnessRoot) {
 
   return { issues, infos, checked };
 }
+
+// ---- Phase 3.3：IDE 规则版本检查（plans/phase-3.3-ide-adapters-design.md §7）----
+// 可选件：规则文件不存在不提示（不是必需品）；存在且落后 → info 引导 `openspec ide <target>`
+
+import { TARGET_FILES } from '../workspace/ide-rules.js';
+
+/**
+ * IDE 规则版本检查。
+ * @param {string} workspaceRoot Workspace 根目录
+ * @param {string} harnessRoot Harness 根目录（读取当前 Harness 版本做比对）
+ * @returns {Promise<{issues:string[], infos:string[], checked:number}>}
+ */
+export async function runIdeRulesChecks(workspaceRoot, harnessRoot) {
+  const issues = [];
+  const infos = [];
+  let checked = 0;
+  const hv = readHarnessVersion(harnessRoot);
+
+  for (const [target, relFile] of Object.entries(TARGET_FILES)) {
+    const p = join(workspaceRoot, relFile);
+    let content;
+    try {
+      content = await readFile(p, 'utf8');
+    } catch {
+      continue; // 不存在 → 不提示
+    }
+    checked++;
+    const m = content.match(/openspec-ide-rules:\s*v(\d+\.\d+\.\d+)/);
+    if (!m) continue; // 非 openspec 生成的文件 → 不评判
+    if (compareSemver(m[1], hv) < 0) {
+      infos.push(`IDE 规则可更新（${target}: v${m[1]} → v${hv}）——运行 'openspec ide ${target}'`);
+    }
+  }
+
+  return { issues, infos, checked };
+}
