@@ -95,6 +95,8 @@ OpenSpec AI Development Harness
 └── 治理层（Governance Layer）
 ```
 
+代码实现采用 `cli/`（命令行交互层）+ `core/`（领域内核，纯函数）分层结构。
+
 ---
 
 # 核心概念
@@ -119,7 +121,7 @@ standards/
 product/
 ```
 
-产品能力与规范。
+产品能力与规范，含四级特性树（Product → Module → Feature → Story）。
 
 ---
 
@@ -139,7 +141,7 @@ delivery/
 implementation/
 ```
 
-实际源代码与运行时资源。
+实际源代码与运行时资源（多仓时为 Git Submodule 或普通目录注册）。
 
 ---
 
@@ -148,20 +150,20 @@ implementation/
 当前版本：
 
 ```
-v0.1
+v0.2.0
 ```
 
 当前阶段：
 
 ```
-Phase 1.0 - Repository Bootstrap
+Phase 3 Professional - 已完成
 ```
 
-状态：
+已完成能力：
 
-```
-Foundation Setup
-```
+- Phase 1 MVP：工作区初始化、Change 生命周期、特性树、10 个 SDD Skill、Gate 驱动工作流引擎；
+- Phase 2 工程增强：Prompt 体系、多仓交付（Delivery Unit）、上下文规则、DU 绑定执行；
+- Phase 3 Professional：版本管理与升级系统、项目模板（Stack）、IDE 适配。
 
 ---
 
@@ -170,54 +172,76 @@ Foundation Setup
 ```
 OpenSpec-AI-Development-Harness/
 
-├── docs/
+├── cli/          CLI 入口与命令（openspec）
 
-├── plans/
+├── core/         领域内核（sdd / workspace，纯函数）
 
-├── templates/
+├── docs/         架构与规范文档
 
-├── skills/
+├── plans/        各 Phase 设计文档
 
-├── tools/
+├── templates/    工作区模板 / 技术栈包 / IDE 规则 / Artifact 模板
 
-├── scripts/
+├── skills/       11 个 AI Skill 定义
 
-├── schemas/
+├── workflows/    工作流定义
 
-└── examples/
+├── tests/        Node test 测试套件
+
+├── schemas/      数据结构定义
+
+└── scripts/      开发与自动化脚本
 ```
 
-## docs
+---
 
-架构与规范文档。
+# 快速开始
 
-## plans
+## 安装
 
-实现计划与开发里程碑。
+```bash
+cd cli/openspec
+npm install
+node bin/openspec.js --help
+```
 
-## templates
+## 初始化工作区
 
-OpenSpec 初始化时使用的工作区模板。
+```bash
+openspec init
+```
 
-## skills
+交互式创建 OpenSpec 工作区：项目名称 → 项目类型 → 代码现状 → 仓库模式（单仓/多仓）→ 技术栈模板（empty / spring-cloud / vue / ai-agent）。
 
-AI Skill 定义。
+## IDE 适配（可选）
 
-## tools
+```bash
+openspec ide trae          # 生成 .trae/rules
+openspec ide cursor        # 生成 .cursor/rules（.mdc）
+openspec ide claude-code   # 注入 CLAUDE.md 标记块
+```
 
-CLI 工具与实用程序。
+## 日常命令
 
-## scripts
+| 命令 | 用途 |
+| --- | --- |
+| `openspec init` | 初始化工作区 |
+| `openspec change create/list` | 变更管理 |
+| `openspec feature tree` | 特性树管理 |
+| `openspec workflow run` | 推进 SDD 流程（Gate 驱动） |
+| `openspec du` | Delivery Unit 管理（多仓交付） |
+| `openspec gate` | Gate 评审（machine/human） |
+| `openspec status` | 变更状态全景 |
+| `openspec validate` | Artifact 校验 |
+| `openspec doctor` | 工作区健康检查 |
+| `openspec context` | 预览 Agent 上下文装配 |
+| `openspec skill sync` | 同步/升级 Skill 与 Prompt |
+| `openspec reverse` | 知识反向工程 |
+| `openspec version` | 版本全景 |
+| `openspec upgrade` | 工作区确定性升级（支持 --dry-run / --rollback） |
+| `openspec ide` | AI IDE 项目规则生成 |
 
-开发与自动化脚本。
-
-## schemas
-
-数据结构定义。
-
-## examples
-
-示例项目与使用案例。
+完整用法见 [docs/complete-usage-guide.md](./docs/complete-usage-guide.md)。
 
 ---
 
@@ -225,55 +249,23 @@ CLI 工具与实用程序。
 
 ## Phase 0
 
-基础设计
-
-已完成：
-
-- 架构
-- 工作流
-- Skill 规范
-- 知识模型
-
----
+基础设计（已完成）：架构、工作流、Skill 规范、知识模型。
 
 ## Phase 1
 
-MVP 实现
-
-目标：
-
-- 工作区初始化；
-- 变更管理；
-- 特性树（Feature Tree）；
-- 核心 Skill；
-- 知识反向工程（Knowledge Reverse）。
-
----
+MVP 实现（已完成）：工作区初始化、变更管理、特性树、核心 Skill、知识反向工程。
 
 ## Phase 2
 
-工程增强
+工程增强（已完成）：证据系统、校验、评审工作流、上下文管理、多仓交付。
 
-目标：
+## Phase 3
 
-- 证据系统；
-- 校验；
-- 评审工作流；
-- 上下文管理。
+Professional（已完成）：版本管理与升级、项目模板、IDE 适配。
 
----
+## Phase 4
 
-# 快速开始
-
-（当前开发中）
-
-未来用法：
-
-```bash
-sdd init
-```
-
-初始化一个 OpenSpec 工作区。
+Team Version（规划中）：团队协作能力。
 
 ---
 

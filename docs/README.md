@@ -1,8 +1,8 @@
 # OpenSpec AI Development Harness 文档体系
 
-> Version: v1.0  
-> Status: Draft  
-> Last Updated: 2026-08-23
+> Version: v1.1  
+> Status: Active  
+> Last Updated: 2026-08-29
 
 ---
 
@@ -28,7 +28,8 @@
 | 03 | [Skill-Spec](./03-Skill-Spec.md) | Skill规范 | Skill 定义、目录结构、生命周期、核心 Skill 清单 |
 | 04 | [Knowledge-Model](./04-Knowledge-Model.md) | 知识模型 | 四世界知识空间、知识生命周期、来源与使用规则 |
 | 05 | [Implementation-Plan](./05-Implementation-Plan.md) | 实施计划 | Phase 0-4 实施路线、验收标准、推荐开发顺序 |
-| 06 | [v0.1-Init-Design](./06-v0.1-Init-Design.md) | 初始化设计 | `sdd init` 命令的详细设计、交互流程、生成结构 |
+| 06 | [v0.1-Init-Design](./06-v0.1-Init-Design.md) | 初始化设计 | `init` 命令的详细设计、交互流程、生成结构（历史文档，实际实现以 usage guide 为准） |
+| — | [Complete Usage Guide](./complete-usage-guide.md) | **使用指导** | 当前版本全量功能与命令的权威文档（持续更新） |
 
 ---
 
@@ -37,34 +38,42 @@
 ### 第一次了解项目
 
 ```
+README.md（仓库根）
+    ↓
 00-Roadmap.md
     ↓
 01-Architecture.md
-    ↓
-02-Workflow.md
 ```
 
-理解项目是什么、整体架构如何、开发流程怎么走。
+理解项目是什么、整体架构如何。
+
+### 快速上手使用
+
+```
+docs/complete-usage-guide.md
+```
+
+当前版本全量功能、命令与工作流的权威说明。
 
 ### 深入设计细节
 
 ```
+02-Workflow.md
+    ↓
 03-Skill-Spec.md
     ↓
 04-Knowledge-Model.md
 ```
 
-理解 AI 能力如何标准化、项目知识如何管理。
+理解开发流程、AI 能力如何标准化、项目知识如何管理。
 
-### 准备实施
+### 了解演进历史
 
 ```
-05-Implementation-Plan.md
-    ↓
-06-v0.1-Init-Design.md
+plans/phase-*.md
 ```
 
-理解实施路线和首个版本的具体设计。
+各阶段（Phase 1.0 – 3.3）的设计文档存档。
 
 ---
 
@@ -101,19 +110,22 @@
 |------|------|------|
 | SDD | Specification Driven Development，规格驱动开发 | 02-Workflow |
 | 四世界 | Standards / Product / Delivery / Implementation | 01-Architecture, 04-Knowledge-Model |
-| CHG | Change，一次业务变化 | 02-Workflow |
-| FCHG | Feature Change，特性变化 | 02-Workflow |
-| RCHG | Repository Change，仓库变化 | 02-Workflow |
-| Skill | AI Agent 的标准化能力模块 | 03-Skill-Spec |
+| CHG | Change，一次业务变化（最外层交付容器） | 02-Workflow |
+| Feature Tree | 四级特性树 Product → Module → Feature → Story | 01-Architecture |
+| Skill | AI Agent 的标准化能力模块（当前 11 个） | 03-Skill-Spec |
+| Workflow Engine | Gate 驱动的流程协调器（状态推进唯一入口为 Transition Service） | 02-Workflow |
+| Delivery Unit (DU) | Change 在单个仓库中的实现交付单元（多仓交付桥梁） | plans/phase-2.4 |
 | Knowledge Reverse | 从已有代码逆向生成项目知识 | 04-Knowledge-Model |
 
 ---
 
 ## 版本状态
 
-当前所有文档处于 **Draft** 状态，属于 Phase 0（Architecture Foundation）的产出。
+文档体系状态：**Active**（随实现演进持续更新）。
 
-Phase 0 完成后，文档体系冻结，进入 Phase 1 MVP 编码阶段。
+- Phase 0（架构基础）与 Phase 1–3 实现已完成，当前版本 v0.2.0
+- 00–06 为设计期文档（保留历史视角，演进以 `plans/phase-*.md` 与 usage guide 为准）
+- [complete-usage-guide.md](./complete-usage-guide.md) 为当前实现的权威使用文档
 
 ---
 

@@ -681,23 +681,43 @@ OpenSpec Harness v1.x 不包含：
 
 ---
 
-## 不实现IDE
+## 不实现IDE 集成
 
-依赖：
+不开发 IDE 插件/扩展，依赖外部：
 
 - Trae；
 - Cursor；
 - Claude Code。
 
+（Phase 3.3 已提供 `openspec ide` 命令：为上述 IDE 生成/注入项目规则文件，属文件生成而非 IDE 集成。）
+
 ---
 
-# 10. 后续扩展方向
+# 10. 实现演进增量与后续扩展方向
+
+## Phase 1–3 实现演进增量
+
+架构自 v0.1 设计期文档后的主要演进（详见 plans/phase-*.md 与 complete-usage-guide.md）：
+
+| 演进 | 内容 | 阶段 |
+| --- | --- | --- |
+| 代码分层 | `cli/`（commander + @clack 交互层）+ `core/`（领域内核，纯函数，零构建 ESM） | Phase 1.2 |
+| Gate 驱动工作流 | Workflow Engine + Transition Service，状态推进唯一入口；WAITING_FOR_* 断点续跑 | Phase 1.5 |
+| Prompt 体系 | persona/通用约束/输出格式与 Skill 方法论分离，注入 Instruction | Phase 2.3 |
+| 多仓交付 | Delivery Unit 领域对象、Workspace/Repo 两级 Delivery、Fan-out/Fan-in、Submodule 指针对齐 | Phase 2.4–2.5 |
+| Context Engine | Context Rules 结构化读规则 + Instruction 三段式装配（已从「扩展方向」落地） | Phase 2.6–2.7 |
+| DU 绑定执行 | dev/test 显式绑定 DU，per-repo 规则段与 repo 侧上下文自动注入 | Phase 2.7 |
+| Version/Upgrade | 三层版本全景、确定性升级、schema 迁移框架、--rollback | Phase 3.1 |
+| Template 系统 | 技术栈包（spring-cloud/vue/ai-agent/empty）与 init 叠加 | Phase 3.2 |
+| IDE 适配 | Trae/Cursor/Claude Code 项目规则生成（plan/apply 幂等 + doctor 落后检测） | Phase 3.3 |
+
+## 后续扩展方向
 
 未来版本可以增加：
 
-## Context Engine
+## Agent Runtime
 
-自动构建 AI 上下文。
+在协调器之上引入可控的 Agent 执行运行时（当前 Workflow 仍为确定性协调，不执行 AI 推理）。
 
 ---
 
