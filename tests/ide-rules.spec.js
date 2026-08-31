@@ -1,11 +1,12 @@
-// Unit tests: IDE 规则生成（Phase 3.3 plans/phase-3.3-ide-adapters-design.md §9）
+// Unit tests: IDE 规则与 Skill 斜杠命令生成（Phase 3.3 §9 / Phase 3.4 plans/phase-3.4-ide-commands-design.md §6）
 // 覆盖：render / plan 情形矩阵 / apply（trae+cursor+claude-code）/ --force / doctor 检查
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, readdir } from 'node:fs/promises';
 import { renderIdeRules, planIdeRules, applyIdeRules, TARGETS, BLOCK_BEGIN, BLOCK_END } from '../core/workspace/ide-rules.js';
+import { renderCommand, renderCommands, planIdeCommands, applyIdeCommands, COMMANDS_DIR } from '../core/workspace/ide-commands.js';
 import { runIdeRulesChecks } from '../core/sdd/doctor-checks.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
 import { readHarnessVersion } from '../core/workspace/version.js';
@@ -187,6 +188,138 @@ test('doctor runIdeRulesChecks: 落后 → info；最新/不存在/无标记 →
   assert.equal(r.infos.length, 1);
   assert.match(r.infos[0], /IDE 规则可更新（trae: v0\.0\.1 → v/);
   assert.match(r.infos[0], /openspec ide trae/);
+
+  await rmrf(root);
+});
+
+// ---- Phase 3.4：Skill 斜杠命令（plans/phase-3.4-ide-commands-design.md §6）----
+
+const readSkill = async (id) => {
+  const { parse } = await import('yaml');
+  return parse(await readFile(join(harnessRoot, 'skills', id, 'skill.yaml'), 'utf8'));
+};
+
+test('renderCommand: stage 类正文含 workflow run + gate 链路，frontmatter 按 target 差异', async () => {
+  const explore = await readSkill('sdd-explore');
+  const claude = renderCommand('claude-code', explore, harnessVersion);
+  assert.ok(claude.startsWith('---\n'));
+  assert.ok(claude.includes('argument-hint: <CHG-ID>'), 'claude-code 应有 argument-hint');
+  assert.ok(claude.includes('workflow run --change $ARGUMENTS --stage explore'));
+  assert.ok(claude.includes('gate check $ARGUMENTS --stage explore'));
+  assert.ok(claude.includes('gate approve $ARGUMENTS --stage explore'));
+  assert.ok(claude.includes('skills/sdd-explore/SKILL.md'));
+  assert.ok(claude.includes(`openspec-ide-commands: v${harnessVersion} skill:sdd-explore`));
+  assert.ok(!claude.includes('--du'), 'explore 不应含 DU 段');
+
+  const trae = renderCommand('trae', explore, harnessVersion);
+  assert.ok(trae.startsWith('---\ndescription:'));
+  assert.ok(!trae.includes('argument-hint'), 'trae frontmatter 无 argument-hint');
+});
+
+test('renderCommand: dev/test 注入 DU 绑定段；utility 类引导 SKILL.md 而非 workflow', async () => {
+  const dev = await readSkill('sdd-dev');
+  const devCmd = renderCommand('cursor', dev, harnessVersion);
+  assert.ok(devCmd.includes('## DU 绑定（必须）'));
+  assert.ok(devCmd.includes('--du <DU-ID>'));
+  assert.ok(devCmd.includes('openspec du list'));
+
+  const testSkill = await readSkill('sdd-test');
+  assert.ok(renderCommand('cursor', testSkill, harnessVersion).includes('## DU 绑定（必须）'));
+
+  for (const id of ['sdd-feature-tree', 'sdd-knowledge', 'sdd-reverse']) {
+    const s = await readSkill(id);
+    const c = renderCommand('trae', s, harnessVersion);
+    assert.ok(!c.includes('workflow run'), `${id} 不应含 workflow run`);
+    assert.ok(c.includes(`skills/${id}/SKILL.md`), `${id} 应引用 SKILL.md`);
+    assert.ok(c.includes(`skill:${id}`));
+  }
+});
+
+test('renderCommands: 11 skill × 3 target = 33 个命令文件，路径正确', async () => {
+  for (const t of TARGETS) {
+    const map = await renderCommands(t, harnessRoot, null, harnessVersion);
+    assert.equal(map.size, 11);
+    for (const [file, content] of map) {
+      assert.ok(file.startsWith(COMMANDS_DIR[t]), `${file} 应位于 ${COMMANDS_DIR[t]}`);
+      assert.ok(file.endsWith('.md'));
+      assert.ok(content.startsWith('---\n'));
+    }
+    assert.ok(map.has(join(COMMANDS_DIR[t], 'sdd-explore.md')));
+    assert.ok(map.has(join(COMMANDS_DIR[t], 'sdd-knowledge.md')));
+  }
+});
+
+test('plan/applyIdeCommands: created → 幂等 up-to-date → 旧版本 updated(from/to)', async () => {
+  const root = await ws();
+  const dest = join(root, '.cursor', 'commands');
+
+  // created（零写入验证）
+  let plan = await planIdeCommands(root, 'cursor', harnessRoot, harnessVersion);
+  assert.equal(plan.entries.length, 11);
+  assert.ok(plan.entries.every((e) => e.action === 'created'));
+  await assert.rejects(() => readdir(dest), /ENOENT/);
+
+  // apply → 33 中 11 写入；二次 plan 全 up-to-date
+  let r = await applyIdeCommands(root, 'cursor', plan);
+  assert.equal(r.written.length, 11);
+  assert.ok(r.conflicts.length === 0);
+  plan = await planIdeCommands(root, 'cursor', harnessRoot, harnessVersion);
+  assert.ok(plan.entries.every((e) => e.action === 'up-to-date'));
+  r = await applyIdeCommands(root, 'cursor', plan);
+  assert.equal(r.written.length, 0);
+
+  // 模拟旧版本标记 → updated(from/to)
+  const exploreFile = join(dest, 'sdd-explore.md');
+  const old = (await readFile(exploreFile, 'utf8')).replace(`v${harnessVersion}`, `v${olderVersion}`);
+  await writeFile(exploreFile, old);
+  plan = await planIdeCommands(root, 'cursor', harnessRoot, harnessVersion);
+  const upd = plan.entries.find((e) => e.file === join('.cursor', 'commands', 'sdd-explore.md'));
+  assert.equal(upd.action, 'updated');
+  assert.equal(upd.from, olderVersion);
+  assert.equal(upd.to, harnessVersion);
+
+  await rmrf(root);
+});
+
+test('applyIdeCommands: 无标记用户命令文件 → conflict 不覆盖，--force 覆盖', async () => {
+  const root = await ws();
+  const dir = join(root, '.trae', 'commands');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'sdd-explore.md'), '# 我的自定义 explore 命令\n不要动我');
+
+  const plan = await planIdeCommands(root, 'trae', harnessRoot, harnessVersion);
+  const conf = plan.entries.find((e) => e.action === 'conflict');
+  assert.ok(conf, '应识别 conflict');
+  let r = await applyIdeCommands(root, 'trae', plan);
+  assert.deepEqual(r.conflicts, [join('.trae', 'commands', 'sdd-explore.md')]);
+  assert.equal(await readFile(join(dir, 'sdd-explore.md'), 'utf8'), '# 我的自定义 explore 命令\n不要动我');
+
+  r = await applyIdeCommands(root, 'trae', plan, { force: true });
+  assert.deepEqual(r.conflicts, []);
+  assert.ok((await readFile(join(dir, 'sdd-explore.md'), 'utf8')).includes('workflow run'));
+  await rmrf(root);
+});
+
+test('doctor runIdeRulesChecks: commands 落后聚合为一条 info；未启用不提示', async () => {
+  const root = await ws();
+  // 未启用 commands → 无提示
+  let r = await runIdeRulesChecks(root, harnessRoot);
+  assert.equal(r.infos.length, 0);
+
+  // 11 个命令全部当前版本 → 无提示
+  const dir = join(root, '.claude', 'commands');
+  await mkdir(dir, { recursive: true });
+  const map = await renderCommands('claude-code', harnessRoot, null, harnessVersion);
+  for (const [f, c] of map) await writeFile(join(root, f), c);
+  r = await runIdeRulesChecks(root, harnessRoot);
+  assert.equal(r.infos.length, 0);
+
+  // 其中 2 个降版本 → 一条聚合 info
+  await writeFile(join(dir, 'sdd-dev.md'), (await readFile(join(dir, 'sdd-dev.md'), 'utf8')).replace(`v${harnessVersion}`, `v${olderVersion}`));
+  await writeFile(join(dir, 'sdd-test.md'), (await readFile(join(dir, 'sdd-test.md'), 'utf8')).replace(`v${harnessVersion}`, `v${olderVersion}`));
+  r = await runIdeRulesChecks(root, harnessRoot);
+  assert.equal(r.infos.length, 1);
+  assert.match(r.infos[0], /IDE Skill 命令可更新（claude-code: 2\/11 落后）/);
 
   await rmrf(root);
 });

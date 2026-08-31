@@ -9,6 +9,7 @@ import { listChanges, showChange, changeExists } from '../../../../core/sdd/chan
 import { runChangeCreate, readMetadata, bindFeaturePath } from '../../../../core/sdd/change-model.js';
 import { nextStatuses, isValidStatus } from '../../../../core/sdd/change-state-machine.js';
 import { archiveChange } from '../../../../core/sdd/change-archiver.js';
+import { materializeChangeSkeleton, findChangeDirAny } from '../../../../core/sdd/change-skeleton.js';
 import { requestTransition } from '../../../../core/sdd/transition-service.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { confirmArchive } from '../lib/change-prompts.js';
@@ -228,21 +229,52 @@ export function registerChangeCommand(program) {
         if (!chain) {
           throw new Error(`Story not found in feature-tree.yaml: ${opts.story}`);
         }
-        await bindFeaturePath(changeDir, {
+        const fp = {
           'level-1': { id: chain['level-1'].id, name: chain['level-1'].name },
           'level-2': { id: chain['level-2'].id, name: chain['level-2'].name },
           'level-3': { id: chain['level-3'].id, name: chain['level-3'].name },
           story: { id: chain.story.id, name: chain.story.name },
           candidate: !!opts.candidate,
-        });
+        };
+        await bindFeaturePath(changeDir, fp);
         ok(
           `${id} feature-path bound: ${chain['level-1'].id} > ${chain['level-2'].id} > ${chain['level-3'].id || '-'} > ${chain.story.id}` +
             (opts.candidate ? ' (candidate)' : '')
         );
+        // 绑定即物化 CHG 内部四级骨架（candidate 不物化；幂等）
+        if (!opts.candidate) {
+          const meta = await readMetadata(changeDir);
+          const tree = await readFeatureTree(ws);
+          const sk = await materializeChangeSkeleton(changeDir, meta, tree);
+          if (sk.skipped) warn(`骨架未物化: ${sk.reason}`);
+          else ok(`四级骨架: ${sk.created.join(', ')}`);
+        }
         outro('Done.');
       } catch (e) {
         error(e.message);
         outro('Bind feature-path failed.');
+        process.exit(1);
+      }
+    });
+
+  // skeleton：为存量/归档 CHG 补物化四级骨架（Phase 3.5，幂等）
+  change
+    .command('skeleton <id>')
+    .description('按 metadata.feature-path 补物化 CHG 内部四级目录骨架（幂等，支持归档 CHG）')
+    .action(async (id) => {
+      const ws = resolveWorkspaceRoot();
+      try {
+        const found = await findChangeDirAny(ws, id);
+        if (!found) throw new Error(`Change not found: ${id}（changes 与 archive 均未定位到）`);
+        const meta = await readMetadata(found.dir);
+        const tree = await readFeatureTree(ws);
+        const sk = await materializeChangeSkeleton(found.dir, meta, tree);
+        if (sk.skipped) warn(`骨架未物化: ${sk.reason}`);
+        else ok(`${id}（${found.scope}）四级骨架: ${sk.created.join(', ')}`);
+        outro('Done.');
+      } catch (e) {
+        error(e.message);
+        outro('Skeleton failed.');
         process.exit(1);
       }
     });

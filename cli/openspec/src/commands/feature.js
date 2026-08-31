@@ -11,6 +11,7 @@ import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { readFeatureTree, findNodeById, nodeLevel, nodePath } from '../../../../core/sdd/feature-model.js';
 import { addModule, addFeature, addStory, updateNode, removeNode } from '../../../../core/sdd/feature-writer.js';
+import { materializeFeatures } from '../../../../core/sdd/feature-materializer.js';
 
 function bail(message) {
   p.cancel(message);
@@ -251,6 +252,31 @@ export function registerFeatureCommand(program) {
       } catch (e) {
         error(e.message);
         outro('Feature remove failed.');
+        process.exit(1);
+      }
+    });
+
+  // materialize：product/features 四级物理投影（Phase 3.5，只增不删，幂等）
+  feature
+    .command('materialize')
+    .description('按 feature-tree.yaml 生成 product/features/ 四级目录 README 投影（幂等）')
+    .action(async () => {
+      try {
+        const ws = resolveWorkspaceRoot();
+        const r = await materializeFeatures(ws);
+        if (r.created.length === 0) {
+          ok(`features/ 已与特性树同步（${r.skipped} 个 README 已存在）`);
+        } else {
+          ok(`生成 ${r.created.length} 个 README：`);
+          for (const f of r.created) ok(`  ${f}`);
+        }
+        if (r.drifted.length > 0) {
+          warn(`发现 drift（目录存在但树中无对应节点，未删除）：${r.drifted.join('、')}`);
+        }
+        outro('Done.');
+      } catch (e) {
+        error(e.message);
+        outro('Feature materialize failed.');
         process.exit(1);
       }
     });

@@ -24,6 +24,23 @@ import { featurePathDirs } from './artifact-path.js';
 const pathExists = (p) =>
   stat(p).then(() => true).catch((e) => (e.code === 'ENOENT' ? false : Promise.reject(e)));
 
+/**
+ * 树结构反查：story 是否直接挂在指定 L3 节点的 stories 下。
+ * 兼容 v2 嵌套编码与手工命名的非嵌套 ID。
+ */
+function storyBelongsToL3(tree, l3Id, storyId) {
+  for (const l1 of tree.modules) {
+    for (const l2 of l1.children || []) {
+      for (const l3 of l2.children || []) {
+        if (l3.id === l3Id && (l3.stories || []).some((s) => s.id === storyId)) return true;
+      }
+      // v1 过渡：story 直挂 L2 时，L2 本身可能被当作 level-3 引用
+      if (l2.id === l3Id && (l2.stories || []).some((s) => s.id === storyId)) return true;
+    }
+  }
+  return false;
+}
+
 async function listChangeDirs(workspaceRoot) {
   const dir = join(workspaceRoot, 'delivery', 'changes');
   if (!(await pathExists(dir))) return [];
@@ -115,11 +132,14 @@ export async function runMultiRepoChecks(workspaceRoot) {
           issues.push(`${changeId}: feature-path 引用 '${id}' 不在 product/feature-tree.yaml 中`);
         }
       }
-      // story 必须归属 l3（story id 前三段 == l3 id 段）
-      const l3Segs = fp['level-3'].id.split('-').slice(1).join('-');
-      const storySegs = fp.story.id.replace(/^STORY-/, '');
-      if (!storySegs.startsWith(l3Segs)) {
-        issues.push(`${changeId}: story '${fp.story.id}' 不归属 level-3 '${fp['level-3'].id}'`);
+      // story 必须归属 l3：优先树结构反查（兼容手工命名的非嵌套编码 ID，如 STORY-2），
+      // 仅当结构反查失败且 story 为 v2 嵌套编码时才退化为段校验
+      if (!storyBelongsToL3(tree, fp['level-3'].id, fp.story.id)) {
+        const l3Segs = fp['level-3'].id.split('-').slice(1).join('-');
+        const storySegs = fp.story.id.replace(/^STORY-/, '');
+        if (!storySegs.startsWith(l3Segs)) {
+          issues.push(`${changeId}: story '${fp.story.id}' 不归属 level-3 '${fp['level-3'].id}'`);
+        }
       }
 
       // 7. 目录路径与 metadata.feature-path 一致
@@ -391,9 +411,10 @@ export function runVersionChecks(workspaceRoot, harnessRoot) {
 // 可选件：规则文件不存在不提示（不是必需品）；存在且落后 → info 引导 `openspec ide <target>`
 
 import { TARGET_FILES } from '../workspace/ide-rules.js';
+import { COMMANDS_DIR } from '../workspace/ide-commands.js';
 
 /**
- * IDE 规则版本检查。
+ * IDE 规则与 Skill 命令版本检查。
  * @param {string} workspaceRoot Workspace 根目录
  * @param {string} harnessRoot Harness 根目录（读取当前 Harness 版本做比对）
  * @returns {Promise<{issues:string[], infos:string[], checked:number}>}
@@ -404,6 +425,7 @@ export async function runIdeRulesChecks(workspaceRoot, harnessRoot) {
   let checked = 0;
   const hv = readHarnessVersion(harnessRoot);
 
+  // 规则文件（单文件，整文件归属判定）
   for (const [target, relFile] of Object.entries(TARGET_FILES)) {
     const p = join(workspaceRoot, relFile);
     let content;
@@ -417,6 +439,33 @@ export async function runIdeRulesChecks(workspaceRoot, harnessRoot) {
     if (!m) continue; // 非 openspec 生成的文件 → 不评判
     if (compareSemver(m[1], hv) < 0) {
       infos.push(`IDE 规则可更新（${target}: v${m[1]} → v${hv}）——运行 'openspec ide ${target}'`);
+    }
+  }
+
+  // Skill 命令（目录集合，存在即检查；落后计数聚合为一条 info）
+  for (const [target, cmdDir] of Object.entries(COMMANDS_DIR)) {
+    const dir = join(workspaceRoot, cmdDir);
+    let entries;
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue; // 目录不存在 → 用户未启用 commands，不提示
+    }
+    const cmdFiles = entries.filter((e) => e.isFile() && e.name.endsWith('.md'));
+    if (cmdFiles.length === 0) continue;
+    let outdated = 0;
+    for (const f of cmdFiles) {
+      let content;
+      try {
+        content = await readFile(join(dir, f.name), 'utf8');
+      } catch {
+        continue;
+      }
+      const m = content.match(/openspec-ide-commands:\s*v(\d+\.\d+\.\d+)/);
+      if (m && compareSemver(m[1], hv) < 0) outdated++;
+    }
+    if (outdated > 0) {
+      infos.push(`IDE Skill 命令可更新（${target}: ${outdated}/${cmdFiles.length} 落后）——运行 'openspec ide ${target}'`);
     }
   }
 

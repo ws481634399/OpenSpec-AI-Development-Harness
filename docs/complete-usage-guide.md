@@ -148,6 +148,9 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 
 - **feature-path 挂载**：Change 绑定四级链（L1/L2/L3/Story），STORY 级 Artifact
   （tasks.md）按 `<CHG>/<L1>/<L2>/<L3>/<STORY>/` 目录存放
+- **四级骨架物化（Phase 3.5）**：`bind-feature-path` 成功（非 candidate）时立即在 CHG 内
+  物化完整四级目录骨架并写 STORY README（id/name/status/绑定 CHG）；归档时骨架随目录
+  整体迁移。存量/归档 CHG 用 `openspec change skeleton <CHG>` 幂等补齐
 - **Delivery Unit（DU）**：1 DU = 1 仓库的 **Repository-specific executable delivery specification**
   （Phase 2.5）。task 阶段分解（Fan-out）并为每个 DU 产出 Implementation Sketch（必填）/
   Pseudocode（条件必填）/ Verification（必填）作为 Dev 前置实现指导；在各仓物化并实施
@@ -227,9 +230,11 @@ init 自动完成：
 - 复制 14 个 Prompt 片段到 prompts/（Phase 2.3）
 - 生成知识索引（INDEX.md + knowledge-index.json）
 
-#### 4.1.1 IDE 适配（Phase 3.3）
+#### 4.1.1 IDE 适配（Phase 3.3 / Phase 3.4）
 
-`openspec ide <target>` 生成 AI IDE 项目规则，Agent 对话开始时自动获得 OpenSpec 工作流上下文（结构、启动约定、状态推进方式、禁止事项、常用命令）。
+`openspec ide <target>` 生成 AI IDE **项目规则**与 **Skill 斜杠命令**两类文件。规则让 Agent 对话开始时自动获得 OpenSpec 工作流上下文；斜杠命令让你在 IDE 对话框直接输入 `/sdd-explore CHG-0002` 触发对应 Skill。
+
+**规则文件**（每 target 一个）：
 
 | target        | 生成文件                              | 说明                                                                                 |
 | ------------- | ------------------------------------- | ------------------------------------------------------------------------------------ |
@@ -237,13 +242,26 @@ init 自动完成：
 | `cursor`      | `.cursor/rules/openspec-workflow.mdc` | .mdc 格式（plain .md 会被 Cursor 忽略）                                              |
 | `claude-code` | `CLAUDE.md`                           | 标记块注入：`<!-- openspec:begin/end -->` 之间由 OpenSpec 管理，**块外内容永不修改** |
 
-更新语义（确定性，无交互）：
+**斜杠命令**（Phase 3.4：11 个 Skill 命令，由 skill.yaml 驱动程序化渲染，新增 Skill 自动多一个命令）：
+
+| target        | 目录                | 参数引用                              |
+| ------------- | ------------------- | ------------------------------------- |
+| `trae`        | `.trae/commands/`   | `$ARGUMENTS`（未识别时 Agent 会询问） |
+| `cursor`      | `.cursor/commands/` | `$ARGUMENTS`                          |
+| `claude-code` | `.claude/commands/` | `$ARGUMENTS` + `argument-hint`        |
+
+命令分两类，治理链路一步不少（薄入口，不内嵌方法论）：
+
+- **8 个 stage 类**（explore/prd/design/task/dev/test/review/converge）：引导 Agent 执行 `openspec workflow run --change $ARGUMENTS --stage <阶段>` 获取 Instruction → 按 `skills/<id>/SKILL.md` 执行 → `gate check` → 提示人工 `gate approve`。其中 **dev/test 自动附带 DU 绑定段**（`openspec du list` + `--du <DU-ID>`）
+- **3 个辅助类**（feature-tree/knowledge/reverse，不在 workflow 内）：引导 Agent 按 `skills/<id>/SKILL.md` 方法论直接执行
+
+更新语义（确定性，无交互，规则与命令一致）：
 
 - 文件不存在 → 生成；已生成且版本一致 → up-to-date（零写入）；版本落后 → 自动更新（报告 from → to）
-- trae/cursor 落位文件已存在但**无** OpenSpec 版本标记（用户自建）→ 报错退出，绝不覆盖；`--force` 显式授权后才覆盖
-- 内容尾部带 `<!-- openspec-ide-rules: vX.Y.Z -->` 版本标记，`openspec doctor` 检测落后时给出 info 提示
+- 落位文件已存在但**无** OpenSpec 版本标记（用户自建）→ 报错退出，绝不覆盖；`--force` 显式授权后才覆盖
+- 版本标记：规则 `<!-- openspec-ide-rules: vX.Y.Z -->`、命令 `<!-- openspec-ide-commands: vX.Y.Z skill:<id> -->`；`openspec doctor` 检测落后时给出 info 提示
 
-规则内容是「工作流引导」而非知识复制——方法论真相源始终是 `skills/`，避免双份内容漂移。
+规则与命令都是「工作流引导」而非知识复制——方法论真相源始终是 `skills/`，避免双份内容漂移。
 
 ### 4.2 需求探索（sdd-explore）
 
@@ -664,6 +682,22 @@ openspec feature remove STORY-001-01-01   # 需确认
 
 sdd-explore 和 sdd-reverse 会自动调用 sdd-feature-tree，根据需求自动创建 Feature Tree 节点，无需手动管理。
 
+### 8.4 物理投影（Phase 3.5：materialize）
+
+`feature-tree.yaml` 是唯一权威源，`openspec feature materialize` 把逻辑树投影为物理目录（只增不删，幂等）：
+
+```
+product/features/
+├── FEAT-001/README.md                                # L1 业务域
+│   └── FEAT-001-02/README.md                         # L2 功能组
+│       └── FEAT-001-02-03/README.md                  # L3 子功能
+│           └── STORY-001-02-03-01/README.md          # Story（front-matter 记录绑定的 CHG）
+```
+
+- 各级 README：front-matter（id/name/level/status）+ 正文 description；STORY 级额外记录 `bound-chg`（反查 changes/archive）
+- 用户自建文件永不触碰；树节点删除/改名后的旧目录不删除，由 doctor 报 drift
+- `openspec doctor` 检查：投影缺失 → info 提示 materialize；目录有树无 → info 报 drift
+
 ---
 
 ## 9. 知识底座
@@ -826,39 +860,41 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 ### 10.1 用户命令（手动运行）
 
-| 命令                                     | 用途                                            | 何时使用                             |
-| ---------------------------------------- | ----------------------------------------------- | ------------------------------------ |
-| `openspec init [path] [--stack <stack>]` | 初始化 Workspace（--stack 预设项目模板）        | 项目开始时                           |
-| `openspec skill sync`                    | 同步 Skill 与 Prompt 更新                       | Harness 更新 SKILL.md/prompts 后     |
-| `openspec version`                       | 版本全景（Harness/Workspace/Skill）             | 想了解当前版本与差异时               |
-| `openspec upgrade`                       | 升级 Workspace 到当前 Harness 版本              | Harness 升级后（建议先 `--dry-run`） |
-| `openspec ide <target>`                  | 生成 AI IDE 项目规则（trae/cursor/claude-code） | init 后按需；详见 §4.1.1             |
+| 命令                                     | 用途                                                                   | 何时使用                             |
+| ---------------------------------------- | ---------------------------------------------------------------------- | ------------------------------------ |
+| `openspec init [path] [--stack <stack>]` | 初始化 Workspace（--stack 预设项目模板）                               | 项目开始时                           |
+| `openspec skill sync`                    | 同步 Skill 与 Prompt 更新                                              | Harness 更新 SKILL.md/prompts 后     |
+| `openspec version`                       | 版本全景（Harness/Workspace/Skill）                                    | 想了解当前版本与差异时               |
+| `openspec upgrade`                       | 升级 Workspace 到当前 Harness 版本                                     | Harness 升级后（建议先 `--dry-run`） |
+| `openspec ide <target>`                  | 生成 AI IDE 项目规则 + 11 个 Skill 斜杠命令（trae/cursor/claude-code） | init 后按需；详见 §4.1.1             |
 
 ### 10.2 Agent 命令（Agent 自动调用）
 
-| 命令                                                                                                     | 用途                                                       |
-| -------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `openspec change create --title <t> [--requirement <r>]`                                                 | 创建 CHG                                                   |
-| `openspec change list [--status <s>]`                                                                    | 列出 Change                                                |
-| `openspec change show <CHG>`                                                                             | 查看 Change 详情                                           |
-| `openspec change status <CHG>`                                                                           | 查看 Change 状态                                           |
-| `openspec change status <CHG> --set <target>`                                                            | 推进状态（经 TransitionService）                           |
-| `openspec change archive <CHG>`                                                                          | 归档 Change                                                |
-| `openspec change bind-feature-path <CHG> --story <ID>`                                                   | 绑定四级 feature-path（Phase 2.4）                         |
-| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明） |
-| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）       |
-| `openspec du list <CHG>` / `du show <CHG> <DU>`                                                          | 查看 DU                                                    |
-| `openspec du sync-status <CHG> <DU>`                                                                     | 回传 DU baseline/result commit                             |
-| `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                          |
-| `openspec feature show <id>`                                                                             | 查看 Feature 节点                                          |
-| `openspec feature add module/feature/story ...`                                                          | 添加节点                                                   |
-| `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                   |
-| `openspec feature remove <id>`                                                                           | 删除节点                                                   |
-| `openspec gate check <CHG>`                                                                              | Machine Gate 校验                                          |
-| `openspec gate approve <CHG>`                                                                            | Human Gate 审批                                            |
-| `openspec gate status <CHG>`                                                                             | 查看 Gate 状态                                             |
-| `openspec skill list`                                                                                    | 列出 Skill                                                 |
-| `openspec skill show <id>`                                                                               | 查看 Skill 元数据 + SKILL.md 路径                          |
+| 命令                                                                                                     | 用途                                                                       |
+| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `openspec change create --title <t> [--requirement <r>]`                                                 | 创建 CHG                                                                   |
+| `openspec change list [--status <s>]`                                                                    | 列出 Change                                                                |
+| `openspec change show <CHG>`                                                                             | 查看 Change 详情                                                           |
+| `openspec change status <CHG>`                                                                           | 查看 Change 状态                                                           |
+| `openspec change status <CHG> --set <target>`                                                            | 推进状态（经 TransitionService）                                           |
+| `openspec change archive <CHG>`                                                                          | 归档 Change                                                                |
+| `openspec change bind-feature-path <CHG> --story <ID>`                                                   | 绑定四级 feature-path（Phase 2.4），成功即物化 CHG 内四级骨架（Phase 3.5） |
+| `openspec change skeleton <CHG>`                                                                         | 为存量/归档 CHG 补物化四级骨架（幂等，Phase 3.5）                          |
+| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明）                 |
+| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）                       |
+| `openspec du list <CHG>` / `du show <CHG> <DU>`                                                          | 查看 DU                                                                    |
+| `openspec du sync-status <CHG> <DU>`                                                                     | 回传 DU baseline/result commit                                             |
+| `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                                          |
+| `openspec feature show <id>`                                                                             | 查看 Feature 节点                                                          |
+| `openspec feature add module/feature/story ...`                                                          | 添加节点                                                                   |
+| `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                                   |
+| `openspec feature remove <id>`                                                                           | 删除节点                                                                   |
+| `openspec feature materialize`                                                                           | 生成 product/features 四级 README 投影（幂等，Phase 3.5）                  |
+| `openspec gate check <CHG>`                                                                              | Machine Gate 校验                                                          |
+| `openspec gate approve <CHG>`                                                                            | Human Gate 审批                                                            |
+| `openspec gate status <CHG>`                                                                             | 查看 Gate 状态                                                             |
+| `openspec skill list`                                                                                    | 列出 Skill                                                                 |
+| `openspec skill show <id>`                                                                               | 查看 Skill 元数据 + SKILL.md 路径                                          |
 
 ### 10.3 工具命令
 

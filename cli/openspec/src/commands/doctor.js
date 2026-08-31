@@ -1,22 +1,28 @@
 // Doctor Command：Workspace 自检（CLI 层，复用 core/workspace/validator.js + core/sdd/doctor-checks.js）
 // Phase 1：结构/字段/版本一致性；Phase 2.4：多仓架构检查（§7.3）
 
-import { Command } from 'commander';
-import { outro } from '@clack/prompts';
-import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
-import { ok, warn, error, dim } from '../lib/logger.js';
-import { runSelfCheck } from '../../../../core/workspace/validator.js';
-import { runMultiRepoChecks, runContextRulesChecks, runVersionChecks, runIdeRulesChecks } from '../../../../core/sdd/doctor-checks.js';
-import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
-import { readHarnessVersion } from '../../../../core/workspace/version.js';
+import { Command } from "commander";
+import { outro } from "@clack/prompts";
+import { resolveWorkspaceRoot } from "../lib/workspace-resolver.js";
+import { ok, warn, error, dim } from "../lib/logger.js";
+import { runSelfCheck } from "../../../../core/workspace/validator.js";
+import {
+  runMultiRepoChecks,
+  runContextRulesChecks,
+  runVersionChecks,
+  runIdeRulesChecks,
+} from "../../../../core/sdd/doctor-checks.js";
+import { checkFeaturesProjection } from "../../../../core/sdd/feature-materializer.js";
+import { getHarnessRoot } from "../../../../core/workspace/harness-root.js";
+import { readHarnessVersion } from "../../../../core/workspace/version.js";
 
 /**
  * 注册 doctor 命令到 commander program。
  */
 export function registerDoctorCommand(program) {
   program
-    .command('doctor')
-    .description('Workspace 自检（结构/字段/版本一致性 + 多仓架构检查）')
+    .command("doctor")
+    .description("Workspace 自检（结构/字段/版本一致性 + 多仓架构检查）")
     .action(async () => {
       try {
         const ws = resolveWorkspaceRoot();
@@ -65,8 +71,28 @@ export function registerDoctorCommand(program) {
           // IDE 规则检查是可选增强，失败静默
         }
 
+        // Phase 3.5：product/features 四级投影检查（缺失=提示 materialize / drift=报告）
+        try {
+          const proj = await checkFeaturesProjection(ws);
+          if (proj.missing.length > 0) {
+            versionInfos.push(
+              `features/ 投影缺失 ${proj.missing.length} 个节点目录——运行 'openspec feature materialize'`,
+            );
+          }
+          if (proj.drifted.length > 0) {
+            versionInfos.push(
+              `features/ drift（目录无对应树节点，未删除）：${proj.drifted.join("、")}`,
+            );
+          }
+          multiChecked += 1;
+        } catch {
+          // features 投影检查失败静默（树为空等场景）
+        }
+
         if (issues.length === 0) {
-          ok(`Workspace healthy — all checks passed.${multiChecked ? ` (${multiChecked} multi-repo checks)` : ''}`);
+          ok(
+            `Workspace healthy — all checks passed.${multiChecked ? ` (${multiChecked} multi-repo checks)` : ""}`,
+          );
         } else {
           warn(`Workspace has ${issues.length} issue(s):`);
           for (const issue of issues) {
@@ -77,10 +103,10 @@ export function registerDoctorCommand(program) {
         for (const info of versionInfos) {
           dim(`  ℹ ${info}`);
         }
-        outro('Done.');
+        outro("Done.");
       } catch (e) {
         error(e.message);
-        outro('Doctor failed.');
+        outro("Doctor failed.");
         process.exit(1);
       }
     });
