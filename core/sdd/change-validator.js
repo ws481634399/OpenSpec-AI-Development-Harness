@@ -14,6 +14,7 @@ import { isValidStatus, CHANGE_STATUSES } from './change-state-machine.js';
 import { loadWorkflow } from './workflow-loader.js';
 import { sha256, hashMatches } from './artifact-hash.js';
 import { readGateResult } from './gate-repository.js';
+import { resolveArtifactPath } from './artifact-path.js';
 
 /**
  * 计算文件 sha256（文件不存在返回空字符串）。
@@ -69,7 +70,7 @@ export async function validateChange(changeDir, harnessRoot) {
     const toIdx = CHANGE_STATUSES.indexOf(stage['to-state']);
     if (toIdx > currentIdx) continue;
 
-    const artifactPath = join(changeDir, stage.artifact);
+    const artifactPath = resolveArtifactPath(changeDir, stage.artifact, meta);
     let exists = false;
     try {
       await readFile(artifactPath);
@@ -95,7 +96,7 @@ export async function validateChange(changeDir, harnessRoot) {
       // Machine Gate hash
       const machineHash = gateResult.gates.machine['artifact-hash'];
       if (machineHash && gateResult.gates.machine.status !== 'pending') {
-        const currentHash = await fileHash(join(changeDir, artifactName));
+        const currentHash = await fileHash(resolveArtifactPath(changeDir, artifactName, meta));
         if (currentHash && !hashMatches(currentHash, machineHash)) {
           issues.push(`${stage.artifact} hash mismatch (gate recorded ${machineHash.slice(0, 16)}...)`);
         }

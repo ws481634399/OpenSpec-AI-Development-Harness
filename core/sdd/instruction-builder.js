@@ -210,15 +210,30 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
-  // 6. Artifact 产出
+  // 6. Artifact 产出（Phase 3.5 修订：明确 STORY 目录落位，路径为 workspace 相对）
   lines.push('## Artifact 产出');
   lines.push('');
   const outputArtifacts = Array.isArray(y['output-artifacts']) ? y['output-artifacts'] : [];
   if (outputArtifacts.length > 0) {
     lines.push('本次 Skill 需产出以下 Artifact（由外部 Agent 按 templates/artifacts/ 模板补充非结构化分析）：');
     lines.push('');
+    const changeId = userInput.changeId || context?.changeId || '<CHG-XXXX>';
+    const featureDirs = context?.featureDirs || null;
+    // DU 绑定时 repo 侧产物（implementation.md 等）走 Repo Delivery，不走 CHG STORY 目录
+    const duArtifact = duBinding ? 'implementation.md' : null;
+    const storyBase = featureDirs ? `delivery/changes/${changeId}/${featureDirs.join('/')}` : null;
     for (const a of outputArtifacts) {
-      lines.push(`- \`${a}\``);
+      if (duArtifact && a === duArtifact && duBinding.repoPath) {
+        lines.push(`- \`${a}\` → 必须写入：\`${duBinding.repoPath}/${a}\`（Repo Delivery 目录）`);
+      } else if (storyBase) {
+        lines.push(`- \`${a}\` → 必须写入：\`${storyBase}/${a}\`（STORY 目录，第四层级）`);
+      } else {
+        lines.push(`- \`${a}\` → 暂写入：\`delivery/changes/${changeId}/${a}\`（CHG 根；feature-path 绑定后由 skeleton 自动迁移至 STORY 目录）`);
+      }
+    }
+    if (storyBase) {
+      lines.push('');
+      lines.push(`> 所有 Change 产物统一落在 STORY 目录（\`${storyBase}/\`）下，CHG 根目录只保留 metadata.yaml。`);
     }
     lines.push('');
   } else {
@@ -232,7 +247,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
   lines.push('你（外部 Agent：Trae / Cursor / Claude Code）负责：');
   lines.push('- 推理、非结构化分析（需求理解 / 影响分析 / 未知问题）');
   lines.push('- 按 Artifact 模板补充内容');
-  lines.push('- 产出写入 CHG 目录');
+  lines.push('- 产出写入上方「Artifact 产出」指定的路径（feature-path 绑定后为 STORY 目录，第四层级）');
   lines.push('');
   lines.push('OpenSpec 负责：上下文装配、规范约束、Artifact 管理、状态推进。');
   lines.push('');

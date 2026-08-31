@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { parseDocument, parse } from "yaml";
 import { getHarnessRoot } from "../workspace/harness-root.js";
 import { nextChangeId } from "./change-id-generator.js";
+import { featurePathDirs } from "./artifact-path.js";
 import { initEvidence } from "./evidence-model.js";
 
 /**
@@ -113,12 +114,19 @@ export async function runChangeCreate(workspaceRoot, input, harnessRoot) {
   const root = harnessRoot || getHarnessRoot();
   const id = await nextChangeId(workspaceRoot);
   const changeDir = join(workspaceRoot, "delivery", "changes", id);
-  const evidenceDir = join(changeDir, "evidence");
-  const referencesDir = join(changeDir, "references");
 
   await mkdir(changeDir, { recursive: true });
-  await mkdir(evidenceDir, { recursive: true });
-  await mkdir(referencesDir, { recursive: true });
+  // Phase 3.5 修订：创建时已绑定（非 candidate）→ evidence/references 直接落 STORY 目录
+  let baseDir = changeDir;
+  if (input.featurePath && input.featurePath.candidate !== true) {
+    const dirs = featurePathDirs({ "feature-path": input.featurePath });
+    if (dirs) {
+      baseDir = join(changeDir, ...dirs);
+      await mkdir(baseDir, { recursive: true });
+    }
+  }
+  await mkdir(join(baseDir, "evidence"), { recursive: true });
+  await mkdir(join(baseDir, "references"), { recursive: true });
 
   // 读模板（保留注释）→ setIn 填充
   const templateRaw = await readFile(metadataTemplatePath(root), "utf8");

@@ -333,10 +333,11 @@ export async function materializeDeliveryUnit(workspaceRoot, changeId, duId, opt
     featurePath: fp,
   });
   const doc = parseDocument(repoMetaContent);
+  // Phase 3.5 修订：全部产物落 STORY 目录，追溯引用统一带四级目录段
   doc.setIn(['workspace-source'], {
-    requirement: `delivery/changes/${changeId}/requirement.md`,
-    prd: `delivery/changes/${changeId}/prd.md`,
-    design: `delivery/changes/${changeId}/design.md`,
+    requirement: `delivery/changes/${changeId}/${[...dirs, 'requirement.md'].join('/')}`,
+    prd: `delivery/changes/${changeId}/${[...dirs, 'prd.md'].join('/')}`,
+    design: `delivery/changes/${changeId}/${[...dirs, 'design.md'].join('/')}`,
     tasks: `delivery/changes/${changeId}/${[...dirs, 'tasks.md'].join('/')}`,
   });
   // Phase 2.5 §4.3：implementation-guidance 从 Workspace DU 复制（仓库单独打开仍可追溯）

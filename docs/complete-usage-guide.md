@@ -146,11 +146,25 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 
 **核心机制：**
 
-- **feature-path 挂载**：Change 绑定四级链（L1/L2/L3/Story），STORY 级 Artifact
-  （tasks.md）按 `<CHG>/<L1>/<L2>/<L3>/<STORY>/` 目录存放
+- **feature-path 挂载**：Change 绑定四级链（L1/L2/L3/Story），**全部 Change Artifact**
+  （requirement/exploration/prd/design/tasks/implementation/evidence 等）按
+  `<CHG>/<L1名>/<L2名>/<L3名>/<STORY名>/` 第四级 STORY 目录存放；未绑定或 candidate
+  时暂存 CHG 根，绑定后由 skeleton 自动迁移
 - **四级骨架物化（Phase 3.5）**：`bind-feature-path` 成功（非 candidate）时立即在 CHG 内
-  物化完整四级目录骨架并写 STORY README（id/name/status/绑定 CHG）；归档时骨架随目录
-  整体迁移。存量/归档 CHG 用 `openspec change skeleton <CHG>` 幂等补齐
+  物化四级业务名目录骨架并写 STORY README（id/name/status/绑定 CHG）。目录段为**纯业务名**
+  （feature-tree.yaml 为权威源），README front-matter 的 `id` 作锚点，树改名后重跑按锚点
+  rename 同步；CHG 根迁移后只留 metadata.yaml + 四级骨架。归档时骨架随目录整体迁移。
+  存量/归档 CHG 用 `openspec change skeleton <CHG>` 幂等补齐
+
+**目录形态示例（业务名段）：**
+
+```
+delivery/changes/CHG-0002/平台基座/用户管理/账户能力/用户登录/   ← CHG 内四级骨架
+    ├── requirement.md / prd.md / tasks.md / evidence/ …        ← 全部产物落 STORY 目录
+    └── README.md                                               ← front-matter id 作锚点
+product/features/平台基座/用户管理/账户能力/用户登录/README.md   ← 产品世界物理投影
+```
+
 - **Delivery Unit（DU）**：1 DU = 1 仓库的 **Repository-specific executable delivery specification**
   （Phase 2.5）。task 阶段分解（Fan-out）并为每个 DU 产出 Implementation Sketch（必填）/
   Pseudocode（条件必填）/ Verification（必填）作为 Dev 前置实现指导；在各仓物化并实施
@@ -167,6 +181,141 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 ---
 
 ## 4. 新项目完整流程
+
+### 4.0 端到端目录演进（Phase 3.5 v0.3）
+
+用一个具体新需求贯穿演示：**「用户登录（多因子）」** 挂在 `工程基础/Maven 工程与版本治理/工程结构与公共模块` L3 下新增 STORY-3，关联 backend + frontend 两仓，新 CHG = CHG-0003。
+
+#### 4.0.1 阶段时序
+
+| #   | 阶段       | Skill        | 状态            | 主要产物                                                                  | CHG 内部目录变化                                                                       | product/features                                    |
+| --- | ---------- | ------------ | --------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
+| 1   | 创建       | （CLI）      | created         | metadata.yaml                                                             | 仅 `delivery/changes/CHG-0003/metadata.yaml`                                           | 不动                                                |
+| 2   | 需求探索   | sdd-explore  | exploring       | requirement.md + exploration.md                                           | **bind-feature-path 触发骨架物化 + 产物迁入 STORY**；feature-tree.yaml 加 STORY-3 节点 | 不动（除非手动跑 feature materialize）              |
+| 3   | PRD        | sdd-prd      | specified       | prd.md                                                                    | 写到 STORY 目录                                                                        | 不动                                                |
+| 4   | 设计       | sdd-design   | designed        | design.md                                                                 | 写到 STORY 目录                                                                        | 不动                                                |
+| 5   | 任务分解   | sdd-task     | tasked          | tasks.md + DU metadata                                                    | STORY 下新增 `DU-BE-001/metadata.yaml`、`DU-FE-001/metadata.yaml`                      | 不动                                                |
+| 6   | DU 物化    | （CLI）      | tasked          | repo 侧 task.md / implementation.md / evidence/ 骨架                      | **`implementation/<repo>/delivery/CHG-0003/…/DU-*/` 落地**                             | 不动                                                |
+| 7   | 开发       | sdd-dev      | developing      | 代码 + repo 侧 implementation.md + result commit                          | repo 侧 DU 目录被填充；STORY 不变                                                      | 不动                                                |
+| 8   | 测试       | sdd-test     | testing         | 代码 + repo 侧 evidence/                                                  | repo 侧 DU evidence 累积；STORY 不变                                                   | 不动                                                |
+| 9   | 评审检查点 | sdd-review   | testing（同态） | review-report.md                                                          | 写到 STORY 目录                                                                        | 不动                                                |
+| 10  | 知识收敛   | sdd-converge | completed       | convergence.md + 更新 standards/product/feature-tree.yaml STORY→delivered | STORY 目录收尾；feature-tree 标 STORY-3 delivered                                      | 树状态变更（重跑 materialize 才更新 README status） |
+| 11  | 归档       | （CLI）      | archived        | —                                                                         | **整体迁移到 `delivery/archive/CHG-0003/…/STORY/`**；CHG 根消失                        | 不动（STORY README 的 bound-chg 仍指向 CHG-0003）   |
+
+#### 4.0.2 阶段 2 完成后（bind-feature-path 触发物化）
+
+```
+delivery/changes/CHG-0003/
+├── metadata.yaml                                   # feature-path 写入业务名 + candidate:false
+└── 工程基础/                                        # ← L1 骨架（README front-matter id=MOD-1 锚点）
+    └── Maven 工程与版本治理/                         # ← L2
+        └── 工程结构与公共模块/                       # ← L3
+            └── 用户登录（多因子）/                   # ← STORY（README front-matter id=STORY-3 + bound-chg: CHG-0003）
+                ├── requirement.md                   # ← 从 CHG 根迁入
+                └── exploration.md                  # ← Agent 直接写 STORY 目录（v0.3）
+```
+
+> requirement.md 是 explore 步骤 5 写的（在 bind-feature-path 步骤 7 之前），先落在 CHG 根，bind 时由 `migrateRootArtifacts` 自动迁入 STORY。
+> exploration.md 是 explore 步骤 6 写的（在 bind 之后），由 instruction-builder 指明路径，Agent 直接写 STORY 目录。
+
+#### 4.0.3 阶段 5 完成后（task 完成）
+
+```
+delivery/changes/CHG-0003/
+├── metadata.yaml                                   # artifacts.tasks.gates.machine/human 已写
+└── 工程基础/Maven 工程与版本治理/工程结构与公共模块/用户登录（多因子）/
+    ├── requirement.md
+    ├── exploration.md
+    ├── prd.md                                       # 阶段 3
+    ├── design.md                                    # 阶段 4
+    ├── tasks.md                                     # 阶段 5：Delivery Decomposition Plan
+    ├── DU-BE-001/
+    │   └── metadata.yaml                            # Workspace DU 协调记录（du create）
+    └── DU-FE-001/
+        └── metadata.yaml
+```
+
+#### 4.0.4 阶段 6 完成后（DU 物化到各仓）
+
+```
+implementation/                                       # Workspace 不含此目录内容（.gitignore）
+├── backend/                                          # 独立 git 仓
+│   └── delivery/
+│       └── CHG-0003/工程基础/Maven 工程与版本治理/工程结构与公共模块/用户登录（多因子）/
+│           └── DU-BE-001/
+│               ├── metadata.yaml                    # workspace-source 反向追溯 STORY 路径
+│               ├── task.md                          # repo 侧 9 节任务清单（含 baseline commit）
+│               ├── implementation.md                # 待 sdd-dev 填充
+│               └── evidence/                        # 待 sdd-test 填充
+└── frontend/
+    └── delivery/
+        └── CHG-0003/工程基础/Maven 工程与版本治理/工程结构与公共模块/用户登录（多因子）/
+            └── DU-FE-001/
+                ├── metadata.yaml
+                ├── task.md
+                ├── implementation.md
+                └── evidence/
+```
+
+Workspace 侧 metadata 同步更新：
+
+```yaml
+# delivery/changes/CHG-0003/metadata.yaml 内
+repository-baseline:
+  backend: { commit: <sha> } # du sync-status 写入
+  frontend: { commit: <sha> }
+repository-result: {} # 待 dev 完成时回传
+```
+
+#### 4.0.5 阶段 7-9 完成后（dev/test/review）
+
+```
+# Workspace STORY 目录追加：
+…/用户登录（多因子）/
+├── review-report.md                                  # 阶段 9：评审检查点
+└── （DU metadata.yaml 的 repository-result 已写入 commit）
+
+# Repo 侧 DU 目录被填充：
+implementation/backend/.../DU-BE-001/
+├── implementation.md                                 # sdd-dev 写：实际实施摘要 + Deviations
+└── evidence/
+    ├── unit/                                         # 单测代码 + 截图
+    └── integration/                                  # 集成测试证据
+```
+
+#### 4.0.6 阶段 11 完成后（archive）
+
+```
+# 原 CHG-0003 整个目录被 rename 到 archive/：
+delivery/archive/CHG-0003/                            # CHG 平铺一层（保持）
+└── 工程基础/Maven 工程与版本治理/工程结构与公共模块/用户登录（多因子）/
+    ├── README.md                                    # bound-chg 仍为 CHG-0003（不变）
+    ├── requirement.md
+    ├── exploration.md
+    ├── prd.md / design.md / tasks.md
+    ├── review-report.md
+    ├── convergence.md
+    ├── DU-BE-001/metadata.yaml
+    └── DU-FE-001/metadata.yaml
+
+# delivery/changes/CHG-0003/ 已不存在
+```
+
+#### 4.0.7 何时需要手动跑 `feature materialize`
+
+`product/features/` 投影是**纯产品知识世界**，与 Change 生命周期解耦：
+
+- **首次启用**：项目稳定后跑一次建立物理投影（适合人类浏览 / 对齐团队认知）
+- **树名变更后**：跑一次按锚点 rename 旧目录为新业务名
+- **不强制**：树本身（`feature-tree.yaml`）始终是权威源，features/ 是辅助投影，doctor 只提示 drift 不报错
+
+#### 4.0.8 关键不变量
+
+1. **bind-feature-path 是 v0.3 触发物化的唯一入口**（`change skeleton` 命令用于补齐存量）
+2. **DU 物化必须 task gate accepted 之后**，提前 materialize 会被拒绝
+3. **CHG 根永远只保留 metadata.yaml + 四级骨架 L1 目录**，所有产物都在 STORY 目录
+4. **Repo Delivery 路径与 STORY 同名段**：`delivery/<CHG>/<L1>/<L2>/<L3>/<STORY>/DU-*/`
+5. **archive 是整个 STORY 目录 rename**，不重新组织路径，repo 侧不动（repo 自管 git）
 
 ### 4.1 初始化（唯一需要手动运行的命令）
 
@@ -684,18 +833,21 @@ sdd-explore 和 sdd-reverse 会自动调用 sdd-feature-tree，根据需求自�
 
 ### 8.4 物理投影（Phase 3.5：materialize）
 
-`feature-tree.yaml` 是唯一权威源，`openspec feature materialize` 把逻辑树投影为物理目录（只增不删，幂等）：
+`feature-tree.yaml` 是唯一权威源，`openspec feature materialize` 把逻辑树投影为物理目录
+（目录段为**纯业务名**，只增不删，幂等）：
 
 ```
 product/features/
-├── FEAT-001/README.md                                # L1 业务域
-│   └── FEAT-001-02/README.md                         # L2 功能组
-│       └── FEAT-001-02-03/README.md                  # L3 子功能
-│           └── STORY-001-02-03-01/README.md          # Story（front-matter 记录绑定的 CHG）
+├── 平台基座/README.md                                  # L1 业务域
+│   └── 用户管理/README.md                              # L2 功能组
+│       └── 账户能力/README.md                          # L3 子功能
+│           └── 用户登录/README.md                      # Story（front-matter 记录绑定的 CHG）
 ```
 
 - 各级 README：front-matter（id/name/level/status）+ 正文 description；STORY 级额外记录 `bound-chg`（反查 changes/archive）
-- 用户自建文件永不触碰；树节点删除/改名后的旧目录不删除，由 doctor 报 drift
+- README front-matter 的 `id` 为**锚点**：树节点改名后重跑 materialize，按锚点找到旧目录
+  并 rename 为新业务名（报告 renamed）；新建节点 → 新建目录
+- 用户自建文件永不触碰；树节点删除/无锚点的旧目录不删除，由 doctor 报 drift
 - `openspec doctor` 检查：投影缺失 → info 提示 materialize；目录有树无 → info 报 drift
 
 ---
@@ -870,31 +1022,31 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 ### 10.2 Agent 命令（Agent 自动调用）
 
-| 命令                                                                                                     | 用途                                                                       |
-| -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `openspec change create --title <t> [--requirement <r>]`                                                 | 创建 CHG                                                                   |
-| `openspec change list [--status <s>]`                                                                    | 列出 Change                                                                |
-| `openspec change show <CHG>`                                                                             | 查看 Change 详情                                                           |
-| `openspec change status <CHG>`                                                                           | 查看 Change 状态                                                           |
-| `openspec change status <CHG> --set <target>`                                                            | 推进状态（经 TransitionService）                                           |
-| `openspec change archive <CHG>`                                                                          | 归档 Change                                                                |
-| `openspec change bind-feature-path <CHG> --story <ID>`                                                   | 绑定四级 feature-path（Phase 2.4），成功即物化 CHG 内四级骨架（Phase 3.5） |
-| `openspec change skeleton <CHG>`                                                                         | 为存量/归档 CHG 补物化四级骨架（幂等，Phase 3.5）                          |
-| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明）                 |
-| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）                       |
-| `openspec du list <CHG>` / `du show <CHG> <DU>`                                                          | 查看 DU                                                                    |
-| `openspec du sync-status <CHG> <DU>`                                                                     | 回传 DU baseline/result commit                                             |
-| `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                                          |
-| `openspec feature show <id>`                                                                             | 查看 Feature 节点                                                          |
-| `openspec feature add module/feature/story ...`                                                          | 添加节点                                                                   |
-| `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                                   |
-| `openspec feature remove <id>`                                                                           | 删除节点                                                                   |
-| `openspec feature materialize`                                                                           | 生成 product/features 四级 README 投影（幂等，Phase 3.5）                  |
-| `openspec gate check <CHG>`                                                                              | Machine Gate 校验                                                          |
-| `openspec gate approve <CHG>`                                                                            | Human Gate 审批                                                            |
-| `openspec gate status <CHG>`                                                                             | 查看 Gate 状态                                                             |
-| `openspec skill list`                                                                                    | 列出 Skill                                                                 |
-| `openspec skill show <id>`                                                                               | 查看 Skill 元数据 + SKILL.md 路径                                          |
+| 命令                                                                                                     | 用途                                                                                                    |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `openspec change create --title <t> [--requirement <r>]`                                                 | 创建 CHG                                                                                                |
+| `openspec change list [--status <s>]`                                                                    | 列出 Change                                                                                             |
+| `openspec change show <CHG>`                                                                             | 查看 Change 详情                                                                                        |
+| `openspec change status <CHG>`                                                                           | 查看 Change 状态                                                                                        |
+| `openspec change status <CHG> --set <target>`                                                            | 推进状态（经 TransitionService）                                                                        |
+| `openspec change archive <CHG>`                                                                          | 归档 Change                                                                                             |
+| `openspec change bind-feature-path <CHG> --story <ID>`                                                   | 绑定四级 feature-path（Phase 2.4），成功即物化 CHG 内四级业务名骨架并迁移产物至 STORY 目录（Phase 3.5） |
+| `openspec change skeleton <CHG>`                                                                         | 为存量/归档 CHG 补物化四级业务名骨架 + 产物迁移 + 树名 rename 同步（幂等，Phase 3.5）                   |
+| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明）                                              |
+| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）                                                    |
+| `openspec du list <CHG>` / `du show <CHG> <DU>`                                                          | 查看 DU                                                                                                 |
+| `openspec du sync-status <CHG> <DU>`                                                                     | 回传 DU baseline/result commit                                                                          |
+| `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                                                                       |
+| `openspec feature show <id>`                                                                             | 查看 Feature 节点                                                                                       |
+| `openspec feature add module/feature/story ...`                                                          | 添加节点                                                                                                |
+| `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                                                                |
+| `openspec feature remove <id>`                                                                           | 删除节点                                                                                                |
+| `openspec feature materialize`                                                                           | 生成 product/features 四级业务名 README 投影，树改名按锚点 rename（幂等，Phase 3.5）                    |
+| `openspec gate check <CHG>`                                                                              | Machine Gate 校验                                                                                       |
+| `openspec gate approve <CHG>`                                                                            | Human Gate 审批                                                                                         |
+| `openspec gate status <CHG>`                                                                             | 查看 Gate 状态                                                                                          |
+| `openspec skill list`                                                                                    | 列出 Skill                                                                                              |
+| `openspec skill show <id>`                                                                               | 查看 Skill 元数据 + SKILL.md 路径                                                                       |
 
 ### 10.3 工具命令
 
@@ -1090,25 +1242,29 @@ my-project/
 │   └── security-guidelines.md  # 安全指南
 ├── product/                    # 产品知识世界
 │   ├── INDEX.md                # 索引（人读）
-│   └── feature-tree.yaml       # 四级 Feature Tree
+│   ├── feature-tree.yaml       # 四级 Feature Tree（唯一权威源）
+│   └── features/               # 物理投影（feature materialize，业务名段）
+│       └── 平台基座/用户管理/账户能力/用户登录/README.md
 ├── delivery/                   # 交付世界（Workspace 级）
 │   ├── changes/
-│   │   └── CHG-0001/           # 一个 Change 的全部 Artifact
+│   │   └── CHG-0001/           # 一个 Change（根只留 metadata.yaml + 四级骨架）
 │   │       ├── metadata.yaml   # 元信息 + Gate 结果 + feature-path（Phase 2.4）
-│   │       ├── requirement.md
-│   │       ├── exploration.md
-│   │       ├── prd.md
-│   │       ├── design.md
-│   │       ├── FEAT-001/       # Story 级 Artifact（按 feature-path 四级挂载）
-│   │       │   └── FEAT-001-01/
-│   │       │       └── STORY-001-01-01/
-│   │       │           └── tasks.md   # STORY 级 Delivery Decomposition Plan
-│   │       ├── implementation.md      # 跨仓实施汇总（引用各仓 DU 正文）
-│   │       ├── review-report.md       # 评审检查点报告（Phase 2.2）
-│   │       ├── convergence.md
-│   │       ├── evidence/              # Workspace 聚合证据
-│   │       └── references/            # 用户原始文档
-│   └── archive/                       # 已归档 Change
+│   │       └── 平台基座/       # 四级业务名骨架（bind 后物化，Phase 3.5）
+│   │           └── 用户管理/
+│   │               └── 账户能力/
+│   │                   └── 用户登录/   # STORY 目录：全部 Artifact 落位处
+│   │                       ├── README.md       # front-matter id 作锚点 + bound-chg
+│   │                       ├── requirement.md
+│   │                       ├── exploration.md
+│   │                       ├── prd.md
+│   │                       ├── design.md
+│   │                       ├── tasks.md        # STORY 级 Delivery Decomposition Plan
+│   │                       ├── implementation.md   # 跨仓实施汇总（引用各仓 DU 正文）
+│   │                       ├── review-report.md    # 评审检查点报告（Phase 2.2）
+│   │                       ├── convergence.md
+│   │                       ├── evidence/       # Workspace 聚合证据
+│   │                       └── references/     # 用户原始文档
+│   └── archive/                       # 已归档 Change（骨架随目录整体迁移）
 ├── skills/                     # Skill 世界（11 个，Phase 2.2 起）
 │   ├── sdd-explore/
 │   │   ├── skill.yaml          # Skill 元数据（含 prompts 引用）
@@ -1135,7 +1291,7 @@ my-project/
 └── implementation/             # 代码实现（各子仓独立 Git，Workspace 不含其内容）
     └── backend/                # 子仓示例（repositories.yaml 登记）
         └── delivery/           # Repository 级交付（Phase 2.4）
-            └── FEAT-001/FEAT-001-01/STORY-001-01-01/CHG-0001/
+            └── CHG-0001/平台基座/用户管理/账户能力/用户登录/   # 四级业务名段
                 └── DU-BE-001/  # Delivery Unit（metadata/task.md/implementation.md/evidence/）
 ```
 

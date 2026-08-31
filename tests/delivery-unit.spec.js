@@ -68,12 +68,12 @@ async function setupChange(tmp, repos) {
 
 // ---- artifact-path ----
 
-test('ArtifactPath.featurePathDirs: 四级完整返回 ID 段，未绑定返回 null', async () => {
+test('ArtifactPath.featurePathDirs: 四级完整返回业务名段（纯名字模式），未绑定返回 null', async () => {
   assert.deepEqual(featurePathDirs({ 'feature-path': FP }), [
-    'FEAT-001',
-    'FEAT-001-01',
-    'FEAT-001-01-01',
-    'STORY-001-01-01-01',
+    '用户中心',
+    '账户能力',
+    '用户认证',
+    '用户注册',
   ]);
   assert.equal(featurePathDirs({}), null);
   assert.equal(featurePathDirs({ 'feature-path': { ...FP, story: undefined } }), null);
@@ -81,20 +81,21 @@ test('ArtifactPath.featurePathDirs: 四级完整返回 ID 段，未绑定返回 
   assert.equal(featurePathDirs({ 'feature-path': { ...FP, candidate: true } }), null);
 });
 
-test('ArtifactPath.resolveArtifactPath: tasks.md 物化到 STORY 目录，其余留 CHG 根', async () => {
+test('ArtifactPath.resolveArtifactPath: 绑定后全部产物落 STORY 目录（第四层级）', async () => {
   const changeDir = join('x', 'CHG-0001');
+  const dirs = ['用户中心', '账户能力', '用户认证', '用户注册'];
   assert.equal(
     resolveArtifactPath(changeDir, 'tasks.md', { 'feature-path': FP }),
-    join(changeDir, 'FEAT-001', 'FEAT-001-01', 'FEAT-001-01-01', 'STORY-001-01-01-01', 'tasks.md')
+    join(changeDir, ...dirs, 'tasks.md')
   );
-  // 未绑定 → CHG 根（v1 兼容）
+  // 未绑定 → CHG 根（explore 早期暂存；bind 时由 skeleton 迁移）
   assert.equal(resolveArtifactPath(changeDir, 'tasks.md', {}), join(changeDir, 'tasks.md'));
-  // Change 级 artifact 永远在 CHG 根
+  // Phase 3.5 修订：全部 Artifact（含 implementation.md）落 STORY 目录
   assert.equal(
     resolveArtifactPath(changeDir, 'implementation.md', { 'feature-path': FP }),
-    join(changeDir, 'implementation.md')
+    join(changeDir, ...dirs, 'implementation.md')
   );
-  assert.equal(resolveStoryDir(changeDir, { 'feature-path': FP }), join(changeDir, 'FEAT-001', 'FEAT-001-01', 'FEAT-001-01-01', 'STORY-001-01-01-01'));
+  assert.equal(resolveStoryDir(changeDir, { 'feature-path': FP }), join(changeDir, ...dirs));
 });
 
 // ---- Workspace DU 生命周期 ----
@@ -111,7 +112,7 @@ test('DeliveryUnit: writeWorkspaceDu 创建协调记录（STORY 目录下）', a
     dependencies: [],
     acceptance: ['AC-1'],
   });
-  assert.ok(dir.includes(join('FEAT-001', 'FEAT-001-01', 'FEAT-001-01-01', 'STORY-001-01-01-01', 'DU-BE-001')));
+  assert.ok(dir.includes(join('用户中心', '账户能力', '用户认证', '用户注册', 'DU-BE-001')));
   const raw = await readFile(join(dir, 'metadata.yaml'), 'utf8');
   const { parse } = await import('yaml');
   const duMeta = parse(raw);
@@ -144,15 +145,15 @@ test('DeliveryUnit: materialize 到对应仓（完整父路径 + 双写回填）
   const r = await materializeDeliveryUnit(tmp, changeId, 'DU-BE-001');
   assert.equal(r.repoPath, 'implementation/backend');
 
-  // repo 侧完整父路径：delivery/CHG-XXXX/L1/L2/L3/STORY/DU-BE-001
-  const repoDuDir = join(tmp, 'implementation', 'backend', 'delivery', changeId, 'FEAT-001', 'FEAT-001-01', 'FEAT-001-01-01', 'STORY-001-01-01-01', 'DU-BE-001');
+  // repo 侧完整父路径：delivery/CHG-XXXX/四级业务名/DU-BE-001（纯名字段）
+  const repoDuDir = join(tmp, 'implementation', 'backend', 'delivery', changeId, '用户中心', '账户能力', '用户认证', '用户注册', 'DU-BE-001');
   assert.equal((await stat(join(repoDuDir, 'metadata.yaml'))).isFile(), true);
   assert.equal((await stat(join(repoDuDir, 'task.md'))).isFile(), true);
   assert.equal((await stat(join(repoDuDir, 'implementation.md'))).isFile(), true);
   assert.equal((await stat(join(repoDuDir, 'evidence'))).isDirectory(), true);
-  // repo 侧 metadata 含 workspace-source 引用（tasks 指向 STORY 目录）
+  // repo 侧 metadata 含 workspace-source 引用（tasks 指向 STORY 目录，业务名段）
   const repoMetaRaw = await readFile(join(repoDuDir, 'metadata.yaml'), 'utf8');
-  assert.ok(repoMetaRaw.includes('STORY-001-01-01-01/tasks.md'));
+  assert.ok(repoMetaRaw.includes('用户注册/tasks.md'));
 
   // frontend 仓只见自己的 DU（frontend 未物化前无目录）
   const feDelivery = join(tmp, 'implementation', 'frontend', 'delivery', changeId);
@@ -163,7 +164,7 @@ test('DeliveryUnit: materialize 到对应仓（完整父路径 + 双写回填）
   const be = dus.find((d) => d.id === 'DU-BE-001');
   assert.equal(
     be.metadata['repository-delivery'].path,
-    'implementation/backend/delivery/' + [changeId, 'FEAT-001', 'FEAT-001-01', 'FEAT-001-01-01', 'STORY-001-01-01-01', 'DU-BE-001'].join('/')
+    'implementation/backend/delivery/' + [changeId, '用户中心', '账户能力', '用户认证', '用户注册', 'DU-BE-001'].join('/')
   );
   assert.equal(be.metadata.status, 'pending');
   await rmrf(tmp);

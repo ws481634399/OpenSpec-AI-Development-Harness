@@ -241,13 +241,18 @@ export function registerChangeCommand(program) {
           `${id} feature-path bound: ${chain['level-1'].id} > ${chain['level-2'].id} > ${chain['level-3'].id || '-'} > ${chain.story.id}` +
             (opts.candidate ? ' (candidate)' : '')
         );
-        // 绑定即物化 CHG 内部四级骨架（candidate 不物化；幂等）
+        // 绑定即物化 CHG 内部四级骨架（candidate 不物化；幂等同步：树名/rename/产物迁移）
         if (!opts.candidate) {
           const meta = await readMetadata(changeDir);
           const tree = await readFeatureTree(ws);
-          const sk = await materializeChangeSkeleton(changeDir, meta, tree);
+          const sk = await materializeChangeSkeleton(changeDir, meta, tree, ws);
           if (sk.skipped) warn(`骨架未物化: ${sk.reason}`);
-          else ok(`四级骨架: ${sk.created.join(', ')}`);
+          else {
+            ok(`四级骨架: ${sk.created.join(', ') || '（已存在）'}`);
+            if (sk.nameSynced) ok('metadata.feature-path 名称已按特性树同步');
+            if (sk.renamed.length > 0) ok(`目录改名: ${sk.renamed.join(', ')}`);
+            if (sk.migrated.length > 0) ok(`产物已迁入 STORY 目录: ${sk.migrated.join(', ')}`);
+          }
         }
         outro('Done.');
       } catch (e) {
@@ -268,9 +273,14 @@ export function registerChangeCommand(program) {
         if (!found) throw new Error(`Change not found: ${id}（changes 与 archive 均未定位到）`);
         const meta = await readMetadata(found.dir);
         const tree = await readFeatureTree(ws);
-        const sk = await materializeChangeSkeleton(found.dir, meta, tree);
+        const sk = await materializeChangeSkeleton(found.dir, meta, tree, ws);
         if (sk.skipped) warn(`骨架未物化: ${sk.reason}`);
-        else ok(`${id}（${found.scope}）四级骨架: ${sk.created.join(', ')}`);
+        else {
+          ok(`${id}（${found.scope}）四级骨架: ${sk.created.join(', ') || '（已存在）'}`);
+          if (sk.nameSynced) ok('metadata.feature-path 名称已按特性树同步');
+          if (sk.renamed.length > 0) ok(`目录改名: ${sk.renamed.join(', ')}`);
+          if (sk.migrated.length > 0) ok(`产物已迁入 STORY 目录: ${sk.migrated.join(', ')}`);
+        }
         outro('Done.');
       } catch (e) {
         error(e.message);

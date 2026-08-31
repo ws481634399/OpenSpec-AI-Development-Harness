@@ -1,22 +1,67 @@
-// FeatureMaterializer：product/features 四级物理投影（Phase 3.5 plans/phase-3.5-four-level-paths-design.md §2.3）
+// FeatureMaterializer：product/features 四级物理投影（Phase 3.5 修订 v0.3）
 //
 // feature-tree.yaml 是唯一权威源，本模块把逻辑树投影为物理目录：
-//   product/features/<L1>/<L2>/<L3>/<STORY>/README.md
-// 同步策略（只增不删）：
-// - 树有目录无 → 生成；目录与 README 已存在 → 跳过（幂等）
-// - 用户自建文件永不触碰；树节点删除/改名后的旧目录不删除 → 交 drift 报告
-// STORY 级 README 额外记录绑定 CHG（反查 delivery/changes 与 delivery/archive 的 metadata.feature-path）
+//   product/features/<L1名>/<L2名>/<L3名>/<STORY名>/README.md
+// 同步策略（重跑 = 同步）：
+// - 各级目录以 README.md front-matter 的 id 为锚点：树中改名 → rename 同步（STORY 与各级同规则）
+// - README 已存在 → 跳过（幂等）；用户自建文件永不触碰
+// - 树节点删除/改名后的旧目录：rename 无法命中（无锚点）→ drift 报告，不删除
+// - STORY 级 README 额外记录绑定 CHG（反查 delivery/changes 与 delivery/archive 的 metadata.feature-path）
 
 import { mkdir, writeFile, readFile, readdir, stat } from 'node:fs/promises';
-import { join, relative } from 'node:path';
-import { stringify } from 'yaml';
-import { walkLevels, readFeatureTree } from './feature-model.js';
+import { join } from 'node:path';
+import { stringify, parse } from 'yaml';
+import { readFeatureTree } from './feature-model.js';
 import { readMetadata } from './change-model.js';
+import { featureDirSeg, syncNodeDirName } from './feature-dirname.js';
+
+const pathExists = (p) =>
+  stat(p).then(
+    () => true,
+    (e) => (e.code === 'ENOENT' ? false : Promise.reject(e))
+  );
+
+/**
+ * 遍历树，产出全部节点投影清单（供 materialize/check 共用）。
+ * @returns {Array<{node:object, level:'module'|'feature'|'capability'|'story', chain:string[], seg:string, parentDir:string}>}
+ *   chain: 从 L1 到该节点的目录段（业务名）数组
+ */
+function collectProjections(tree) {
+  const out = [];
+  const seg = (node) => featureDirSeg(node.id, node.name);
+  for (const l1 of tree.modules) {
+    out.push({ node: l1, level: 'module', chain: [seg(l1)], seg: seg(l1), parentDir: '' });
+    for (const l2 of l1.children || []) {
+      out.push({ node: l2, level: 'feature', chain: [seg(l1), seg(l2)], seg: seg(l2), parentDir: seg(l1) });
+      for (const l3 of l2.children || []) {
+        out.push({
+          node: l3, level: 'capability',
+          chain: [seg(l1), seg(l2), seg(l3)], seg: seg(l3), parentDir: `${seg(l1)}/${seg(l2)}`,
+        });
+        for (const st of l3.stories || []) {
+          out.push({
+            node: st, level: 'story',
+            chain: [seg(l1), seg(l2), seg(l3), seg(st)], seg: seg(st),
+            parentDir: `${seg(l1)}/${seg(l2)}/${seg(l3)}`,
+          });
+        }
+      }
+      // v1 过渡：story 直挂 L2（三级链）
+      for (const st of l2.stories || []) {
+        out.push({
+          node: st, level: 'story',
+          chain: [seg(l1), seg(l2), seg(st)], seg: seg(st), parentDir: `${seg(l1)}/${seg(l2)}`,
+        });
+      }
+    }
+  }
+  return out;
+}
 
 /**
  * 反查各 Story 绑定的 CHG：遍历 changes/ 与 archive/ 下全部 CHG metadata。
  * @param {string} workspaceRoot
- * @returns {Promise<Map<string, {id:string, scope:string}>>} storyId → CHG 信息
+ * @returns {Promise<Map<string, string>>} storyId → CHG ID
  */
 async function buildStoryChangeIndex(workspaceRoot) {
   const index = new Map();
@@ -33,7 +78,7 @@ async function buildStoryChangeIndex(workspaceRoot) {
       try {
         const meta = await readMetadata(join(base, e.name));
         const storyId = meta?.['feature-path']?.story?.id;
-        if (storyId && !index.has(storyId)) index.set(storyId, { id: e.name, scope });
+        if (storyId && !index.has(storyId)) index.set(storyId, e.name);
       } catch {
         // metadata 损坏的 CHG 跳过，不阻断物化
       }
@@ -50,8 +95,7 @@ function renderNodeReadme(node, level, boundChg) {
     ...(node.status ? { status: node.status } : {}),
     ...(boundChg ? { 'bound-chg': boundChg } : {}),
   };
-  const desc = node.description || '';
-  const lines = [`# ${node.name || node.id}`, '', desc, ''];
+  const lines = [`# ${node.name || node.id}`, '', node.description || '', ''];
   if (level === 'story' && boundChg) {
     lines.push(`> 绑定 Change：\`${boundChg}\``, '');
   }
@@ -59,24 +103,44 @@ function renderNodeReadme(node, level, boundChg) {
 }
 
 /**
- * 物化 product/features 四级投影（只增不删）。
+ * 物化 product/features 四级投影（重跑 = 同步，含改名 rename）。
  *
  * @param {string} workspaceRoot Workspace 根目录
- * @returns {Promise<{created:string[], skipped:number, drifted:string[]}>}
- *   created: 新建文件相对 workspaceRoot 的路径
- *   drifted: 存在于 features/ 但树中无对应节点的目录（相对 features/ 的路径，末级）
+ * @returns {Promise<{created:string[], renamed:string[], skipped:number, drifted:string[]}>}
  */
 export async function materializeFeatures(workspaceRoot) {
   const tree = await readFeatureTree(workspaceRoot);
   const changeIndex = await buildStoryChangeIndex(workspaceRoot);
   const featuresRoot = join(workspaceRoot, 'product', 'features');
   const created = [];
+  const renamed = [];
   let skipped = 0;
 
-  const ensureReadme = async (relDirs, node, level, boundChg) => {
-    const dir = join(featuresRoot, ...relDirs);
-    await mkdir(dir, { recursive: true });
-    const readmePath = join(dir, 'README.md');
+  // 目录段路径（锚点 rename 逐级从上往下做，父级 rename 后子级路径跟随）
+  const dirCache = new Map(); // parentDirKey -> 实际目录路径
+  const resolveParent = (parentKey) => (parentKey ? dirCache.get(parentKey) : featuresRoot);
+
+  for (const proj of collectProjections(tree)) {
+    const parentDir = resolveParent(proj.parentDir) || featuresRoot;
+    const segDir = join(parentDir, proj.seg);
+
+    // 父目录 key：用树中稳定 id 链做 key，避免名字变化影响子级查找
+    const parentId = proj.parentDir; // 上层已把 rename 后路径写入 cache，key 即名字链
+    dirCache.set(parentId ? `${parentId}/${proj.seg}` : proj.seg, segDir);
+
+    // 锚点 rename / 新建
+    const synced = await syncNodeDirName(parentDir, proj.node.id, proj.seg);
+    if (synced) {
+      if (synced.renamed) renamed.push(proj.chain.join('/'));
+      dirCache.set(proj.parentDir ? `${proj.parentDir}/${proj.seg}` : proj.seg, synced.dir);
+    } else if (!(await pathExists(segDir))) {
+      await mkdir(segDir, { recursive: true });
+      created.push(join('product', 'features', ...proj.chain));
+    }
+
+    // README（锚点依据，缺失才写）
+    const finalDir = synced ? synced.dir : segDir;
+    const readmePath = join(finalDir, 'README.md');
     let exists = false;
     try {
       await readFile(readmePath, 'utf8');
@@ -86,72 +150,27 @@ export async function materializeFeatures(workspaceRoot) {
     }
     if (exists) {
       skipped++;
-      return;
-    }
-    await writeFile(readmePath, renderNodeReadme(node, level, boundChg), 'utf8');
-    created.push(join('product', 'features', ...relDirs, 'README.md'));
-  };
-
-  // 遍历树：L1 → L2 → L3 → STORY（L2.stories 直挂兼容）
-  for (const { node, level, parent } of walkLevels(tree.modules)) {
-    if (level === 'l1') {
-      await ensureReadme([node.id], node, 'module');
-    } else if (level === 'l2') {
-      await ensureReadme([parent.id, node.id], node, 'feature');
-    } else if (level === 'l3') {
-      const chain = findL3Chain(tree, node.id);
-      if (chain) await ensureReadme(chain, node, 'capability');
-    } else if (level === 'story') {
-      // parent 为 L3 或 L2（直挂）；需完整祖先链
-      const chain = storyChain(tree, node.id);
-      if (chain) {
-        const boundChg = changeIndex.get(node.id)?.id;
-        await ensureReadme(chain, node, 'story', boundChg);
-      }
+    } else {
+      const boundChg = proj.level === 'story' ? changeIndex.get(proj.node.id) : undefined;
+      await writeFile(readmePath, renderNodeReadme(proj.node, proj.level, boundChg), 'utf8');
+      created.push(join('product', 'features', ...proj.chain, 'README.md'));
     }
   }
 
   const drifted = await collectDrift(workspaceRoot, tree);
-  return { created, skipped, drifted };
-}
-
-// walkLevels 未提供祖先链，storyChain 按 ID 反查树定位完整链（ID 原样用于目录名）
-function storyChain(tree, storyId) {
-  for (const l1 of tree.modules) {
-    for (const l2 of l1.children || []) {
-      for (const l3 of l2.children || []) {
-        if ((l3.stories || []).some((s) => s.id === storyId)) {
-          return [l1.id, l2.id, l3.id, storyId];
-        }
-      }
-      if ((l2.stories || []).some((s) => s.id === storyId)) {
-        return [l1.id, l2.id, storyId]; // v1 过渡：story 直挂 L2（三级）
-      }
-    }
-  }
-  return null;
+  return { created, renamed, skipped, drifted };
 }
 
 /**
  * 收集 features/ 下树中已不存在的节点目录（drift，只报告不删除）。
+ * 判定：目录内 README front-matter 的 id 在树中不存在，或目录无 README 且段名不匹配任何期望段。
  * @param {string} workspaceRoot
  * @param {object} tree 统一视图
- * @returns {Promise<string[]>} 相对 features/ 的目录链（如 'MOD-1/FEAT-1'）
+ * @returns {Promise<string[]>} 相对 features/ 的目录链（如 'FEAT-1'）
  */
 export async function collectDrift(workspaceRoot, tree) {
   const featuresRoot = join(workspaceRoot, 'product', 'features');
-  const known = new Set();
-  for (const { node, level, parent } of walkLevels(tree.modules)) {
-    if (level === 'l1') known.add(node.id);
-    else if (level === 'l2') known.add(`${parent.id}/${node.id}`);
-    else if (level === 'l3') {
-      const chain = findL3Chain(tree, node.id);
-      if (chain) known.add(chain.slice(0, 3).join('/'));
-    } else if (level === 'story') {
-      const chain = storyChain(tree, node.id);
-      if (chain) known.add(chain.join('/'));
-    }
-  }
+  const knownIds = new Set(collectProjections(tree).map((p) => p.node.id));
 
   const drifted = [];
   const walk = async (dir, rel) => {
@@ -164,67 +183,42 @@ export async function collectDrift(workspaceRoot, tree) {
     for (const e of entries) {
       if (!e.isDirectory()) continue;
       const childRel = rel ? `${rel}/${e.name}` : e.name;
-      if (!known.has(childRel)) {
-        // 检查是否为「链中间存在但整链不匹配」——以该目录为根继续下探会重复报；只报最上层不匹配链
-        drifted.push(childRel);
-        continue; // 子层必然也不匹配，不再下探
+      // 读锚点 id
+      let anchorId = null;
+      try {
+        const raw = await readFile(join(dir, e.name, 'README.md'), 'utf8');
+        const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+        if (m) anchorId = parse(m[1])?.id ?? null;
+      } catch {
+        anchorId = null;
       }
-      await walk(join(dir, e.name), childRel);
+      if (anchorId && knownIds.has(anchorId)) {
+        await walk(join(dir, e.name), childRel);
+      } else {
+        drifted.push(childRel); // 无锚点或锚点不在树中 → 整枝计为 drift
+      }
     }
   };
   await walk(featuresRoot, '');
   return drifted;
 }
 
-function findL3Chain(tree, l3Id) {
-  for (const l1 of tree.modules) {
-    for (const l2 of l1.children || []) {
-      for (const l3 of l2.children || []) {
-        if (l3.id === l3Id) return [l1.id, l2.id, l3.id];
-      }
-    }
-  }
-  return null;
-}
-
 /**
  * features/ 物理投影完整性检查（doctor 用，零写入）。
  * @param {string} workspaceRoot
  * @returns {Promise<{missing:string[], drifted:string[]}>}
- *   missing: 树中存在但 features/ 无对应目录的节点链（提示 materialize）
- *   drifted: features/ 存在但树中无对应节点的目录链（只报告不删除）
  */
 export async function checkFeaturesProjection(workspaceRoot) {
   const tree = await readFeatureTree(workspaceRoot);
   const featuresRoot = join(workspaceRoot, 'product', 'features');
 
   const missing = [];
-  const expect = (chain) => missing.push(chain.join('/'));
-  for (const { node, level, parent } of walkLevels(tree.modules)) {
-    if (level === 'l1') {
-      if (!(await pathExists(join(featuresRoot, node.id)))) expect([node.id]);
-    } else if (level === 'l2') {
-      if (!(await pathExists(join(featuresRoot, parent.id, node.id)))) expect([parent.id, node.id]);
-    } else if (level === 'l3') {
-      const chain = findL3Chain(tree, node.id);
-      if (chain && !(await pathExists(join(featuresRoot, ...chain)))) expect(chain);
-    } else if (level === 'story') {
-      const chain = storyChain(tree, node.id);
-      if (chain && !(await pathExists(join(featuresRoot, ...chain)))) expect(chain);
+  for (const proj of collectProjections(tree)) {
+    if (!(await pathExists(join(featuresRoot, ...proj.chain)))) {
+      missing.push(proj.chain.join('/'));
     }
   }
 
   const drifted = await collectDrift(workspaceRoot, tree);
   return { missing, drifted };
-}
-
-const pathExists = (p) =>
-  stat(p).then(
-    () => true,
-    (e) => (e.code === 'ENOENT' ? false : Promise.reject(e))
-  );
-
-// 相对路径辅助（保留语义清晰）
-export function featuresRelPath(workspaceRoot, absPath) {
-  return relative(join(workspaceRoot, 'product', 'features'), absPath);
 }

@@ -3,9 +3,30 @@
 // 由 GateValidator 调用 loadEvidence / validateEvidence / checkCoverage（machine gate）。
 // 对齐 phase-2.1-evidence-system-design.md 与 evidence.yaml 内注释 schema。
 
-import { writeFile, access, readFile } from 'node:fs/promises';
+import { writeFile, access, readFile, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { parseDocument, parse } from 'yaml';
+import { resolveStoryDir, resolveArtifactPath } from './artifact-path.js';
+
+/**
+ * 解析 evidence.yaml 落位：feature-path 已绑定 → STORY 目录/evidence/；
+ * 未绑定/读取兼容 → CHG 根/evidence/（存量迁移前位置）。
+ * @param {string} changeDir
+ * @param {object} [meta] 已读 metadata（省则内部读取）
+ * @returns {Promise<{file:string, write:boolean}>} write=true 表示该位置为当前规范落位
+ */
+async function locateEvidenceFile(changeDir, meta) {
+  // 动态 import 规避 change-model ↔ evidence-model 循环依赖（运行时已初始化完毕）
+  const m = meta || (await import('./change-model.js').then((mod) => mod.readMetadata(changeDir)).catch(() => null));
+  const storyDir = m ? resolveStoryDir(changeDir, m) : null;
+  const storyFile = storyDir ? join(storyDir, 'evidence', 'evidence.yaml') : null;
+  const rootFile = join(changeDir, 'evidence', 'evidence.yaml');
+  if (storyFile) {
+    // 绑定后：STORY 位置为规范落位；存量根位置仅在 STORY 无文件时读取兼容
+    return { file: storyFile, root: rootFile, write: true };
+  }
+  return { file: rootFile, root: rootFile, write: true };
+}
 
 const EVIDENCE_TEMPLATE = `# OpenSpec Evidence Model（Phase 2.1）
 #
@@ -78,14 +99,15 @@ items: [] # Evidence 条目数组，按 recorded-at 升序
  * @returns {Promise<string>} evidence.yaml 写入路径（已存在时同样返回路径）
  */
 export async function initEvidence(changeDir, changeId, harnessRoot) {
-  const file = join(changeDir, 'evidence', 'evidence.yaml');
+  const { file } = await locateEvidenceFile(changeDir);
+  await mkdir(dirname(file), { recursive: true });
 
-  // 幂等：已存在则不覆盖（保留注释与既有 items）
+  // 幂等：已存在则不覆盖（存量根位置 → STORY 的迁移由 change skeleton 统一负责）
   try {
     await access(file);
     return file;
   } catch {
-    // ENOENT → 继续初始化
+    // ENOENT → 初始化
   }
 
   const doc = parseDocument(EVIDENCE_TEMPLATE);
@@ -101,13 +123,19 @@ export async function initEvidence(changeDir, changeId, harnessRoot) {
  * @returns {Promise<object|null>} 解析结果；文件缺失返回 null
  */
 export async function loadEvidence(changeDir) {
-  const file = join(changeDir, 'evidence', 'evidence.yaml');
+  const { file, root } = await locateEvidenceFile(changeDir);
   let raw;
   try {
     raw = await readFile(file, 'utf8');
   } catch (e) {
-    if (e.code === 'ENOENT') return null;
-    throw e;
+    if (e.code !== 'ENOENT') throw e;
+    // 规范位置缺失 → 尝试存量根位置（迁移前）
+    try {
+      raw = await readFile(root, 'utf8');
+    } catch (e2) {
+      if (e2.code === 'ENOENT') return null;
+      throw e2;
+    }
   }
   try {
     return parse(raw);
@@ -276,7 +304,7 @@ export function validateEvidence(doc, opts = {}) {
  * @param {{reposCoverage: boolean, testCoverage: boolean, findingsClosure?: boolean}} flags
  * @returns {Promise<{issues: string[]}>}
  */
-export async function checkCoverage(changeDir, doc, flags) {
+export async function checkCoverage(changeDir, doc, flags, meta) {
   const issues = [];
   const items = Array.isArray(doc?.items) ? doc.items : [];
 
@@ -284,7 +312,7 @@ export async function checkCoverage(changeDir, doc, flags) {
   if (flags.reposCoverage) {
     let implRaw = null;
     try {
-      implRaw = await readFile(join(changeDir, 'implementation.md'), 'utf8');
+      implRaw = await readFile(resolveArtifactPath(changeDir, 'implementation.md', meta), 'utf8');
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
     }

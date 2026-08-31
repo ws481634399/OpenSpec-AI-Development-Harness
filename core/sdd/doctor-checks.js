@@ -19,7 +19,7 @@ import { readRepositories } from './delivery-unit.js';
 import { parseGitmodules, resolveSubmoduleHead } from './git-submodule.js';
 import { readFeatureTree, findNodeById } from './feature-model.js';
 import { readMetadata } from './change-model.js';
-import { featurePathDirs } from './artifact-path.js';
+import { featurePathDirs, resolveStoryDir } from './artifact-path.js';
 
 const pathExists = (p) =>
   stat(p).then(() => true).catch((e) => (e.code === 'ENOENT' ? false : Promise.reject(e)));
@@ -153,8 +153,8 @@ export async function runMultiRepoChecks(workspaceRoot) {
       }
     }
 
-    // 5. DU repository ∈ Registry + 8. pointer 对齐
-    const dusDir = hasFp ? join(changeDir, ...[fp['level-1'].id, fp['level-2'].id, fp['level-3'].id, fp.story.id]) : null;
+    // 5. DU repository ∈ Registry + 8. pointer 对齐（DU 协调目录在 STORY 目录下）
+    const dusDir = hasFp ? resolveStoryDir(changeDir, meta) : null;
     if (dusDir && (await pathExists(dusDir))) {
       checked++;
       const duEntries = await readdir(dusDir, { withFileTypes: true });

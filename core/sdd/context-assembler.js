@@ -20,7 +20,7 @@ import { readFile, stat, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { parse } from 'yaml';
 import { listFiles } from './fs-walker.js';
-import { featurePathDirs } from './artifact-path.js';
+import { featurePathDirs, resolveStoryDir } from './artifact-path.js';
 import { readMetadata } from './change-model.js';
 import { readRepositories, findRepository, readWorkspaceDus } from './delivery-unit.js';
 
@@ -254,18 +254,26 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
       .map((a) => (typeof a === 'string' ? a : a?.path))
       .filter(Boolean);
 
-    /** 注入单个 Change Artifact（存在性检查 + 预算）。 */
+    /** 注入单个 Change Artifact（存在性检查 + 预算；绑定后产物在 STORY 目录，兼容 CHG 根存量）。 */
     const pushArtifact = async (rel, source, missingReason) => {
-      const abs = join(changeDir, rel);
-      let st;
-      try {
-        st = await stat(abs);
-      } catch {
-        missingArtifacts.push(missingReason ? `${rel} (${missingReason})` : `${rel} (not found)`);
-        return;
+      const storyDir = meta ? resolveStoryDir(changeDir, meta) : null;
+      const candidates = [];
+      if (storyDir) candidates.push(join(storyDir, rel));
+      candidates.push(join(changeDir, rel));
+      let abs = null;
+      for (const c of candidates) {
+        try {
+          const s = await stat(c);
+          if (s.isFile()) {
+            abs = c;
+            break;
+          }
+        } catch {
+          // 尝试下一个候选位置
+        }
       }
-      if (!st.isFile()) {
-        missingArtifacts.push(`${rel} (not a file)`);
+      if (!abs) {
+        missingArtifacts.push(missingReason ? `${rel} (${missingReason})` : `${rel} (not found)`);
         return;
       }
       const content = await readContent(abs);
@@ -449,5 +457,19 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
   // dirs 兼容保留：read 条目的顶层目录（v1 形态）
   const dirs = [...new Set(readEntries.map((e) => toPosix(String(e.path)).replace(/\/+$/, '')))];
 
-  return { stage, dirs, files, missingArtifacts, skipped, budget, rulesVersion, duBinding };
+  // Phase 3.5 修订：产物落位信息（Agent 依据其在 Instruction 中写对位置）
+  const featureDirs = opts.metadata ? featurePathDirs(opts.metadata) : null;
+
+  return {
+    stage,
+    dirs,
+    files,
+    missingArtifacts,
+    skipped,
+    budget,
+    rulesVersion,
+    duBinding,
+    changeId,
+    featureDirs,
+  };
 }

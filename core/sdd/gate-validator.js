@@ -10,6 +10,8 @@ import { join } from "node:path";
 import { parse } from "yaml";
 import { sha256 } from "./artifact-hash.js";
 import { readGateResult } from "./gate-repository.js";
+import { readMetadata } from "./change-model.js";
+import { resolveArtifactPath, resolveStoryDir } from "./artifact-path.js";
 import {
   loadEvidence,
   validateEvidence,
@@ -37,8 +39,10 @@ import { resolveSubmoduleHead } from "./git-submodule.js";
 export async function runMachineGate(changeDir, gateConfig, opts = {}) {
   const issues = [];
   const artifactName = gateConfig.artifact;
-  // Phase 2.4：Story 级 artifact（tasks.md）由调用方传入解析后的实际路径
-  const artifactPath = opts.artifactPath || join(changeDir, artifactName);
+  // Phase 3.5 修订：artifact 统一经 resolveArtifactPath 定位（绑定后落 STORY 目录）
+  const meta = opts.metadata || (await readMetadata(changeDir));
+  const artifactPath =
+    opts.artifactPath || resolveArtifactPath(changeDir, artifactName, meta);
 
   // 读取 Artifact 内容
   let content;
@@ -85,7 +89,13 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
         );
         break;
       case "cross-reference-valid":
-        await checkCrossReference(content, changeDir, issues, artifactName);
+        await checkCrossReference(
+          content,
+          changeDir,
+          issues,
+          artifactName,
+          resolveStoryDir(changeDir, meta),
+        );
         break;
       case "repositories-match-metadata":
         await checkRepositoriesMatch(
@@ -106,6 +116,7 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
           gateConfig["evidence-coverage"] || {},
           issues,
           artifactName,
+          meta,
         );
         break;
       case "feature-path-bound":
@@ -236,7 +247,13 @@ function hasNonCommentContent(text) {
   return lines.length > 0;
 }
 
-async function checkCrossReference(content, changeDir, issues, artifactName) {
+async function checkCrossReference(
+  content,
+  changeDir,
+  issues,
+  artifactName,
+  storyDir,
+) {
   // v0.1：检查正文中所有 CHG-XXXX/<file>.md 引用的文件存在
   // 占位符已替换后正文会包含 "CHG-0001/prd.md" 这类引用
   const refMatches = content.match(/CHG-\d+\/[\w/.-]+\.md/g) || [];
@@ -246,15 +263,21 @@ async function checkCrossReference(content, changeDir, issues, artifactName) {
     seen.add(ref);
     // 提取文件名部分（CHG-0001/prd.md → prd.md；CHG-0001/evidence/test-report.md → evidence/test-report.md）
     const fileName = ref.split("/").slice(1).join("/");
-    const refPath = join(changeDir, fileName);
-    try {
-      await readFile(refPath, "utf8");
-    } catch (e) {
-      if (e.code === "ENOENT") {
-        issues.push(
-          `${artifactName}: cross-reference 引用文件不存在: ${ref} (期望路径: ${refPath})`,
-        );
+    // Phase 3.5 修订：产物在 STORY 目录（绑定后）；未绑定/存量在 CHG 根——两处任一存在即通过
+    const candidates = [join(changeDir, fileName)];
+    if (storyDir) candidates.unshift(join(storyDir, fileName));
+    let found = false;
+    for (const refPath of candidates) {
+      try {
+        await readFile(refPath, "utf8");
+        found = true;
+        break;
+      } catch (e) {
+        if (e.code !== "ENOENT") throw e;
       }
+    }
+    if (!found) {
+      issues.push(`${artifactName}: cross-reference 引用文件不存在: ${ref}`);
     }
   }
 }
@@ -311,7 +334,13 @@ async function checkAllPredecessorsAccepted(changeDir, issues, artifactName) {
   }
 }
 
-async function checkEvidenceCoverage(changeDir, flags, issues, artifactName) {
+async function checkEvidenceCoverage(
+  changeDir,
+  flags,
+  issues,
+  artifactName,
+  meta,
+) {
   // Phase 2.1（phase-2.1-evidence-system-design.md §4.2）：
   // 1. evidence.yaml 存在且可 parse
   // 2. validateEvidence 全量规则通过
@@ -333,11 +362,16 @@ async function checkEvidenceCoverage(changeDir, flags, issues, artifactName) {
     }
     return; // schema 不过时覆盖检查无意义
   }
-  const cov = await checkCoverage(changeDir, doc, {
-    reposCoverage: flags["repos-coverage"] === true,
-    testCoverage: flags["test-coverage"] === true,
-    findingsClosure: flags["findings-closure"] === true,
-  });
+  const cov = await checkCoverage(
+    changeDir,
+    doc,
+    {
+      reposCoverage: flags["repos-coverage"] === true,
+      testCoverage: flags["test-coverage"] === true,
+      findingsClosure: flags["findings-closure"] === true,
+    },
+    meta,
+  );
   for (const issue of cov.issues) {
     issues.push(`${artifactName}: ${issue}`);
   }
@@ -542,7 +576,13 @@ function containsDuPlaceholder(text) {
   return /^\s*TBD\s*$/m.test(text);
 }
 
-async function checkDuGuidance(changeDir, content, metadata, issues, artifactName) {
+async function checkDuGuidance(
+  changeDir,
+  content,
+  metadata,
+  issues,
+  artifactName,
+) {
   // 全部为确定性检查（存在性/非空/枚举/一致性）；合理性判断属 Human Gate / Review
   const meta = metadata || (await readMetadataInline(changeDir));
   const dus = await readWorkspaceDus(changeDir, meta);
@@ -578,7 +618,9 @@ async function checkDuGuidance(changeDir, content, metadata, issues, artifactNam
     const requirePseudo = g?.pseudocode === true;
 
     // Sketch 非空（必填）
-    const sketch = normalizeDuValue(extractDuField(section, "Implementation Sketch"));
+    const sketch = normalizeDuValue(
+      extractDuField(section, "Implementation Sketch"),
+    );
     if (!sketch || containsDuPlaceholder(sketch)) {
       issues.push(
         `${artifactName}: DU ${du.id} Implementation Sketch 为空或含占位符（必填）`,
@@ -604,7 +646,9 @@ async function checkDuGuidance(changeDir, content, metadata, issues, artifactNam
     }
 
     // Verification 非空（必填）
-    const verification = normalizeDuValue(extractDuField(section, "Verification"));
+    const verification = normalizeDuValue(
+      extractDuField(section, "Verification"),
+    );
     if (!verification || containsDuPlaceholder(verification)) {
       issues.push(
         `${artifactName}: DU ${du.id} Verification 为空或含占位符（必填）`,

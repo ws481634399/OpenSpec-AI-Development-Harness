@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, readFile, mkdir } from 'node:fs/promises';
 import { loadWorkflow, listWorkflows, findStageByToState } from '../core/sdd/workflow-loader.js';
 import { runWorkflow, WORKFLOW_RESULT } from '../core/sdd/workflow-engine.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
@@ -283,7 +283,13 @@ test('WorkflowEngine: 检查点双门禁通过 → review-report accepted 且状
   // review gate 含 du-fan-in-complete（Phase 2.4）：预置已完成 DU
   const { setupDu } = await import('./helpers/du-fixture.js');
   await setupDu(tmp, changeId, changeDir, { status: 'completed' });
-  await writeFile(join(changeDir, 'review-report.md'), fullReviewReport(changeId), 'utf8');
+  // Phase 3.5 修订：绑定后产物落 STORY 目录（TEST_FEATURE_PATH 名字段）
+  await mkdir(join(changeDir, '用户中心', '账户能力', '用户认证', '用户注册'), { recursive: true });
+  await writeFile(
+    join(changeDir, '用户中心', '账户能力', '用户认证', '用户注册', 'review-report.md'),
+    fullReviewReport(changeId),
+    'utf8'
+  );
 
   // 第一次 run：machine passed + human pending → WAITING_FOR_HUMAN
   const r1 = await runWorkflow(tmp, changeId, { harnessRoot });

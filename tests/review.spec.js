@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
+import { mkdtemp, writeFile, rm, readFile, mkdir } from 'node:fs/promises';
 import { runInit } from '../core/workspace/workspace-initializer.js';
 import { runChangeCreate } from '../core/sdd/change-model.js';
 import { loadGate } from '../core/sdd/gate-config-loader.js';
@@ -15,6 +15,13 @@ import { setupDu } from './helpers/du-fixture.js';
 
 const rmrf = (p) => rm(p, { recursive: true, force: true });
 const harnessRoot = getHarnessRoot();
+
+// Phase 3.5 修订：绑定后产物落 STORY 目录（与 helpers/du-fixture TEST_FEATURE_PATH 名字段一致）
+const STORY = ['用户中心', '账户能力', '用户认证', '用户注册'];
+const seedStory = async (changeDir, rel, content) => {
+  await mkdir(join(changeDir, ...STORY, rel, '..'), { recursive: true });
+  await writeFile(join(changeDir, ...STORY, rel), content, 'utf8');
+};
 
 async function setupChange() {
   const tmp = await mkdtemp(join(tmpdir(), 'review-'));
@@ -101,7 +108,7 @@ async function writeEvidence(changeDir, changeId, items) {
     }
     lines.push(`    recorded-at: "${item['recorded-at']}"`);
   }
-  await writeFile(join(changeDir, 'evidence', 'evidence.yaml'), lines.join('\n') + '\n', 'utf8');
+  await seedStory(changeDir, join('evidence', 'evidence.yaml'), lines.join('\n') + '\n');
 }
 
 const finding = (over = {}) => ({
@@ -140,7 +147,7 @@ test('GateConfig: sdd-review gate 声明 findings-closure 开关', async () => {
 
 test('GateValidator: blocker 无 resolution → machine gate failed', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
-  await writeFile(join(changeDir, 'review-report.md'), fullReviewReport(changeId), 'utf8');
+  await seedStory(changeDir, 'review-report.md', fullReviewReport(changeId));
   await writeEvidence(changeDir, changeId, [finding({ severity: 'blocker', resolution: '' })]);
   const gateConfig = await loadGate('sdd-review', harnessRoot);
   const r = await runMachineGate(changeDir, gateConfig);
@@ -151,7 +158,7 @@ test('GateValidator: blocker 无 resolution → machine gate failed', async () =
 
 test('GateValidator: blocker 补 resolution 后 → machine gate passed', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
-  await writeFile(join(changeDir, 'review-report.md'), fullReviewReport(changeId), 'utf8');
+  await seedStory(changeDir, 'review-report.md', fullReviewReport(changeId));
   await writeEvidence(changeDir, changeId, [
     finding({ severity: 'blocker', resolution: '已补 AC-1 测试，见 EV-002' }),
   ]);
@@ -163,7 +170,7 @@ test('GateValidator: blocker 补 resolution 后 → machine gate passed', async 
 
 test('GateValidator: minor 开放（无 resolution）→ machine gate passed', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
-  await writeFile(join(changeDir, 'review-report.md'), fullReviewReport(changeId), 'utf8');
+  await seedStory(changeDir, 'review-report.md', fullReviewReport(changeId));
   await writeEvidence(changeDir, changeId, [finding({ severity: 'minor' })]);
   const gateConfig = await loadGate('sdd-review', harnessRoot);
   const r = await runMachineGate(changeDir, gateConfig);
@@ -173,7 +180,7 @@ test('GateValidator: minor 开放（无 resolution）→ machine gate passed', a
 
 test('GateValidator: major 无 resolution → machine gate failed（与 blocker 同规则）', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
-  await writeFile(join(changeDir, 'review-report.md'), fullReviewReport(changeId), 'utf8');
+  await seedStory(changeDir, 'review-report.md', fullReviewReport(changeId));
   await writeEvidence(changeDir, changeId, [finding({ severity: 'major' })]);
   const gateConfig = await loadGate('sdd-review', harnessRoot);
   const r = await runMachineGate(changeDir, gateConfig);
@@ -193,7 +200,7 @@ test('EvidenceModel: review-finding 含 resolution 通过 validateEvidence（sch
   const raw = await readFile(join(changeDir, 'evidence', 'evidence.yaml'), 'utf8');
   assert.ok(raw.includes('resolution'), 'resolution 字段应写入');
   // 经 machine gate 的 schema 校验路径验证（checkEvidenceCoverage 内部跑 validateEvidence）
-  await writeFile(join(changeDir, 'review-report.md'), fullReviewReport(changeId), 'utf8');
+  await seedStory(changeDir, 'review-report.md', fullReviewReport(changeId));
   const gateConfig = await loadGate('sdd-review', harnessRoot);
   const r = await runMachineGate(changeDir, gateConfig);
   assert.equal(r.passed, true, r.issues.join('; '));

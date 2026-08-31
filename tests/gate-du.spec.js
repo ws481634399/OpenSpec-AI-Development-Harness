@@ -27,6 +27,13 @@ const FP = {
   candidate: false,
 };
 
+// Phase 3.5 修订：绑定后产物落 STORY 目录（纯业务名段）
+const STORY = ['用户中心', '账户能力', '用户认证', '用户注册'];
+const seedStory = async (changeDir, rel, content) => {
+  await mkdir(join(changeDir, ...STORY, rel, '..'), { recursive: true });
+  await writeFile(join(changeDir, ...STORY, rel), content, 'utf8');
+};
+
 async function setupWorkspace() {
   const tmp = await mkdtemp(join(tmpdir(), 'gate-du-'));
   await runInit(
@@ -92,6 +99,8 @@ test('Gate: feature-path-bound candidate=true → failed；完整绑定 → pass
   assert.ok(r.issues.some((i) => i.includes('candidate=true')));
 
   await bindFeaturePath(changeDir, FP);
+  // 完整绑定后产物落 STORY 目录
+  await seedStory(changeDir, 'design.md', '# Design');
   r = await runMachineGate(changeDir, gateOf('design.md', 'feature-path-bound'));
   assert.equal(r.passed, true, r.issues.join('; '));
   await rmrf(tmp);
@@ -105,10 +114,10 @@ test('Gate: du-coverage design 声明仓未被 DU 覆盖 → failed', async () =
   await bindFeaturePath(changeDir, FP);
   const meta = await readMetadata(changeDir);
   await createDu(changeDir, meta, 'DU-BE-001', 'backend');
-  await writeFile(
-    join(changeDir, 'tasks.md'),
-    '---\naffected-repositories: [backend, frontend]\n---\n# Tasks',
-    'utf8'
+  await seedStory(
+    changeDir,
+    'tasks.md',
+    '---\naffected-repositories: [backend, frontend]\n---\n# Tasks'
   );
   const r = await runMachineGate(changeDir, gateOf('tasks.md', 'du-coverage'));
   assert.equal(r.passed, false);
@@ -122,14 +131,14 @@ test('Gate: du-coverage DU 结构缺陷 → failed（repository 未知/scope 空
   await bindFeaturePath(changeDir, FP);
 
   // 无 DU（先写 tasks.md 让 gate 跑到检查项）
-  await writeFile(join(changeDir, 'tasks.md'), '# Tasks', 'utf8');
+  await seedStory(changeDir, 'tasks.md', '# Tasks');
   let r = await runMachineGate(changeDir, gateOf('tasks.md', 'du-coverage'));
   assert.ok(r.issues.some((i) => i.includes('未创建任何 Delivery Unit')));
 
   const meta = await readMetadata(changeDir);
   await createDu(changeDir, meta, 'DU-BE-001', 'ai'); // 不在 repositories.yaml
   await createDu(changeDir, meta, 'DU-FE-001', 'frontend', { scope: [], dependencies: ['DU-BE-999'] }); // scope 空 + 悬空依赖
-  await writeFile(join(changeDir, 'tasks.md'), '# Tasks', 'utf8');
+  await seedStory(changeDir, 'tasks.md', '# Tasks');
   r = await runMachineGate(changeDir, gateOf('tasks.md', 'du-coverage'));
   assert.equal(r.passed, false);
   assert.ok(r.issues.some((i) => i.includes("repository 'ai' 不在")), r.issues.join('; '));
@@ -145,10 +154,10 @@ test('Gate: du-coverage 覆盖完整 → passed', async () => {
   const meta = await readMetadata(changeDir);
   await createDu(changeDir, meta, 'DU-BE-001', 'backend');
   await createDu(changeDir, meta, 'DU-FE-001', 'frontend');
-  await writeFile(
-    join(changeDir, 'tasks.md'),
-    '---\naffected-repositories: [backend, frontend]\n---\n# Tasks',
-    'utf8'
+  await seedStory(
+    changeDir,
+    'tasks.md',
+    '---\naffected-repositories: [backend, frontend]\n---\n# Tasks'
   );
   const r = await runMachineGate(changeDir, gateOf('tasks.md', 'du-coverage'));
   assert.equal(r.passed, true, r.issues.join('; '));
@@ -164,7 +173,7 @@ test('Gate: du-materialized 未物化 → failed；物化后 → passed', async 
   const meta = await readMetadata(changeDir);
   await createDu(changeDir, meta, 'DU-BE-001', 'backend');
   await createDu(changeDir, meta, 'DU-FE-001', 'frontend');
-  await writeFile(join(changeDir, 'implementation.md'), '# Impl', 'utf8');
+  await seedStory(changeDir, 'implementation.md', '# Impl');
 
   let r = await runMachineGate(changeDir, gateOf('implementation.md', 'du-materialized'));
   assert.equal(r.passed, false);
@@ -186,7 +195,7 @@ test('Gate: du-fan-in-testing 任一 DU 未达 testing → failed；全部 testi
   await createDu(changeDir, meta, 'DU-FE-001', 'frontend');
   await materializeDeliveryUnit(tmp, changeId, 'DU-BE-001');
   await materializeDeliveryUnit(tmp, changeId, 'DU-FE-001');
-  await writeFile(join(changeDir, 'evidence', 'test-report.md'), '# Test', 'utf8');
+  await seedStory(changeDir, join('evidence', 'test-report.md'), '# Test');
 
   const meta2 = await readMetadata(changeDir);
   await updateWorkspaceDuStatus(changeDir, meta2, 'DU-BE-001', 'testing');
@@ -210,7 +219,7 @@ test('Gate: du-fan-in-complete 全部 completed → passed；未完成 → faile
   await createDu(changeDir, meta, 'DU-FE-001', 'frontend');
   await materializeDeliveryUnit(tmp, changeId, 'DU-BE-001');
   await materializeDeliveryUnit(tmp, changeId, 'DU-FE-001');
-  await writeFile(join(changeDir, 'review-report.md'), '# Review', 'utf8');
+  await seedStory(changeDir, 'review-report.md', '# Review');
 
   let r = await runMachineGate(changeDir, gateOf('review-report.md', 'du-fan-in-complete'));
   assert.equal(r.passed, false);
@@ -249,7 +258,7 @@ test('Gate: submodule-pointer-aligned result==HEAD → passed；漂移 → faile
   await patchMetadata(changeDir, {
     'repository-result': { backend: { commit: H1 }, frontend: { commit: H2 } },
   });
-  await writeFile(join(changeDir, 'convergence.md'), '# Convergence', 'utf8');
+  await seedStory(changeDir, 'convergence.md', '# Convergence');
   let r = await runMachineGate(changeDir, gateOf('convergence.md', 'submodule-pointer-aligned'));
   assert.equal(r.passed, true, r.issues.join('; '));
 
@@ -272,6 +281,7 @@ test('Gate: submodule-pointer-aligned v1 CHG（无 DU 无 result）→ 跳过；
 
   // 有 DU 但无 repository-result → failed
   await bindFeaturePath(changeDir, FP);
+  await seedStory(changeDir, 'convergence.md', '# Convergence');
   const meta = await readMetadata(changeDir);
   await createDu(changeDir, meta, 'DU-BE-001', 'backend');
   r = await runMachineGate(changeDir, gateOf('convergence.md', 'submodule-pointer-aligned'));
