@@ -572,6 +572,15 @@ OpenSpec Harness v1.5
 
 ---
 
+### 集成加固
+
+支持：
+
+- Doctor 结构守门（CHG 四级骨架锚点一致性 / features 投影 drift 检查）；
+- CLI 机器可读输出（workflow / gate / du 的 `--json`）。
+
+---
+
 ## 交付物
 
 OpenSpec Harness v2.0

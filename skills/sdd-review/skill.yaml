@@ -1,6 +1,6 @@
 # OpenSpec SDD Skill 定义（骨架）
 #
-# 版本: v0.1
+# 版本: 0.2.0
 # 类型: Skill 元数据 + Artifact Contract
 # Phase 2.2: 同态检查点（requires-state === produces-state，不推进 Change 状态）
 # 见 plans/phase-2.2-sdd-review-skill-design.md §4.1

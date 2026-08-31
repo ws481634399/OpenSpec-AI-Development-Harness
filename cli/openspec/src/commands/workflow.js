@@ -78,6 +78,7 @@ export function registerWorkflowCommand(program) {
       '--du <du-id>',
       '绑定 Delivery Unit（DU-<别名>-NNN）：dev/test 阶段注入 repo 侧上下文并激活 per-repo 规则段（Phase 2.7）'
     )
+    .option('--json', '机器可读 JSON 输出（Agent/IDE 集成用，stdout 纯 JSON）')
     .action(async (name, opts) => {
       const ws = resolveWorkspaceRoot();
       try {
@@ -90,6 +91,27 @@ export function registerWorkflowCommand(program) {
           harnessRoot,
           du: opts.du,
         });
+
+        // Phase 3.6：--json 机器可读输出（Agent 集成不再解析 stdout 文案）
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                change: opts.change,
+                workflow: name,
+                result: result.result,
+                reason: result.reason,
+                stage: result.stage
+                  ? { skill: result.stage.skill, artifact: result.stage.artifact }
+                  : null,
+                instruction: result.instruction ?? null,
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
 
         switch (result.result) {
           case 'WAITING_FOR_ARTIFACT':
@@ -120,6 +142,10 @@ export function registerWorkflowCommand(program) {
             outro('Done.');
         }
       } catch (e) {
+        if (opts.json) {
+          console.log(JSON.stringify({ error: e.message }, null, 2));
+          process.exit(1);
+        }
         error(e.message);
         outro('Workflow run failed.');
         process.exit(1);

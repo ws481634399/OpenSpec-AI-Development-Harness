@@ -11,6 +11,7 @@ import {
   runContextRulesChecks,
   runVersionChecks,
   runIdeRulesChecks,
+  runStructureChecks,
 } from "../../../../core/sdd/doctor-checks.js";
 import { checkFeaturesProjection } from "../../../../core/sdd/feature-materializer.js";
 import { getHarnessRoot } from "../../../../core/workspace/harness-root.js";
@@ -87,6 +88,16 @@ export function registerDoctorCommand(program) {
           multiChecked += 1;
         } catch {
           // features 投影检查失败静默（树为空等场景）
+        }
+
+        // Phase 3.6：CHG 四级骨架锚点一致性（README id 锚点 / bound-chg / 树名落后）
+        try {
+          const st = await runStructureChecks(ws);
+          issues.push(...st.issues);
+          versionInfos.push(...st.infos);
+          multiChecked += st.checked;
+        } catch (e) {
+          warn(`骨架结构检查跳过: ${e.message}`);
         }
 
         if (issues.length === 0) {

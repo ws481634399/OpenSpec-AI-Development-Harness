@@ -623,15 +623,19 @@ openspec validate --all  # 校验全部 Change
 
 ### 归档结构
 
+Phase 3.5 v0.3：`references/` 与 `evidence/` 一样落 STORY 目录（未绑定/candidate 时暂存 CHG 根，绑定后由 skeleton 自动迁移）。
+
 ```
 delivery/changes/CHG-0001/
-├── references/          ← Agent 自动归档原始文档
-│   ├── 需求规格.md
-│   ├── 架构设计.md
-│   └── API文档.json
-├── requirement.md       ← Agent 产出
-├── exploration.md
-└── ...
+├── metadata.yaml
+└── <L1名>/<L2名>/<L3名>/<STORY名>/
+    ├── references/          ← Agent 自动归档原始文档
+    │   ├── 需求规格.md
+    │   ├── 架构设计.md
+    │   └── API文档.json
+    ├── requirement.md       ← Agent 产出
+    ├── exploration.md
+    └── ...
 ```
 
 ### 适用场景
@@ -1034,17 +1038,17 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 | `openspec change skeleton <CHG>`                                                                         | 为存量/归档 CHG 补物化四级业务名骨架 + 产物迁移 + 树名 rename 同步（幂等，Phase 3.5）                   |
 | `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明）                                              |
 | `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）                                                    |
-| `openspec du list <CHG>` / `du show <CHG> <DU>`                                                          | 查看 DU                                                                                                 |
-| `openspec du sync-status <CHG> <DU>`                                                                     | 回传 DU baseline/result commit                                                                          |
+| `openspec du list <CHG> [--json]` / `du show <CHG> <DU>`                                                  | 查看 DU（--json 输出聚合状态）                                                                          |
+| `openspec du sync-status <CHG> [--json]`                                                                  | 回传 DU baseline/result commit（--json 输出 syncs/dirty）                                               |
 | `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                                                                       |
 | `openspec feature show <id>`                                                                             | 查看 Feature 节点                                                                                       |
 | `openspec feature add module/feature/story ...`                                                          | 添加节点                                                                                                |
 | `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                                                                |
 | `openspec feature remove <id>`                                                                           | 删除节点                                                                                                |
 | `openspec feature materialize`                                                                           | 生成 product/features 四级业务名 README 投影，树改名按锚点 rename（幂等，Phase 3.5）                    |
-| `openspec gate check <CHG>`                                                                              | Machine Gate 校验                                                                                       |
-| `openspec gate approve <CHG>`                                                                            | Human Gate 审批                                                                                         |
-| `openspec gate status <CHG>`                                                                             | 查看 Gate 状态                                                                                          |
+| `openspec gate check <CHG> --stage <s> [--json]`                                                         | Machine Gate 校验（--json 输出 passed/issues/hash）                                                     |
+| `openspec gate approve <CHG>`                                                                            | Human Gate 审批（交互式，仅人执行）                                                                     |
+| `openspec gate status <CHG> --stage <s> [--json]`                                                        | 查看 Gate 状态（--json 输出 machine/human 门禁记录）                                                    |
 | `openspec skill list`                                                                                    | 列出 Skill                                                                                              |
 | `openspec skill show <id>`                                                                               | 查看 Skill 元数据 + SKILL.md 路径                                                                       |
 
@@ -1052,14 +1056,14 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 | 命令                                                       | 用途                                                                    |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `openspec doctor`                                          | Workspace 自检                                                          |
+| `openspec doctor`                                          | Workspace 自检（结构/字段/版本 + 多仓架构 + CHG 骨架锚点一致性 + features 投影 drift，Phase 3.6） |
 | `openspec status`                                          | 状态概览                                                                |
 | `openspec status --json`                                   | 状态概览（JSON，供 Agent）                                              |
 | `openspec validate <CHG>`                                  | 校验 Change                                                             |
 | `openspec validate --all`                                  | 校验全部 Change                                                         |
 | `openspec workflow list`                                   | 列出 Workflow                                                           |
 | `openspec workflow show default`                           | 查看 Workflow 配置                                                      |
-| `openspec workflow run default --change <CHG> [--du <DU>]` | 执行 Workflow 下一步（`--du` 仅 dev/test 生效，Phase 2.7）              |
+| `openspec workflow run default --change <CHG> [--du <DU>] [--json]` | 执行 Workflow 下一步（`--du` 仅 dev/test 生效，Phase 2.7；`--json` 输出 result/reason/stage/instruction） |
 | `openspec context <stage> [--change <CHG>] [--du <DU>]`    | 预览阶段 Context 装配结果（Phase 2.6，排障用；`--du` 预览 DU 绑定装配） |
 
 ### 10.4 Workflow 状态
@@ -1073,6 +1077,10 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 | WAITING_FOR_HUMAN       | 等待用户审批      | 展示草稿，等待确认 |
 | ADVANCED                | 已推进状态        | 继续下一步         |
 | COMPLETED               | Change 完成       | 执行归档           |
+
+> `workflow run` / `gate check` / `gate status` / `du list` / `du sync-status` 支持 `--json`
+> （Phase 3.6）：stdout 输出纯 JSON 机器可读结果（含 result/reason/stage/instruction 或
+> passed/issues/hash 等），Agent/IDE 集成不再解析人类可读文案。
 
 ### 10.5 版本管理与升级（Phase 3.1）
 

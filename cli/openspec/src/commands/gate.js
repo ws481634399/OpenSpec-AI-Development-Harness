@@ -38,6 +38,7 @@ export function registerGateCommand(program) {
   gate
     .command('check <id>')
     .requiredOption('--stage <stage>', `Skill 阶段（${VALID_STAGES.join(' / ')}）`)
+    .option('--json', '机器可读 JSON 输出（Agent/IDE 集成用，stdout 纯 JSON）')
     .action(async (id, opts) => {
       const ws = resolveWorkspaceRoot();
       try {
@@ -60,6 +61,26 @@ export function registerGateCommand(program) {
           validator: skillId,
         });
 
+        // Phase 3.6：--json 机器可读输出
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                change: id,
+                stage: opts.stage,
+                artifact: gateConfig.artifact,
+                passed: result.passed,
+                issues: result.issues,
+                artifactHash: result.artifactHash,
+              },
+              null,
+              2
+            )
+          );
+          if (!result.passed) process.exit(1);
+          return;
+        }
+
         if (result.passed) {
           ok(`Machine gate passed for ${id}/${opts.stage} (artifact: ${gateConfig.artifact})`);
           ok(`Hash: ${result.artifactHash}`);
@@ -73,6 +94,10 @@ export function registerGateCommand(program) {
           process.exit(1);
         }
       } catch (e) {
+        if (opts.json) {
+          console.log(JSON.stringify({ error: e.message }, null, 2));
+          process.exit(1);
+        }
         error(e.message);
         outro('Gate check failed.');
         process.exit(1);
@@ -151,6 +176,7 @@ export function registerGateCommand(program) {
   gate
     .command('status <id>')
     .requiredOption('--stage <stage>', `Skill 阶段（${VALID_STAGES.join(' / ')}）`)
+    .option('--json', '机器可读 JSON 输出（Agent/IDE 集成用，stdout 纯 JSON）')
     .action(async (id, opts) => {
       const ws = resolveWorkspaceRoot();
       try {
@@ -166,6 +192,25 @@ export function registerGateCommand(program) {
         const changeDir = join(ws, 'delivery', 'changes', id);
         const artifactName = gateConfig.artifact;
         const gateResult = await readGateResult(changeDir, artifactName);
+
+        // Phase 3.6：--json 机器可读输出
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                change: id,
+                stage: opts.stage,
+                artifact: artifactName,
+                artifactStatus: gateResult.status,
+                machine: gateResult.gates.machine,
+                human: gateResult.gates.human,
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
 
         const lines = [
           `Artifact: ${artifactName}`,
@@ -193,6 +238,10 @@ export function registerGateCommand(program) {
         note(lines.join('\n'), `${id}/${opts.stage} gate status`);
         outro('Done.');
       } catch (e) {
+        if (opts.json) {
+          console.log(JSON.stringify({ error: e.message }, null, 2));
+          process.exit(1);
+        }
         error(e.message);
         outro('Gate status failed.');
         process.exit(1);

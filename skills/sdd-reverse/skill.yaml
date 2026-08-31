@@ -1,6 +1,6 @@
 # OpenSpec SDD Skill 定义
 #
-# 版本: v0.1
+# 版本: 0.2.0
 # 类型: Knowledge Reverse Skill（旧项目接入）
 #
 # 与 7 个生命周期 Skill 不同：sdd-reverse 不进 7 状态生命周期，

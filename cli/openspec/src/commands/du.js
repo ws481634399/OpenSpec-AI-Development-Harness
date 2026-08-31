@@ -117,6 +117,7 @@ export function registerDuCommand(program) {
   du
     .command('list <change-id>')
     .option('--repo <id>', '按仓库过滤')
+    .option('--json', '机器可读 JSON 输出（Agent/IDE 集成用，stdout 纯 JSON）')
     .description('列出 CHG 的全部 DU 与聚合状态')
     .action(async (changeId, opts) => {
       const ws = resolveWorkspaceRoot();
@@ -126,6 +127,32 @@ export function registerDuCommand(program) {
         const agg = await aggregateDuStatus(changeDir, ws);
         let items = agg.dus;
         if (opts.repo) items = items.filter((d) => d.repository === opts.repo);
+
+        // Phase 3.6：--json 机器可读输出
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                change: changeId,
+                dus: items.map((d) => ({
+                  id: d.id,
+                  repository: d.repository,
+                  status: d.status,
+                  materialized: d.materialized,
+                  repositoryValid: d.repositoryValid,
+                })),
+                total: items.length,
+                allMaterialized: agg.allMaterialized,
+                allTesting: agg.allTesting,
+                allCompleted: agg.allCompleted,
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
+
         if (items.length === 0) {
           note('No Delivery Units found.（DU 由 sdd-task 在 task 阶段创建）', changeId);
         } else {
@@ -142,6 +169,10 @@ export function registerDuCommand(program) {
         }
         outro('Done.');
       } catch (e) {
+        if (opts.json) {
+          console.log(JSON.stringify({ error: e.message }, null, 2));
+          process.exit(1);
+        }
         error(e.message);
         outro('DU list failed.');
         process.exit(1);
@@ -211,8 +242,9 @@ export function registerDuCommand(program) {
   // du sync-status <chg>
   du
     .command('sync-status <change-id>')
+    .option('--json', '机器可读 JSON 输出（Agent/IDE 集成用，stdout 纯 JSON）')
     .description('读取各仓 HEAD 刷新 DU baseline/result 与 CHG 聚合段；报告 dirty 仓库')
-    .action(async (changeId) => {
+    .action(async (changeId, opts) => {
       const ws = resolveWorkspaceRoot();
       try {
         const changeDir = join(ws, 'delivery', 'changes', changeId);
@@ -238,6 +270,24 @@ export function registerDuCommand(program) {
         if (!gitAvailable) warn('git command unavailable, skip dirty check.');
 
         const results = await syncDuCommits(ws, changeId, heads);
+
+        // Phase 3.6：--json 机器可读输出
+        if (opts.json) {
+          console.log(
+            JSON.stringify(
+              {
+                change: changeId,
+                syncs: results,
+                dirty,
+                gitAvailable,
+              },
+              null,
+              2
+            )
+          );
+          return;
+        }
+
         const lines = results.map((r) => `${r.duId}  repo: ${r.repository}  sync: ${r.updated}`);
         if (dirty.length) {
           lines.push('', `dirty repositories（未提交变更，commit 后重跑）: ${dirty.join(', ')}`);
@@ -246,6 +296,10 @@ export function registerDuCommand(program) {
         note(lines.join('\n'), `${changeId} DU sync`);
         outro('Done.');
       } catch (e) {
+        if (opts.json) {
+          console.log(JSON.stringify({ error: e.message }, null, 2));
+          process.exit(1);
+        }
         error(e.message);
         outro('DU sync-status failed.');
         process.exit(1);

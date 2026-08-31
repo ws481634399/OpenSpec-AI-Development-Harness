@@ -1,6 +1,6 @@
 # OpenSpec SDD Skill 定义
 #
-# 版本: v0.1
+# 版本: 0.2.0
 # 类型: Skill 元数据 + Artifact Contract
 #
 # Skill 是 SDD 生命周期阶段能力，用于生成和演进 Artifact。

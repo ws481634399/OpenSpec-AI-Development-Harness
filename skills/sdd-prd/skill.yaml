@@ -1,10 +1,10 @@
 # OpenSpec SDD Skill 定义（骨架）
 #
-# 版本: v0.1
+# 版本: 0.2.0
 # 类型: Skill 元数据 + Artifact Contract
 #
 # Phase 1.4 仅提供 skill.yaml + 基础 SKILL.md 骨架，不实现完整执行逻辑（后续逐阶段完善）。
-# v0.1 由外部 Agent 按 Instruction 执行，产出写回 CHG 目录，再用 openspec change status --set 推进状态。
+# v0.1 由外部 Agent 按 Instruction 执行，产出写回 CHG 目录，状态推进经 openspec workflow run（Transition Service 统一入口）。
 
 id: sdd-prd
 version: 0.2.0

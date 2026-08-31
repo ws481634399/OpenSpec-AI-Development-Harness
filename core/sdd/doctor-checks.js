@@ -471,3 +471,111 @@ export async function runIdeRulesChecks(workspaceRoot, harnessRoot) {
 
   return { issues, infos, checked };
 }
+
+// ---- Phase 3.6：CHG 四级骨架锚点一致性检查 ----
+// v0.3 目录以 README front-matter 的 id 为锚点（skeleton/materialize 按锚点 rename），
+// 锚点被手动破坏后 rename 无法命中，此处提供确定性体检（features 投影侧由 checkFeaturesProjection 覆盖）。
+
+const LEVEL_NAMES = ['module', 'feature', 'capability', 'story'];
+
+/**
+ * CHG 四级骨架锚点一致性检查（changes 与 archive 两个 scope）。
+ * 对绑定 feature-path 的 CHG 逐级校验：
+ * 1. 各级目录存在（changes scope 目录缺失已由多仓检查 7 报告，此处不再重复）
+ * 2. README.md 存在且 front-matter id === feature-path 对应层 id（锚点损坏 → issue）
+ * 3. STORY README 的 bound-chg 存在时 === CHG ID
+ * 4. metadata name 落后于树最新 name（仅 changes scope，info 级，重跑 change skeleton 同步）
+ *
+ * @param {string} workspaceRoot Workspace 根目录
+ * @returns {Promise<{issues:string[], infos:string[], checked:number}>}
+ */
+export async function runStructureChecks(workspaceRoot) {
+  const issues = [];
+  const infos = [];
+  let checked = 0;
+  const tree = await readFeatureTree(workspaceRoot);
+
+  for (const scope of ['changes', 'archive']) {
+    const base = join(workspaceRoot, 'delivery', scope);
+    let entries;
+    try {
+      entries = await readdir(base, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory() || !/^CHG-\d+/.test(e.name)) continue;
+      const changeDir = join(base, e.name);
+      let meta;
+      try {
+        meta = await readMetadata(changeDir);
+      } catch {
+        continue; // metadata 损坏由多仓检查侧报告，此处跳过
+      }
+      const fp = meta?.['feature-path'];
+      if (!fp || fp.candidate === true || !fp['level-1']?.id || !fp.story?.id) continue;
+      const dirs = featurePathDirs(meta);
+      if (!dirs) continue;
+      checked++;
+
+      const ids = [fp['level-1'].id, fp['level-2'].id, fp['level-3'].id, fp.story.id];
+      const names = [fp['level-1'].name, fp['level-2'].name, fp['level-3'].name, fp.story.name];
+      let parent = changeDir;
+      let broken = false;
+      for (let i = 0; i < dirs.length; i++) {
+        const dir = join(parent, dirs[i]);
+        if (!(await pathExists(dir))) {
+          // 目录缺失：changes scope 由多仓检查 7 报告（STORY 级）；上级缺失极少见，此处补报
+          if (i < dirs.length - 1) {
+            issues.push(`${e.name}: ${LEVEL_NAMES[i]} 级目录缺失（${dirs[i]}）——重跑 'openspec change skeleton ${e.name}'`);
+          }
+          broken = true;
+          break;
+        }
+        // README 锚点
+        let anchorId = null;
+        let boundChg = null;
+        try {
+          const raw = await readFile(join(dir, 'README.md'), 'utf8');
+          const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+          if (m) {
+            const fm = parse(m[1]) || {};
+            anchorId = fm.id ?? null;
+            boundChg = fm['bound-chg'] ?? null;
+          }
+        } catch {
+          // 无 README → anchorId 保持 null
+        }
+        if (anchorId === null) {
+          issues.push(`${e.name}: ${LEVEL_NAMES[i]} 级 README 锚点缺失（${dirs[i]}/README.md 无 front-matter id）——重跑 'openspec change skeleton ${e.name}' 补齐`);
+          broken = true;
+          break;
+        }
+        if (anchorId !== ids[i]) {
+          issues.push(`${e.name}: ${LEVEL_NAMES[i]} 级锚点损坏（README id '${anchorId}' ≠ feature-path '${ids[i]}'）`);
+          broken = true;
+          break;
+        }
+        if (i === dirs.length - 1 && boundChg !== null && boundChg !== e.name) {
+          issues.push(`${e.name}: STORY README bound-chg '${boundChg}' 与 CHG ID 不一致`);
+        }
+        parent = dir;
+      }
+      if (broken) continue;
+
+      // 树名落后检查（info 级；skeleton 树名同步可修复）。archive 为只读历史，不催。
+      if (scope === 'changes') {
+        for (let i = 0; i < ids.length; i++) {
+          const node = findNodeById(tree, ids[i]);
+          if (!node) continue; // 节点缺失由多仓检查 6 报告
+          if (node.name && names[i] && node.name !== names[i]) {
+            infos.push(`${e.name}: feature-path 名落后于树（${ids[i]}: '${names[i]}' → '${node.name}'）——运行 'openspec change skeleton ${e.name}' 同步`);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  return { issues, infos, checked };
+}
