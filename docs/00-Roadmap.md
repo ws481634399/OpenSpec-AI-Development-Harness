@@ -576,8 +576,9 @@ OpenSpec Harness v1.5
 
 支持：
 
-- Doctor 结构守门（CHG 四级骨架锚点一致性 / features 投影 drift 检查）；
-- CLI 机器可读输出（workflow / gate / du 的 `--json`）。
+- Doctor 结构守门（CHG 四级骨架锚点一致性 / features 派生缓存健康度——Story 缺失 + 遗留文件）；
+- CLI 机器可读输出（workflow / gate / du 的 `--json`）；
+- features/ 投影方案 D（SSOT 派生缓存：先清后重建 + 仅 Story 级 README + `--dry-run` + 审计包相对链接），删除锚点 rename/drift 复杂度。
 
 ---
 

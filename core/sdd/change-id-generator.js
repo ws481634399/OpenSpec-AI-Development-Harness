@@ -5,6 +5,9 @@ import { readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 
 const CHG_PATTERN = /^CHG-(\d{4})$/;
+// 宽松格式（允许 >=4 位数字，默认严格使用 CHG_PATTERN 零填充 4 位）：CHG-NNNN…
+export const CHANGE_ID_REGEX = /^CHG-(\d+)$/;
+export const CHANGE_ID_HINT = "格式: CHG-<数字>（数字部分至少 4 位，例: CHG-0003）";
 
 /**
  * 扫描指定目录下所有匹配 CHG-XXXX 的目录名，返回编号数字数组。

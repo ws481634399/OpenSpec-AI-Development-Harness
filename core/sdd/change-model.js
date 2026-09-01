@@ -2,11 +2,11 @@
 // 对齐 phase-1.3-sdd-lifecycle-artifact-design.md §8.3/§8.4/§8.5/§8.6
 // runChangeCreate 作为纯函数在 Phase 1.3 实现，供 Phase 1.4 sdd-explore 调用
 
-import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { parseDocument, parse } from "yaml";
 import { getHarnessRoot } from "../workspace/harness-root.js";
-import { nextChangeId } from "./change-id-generator.js";
+import { nextChangeId, CHANGE_ID_REGEX, CHANGE_ID_HINT } from "./change-id-generator.js";
 import { featurePathDirs } from "./artifact-path.js";
 import { initEvidence } from "./evidence-model.js";
 
@@ -91,11 +91,44 @@ async function findArchivedMatch(workspaceRoot, { requirement, title }) {
   return null;
 }
 
+// Phase 3.7：输入前置校验（CLI/其他 caller 都会过）——避免下游正则/归档静默失败
+function validateCreateInput(input) {
+  const errs = [];
+  // title 非空
+  const title = String(input.title || "").trim();
+  if (!title) errs.push("title 必填（不可全空白）");
+  // id：显式提供时严格按 CHANGE_ID_REGEX 检查（含 4 位数字要求，避免 CHG-2 这种）
+  if (input.id !== undefined && input.id !== null) {
+    const raw = String(input.id).trim();
+    if (!CHANGE_ID_REGEX.test(raw)) {
+      errs.push(`id 不符合格式: '${raw}'，${CHANGE_ID_HINT.replace("至少 4 位", " >= 1 位（标准为 4 位零填充）")}`);
+    } else if (CHANGE_ID_REGEX.exec(raw)[1].length < 4) {
+      errs.push(`id 数字部分应 >= 4 位: '${raw}'（标准: CHG-0003，或省略 --id 自动分配）`);
+    }
+  }
+  // requirement：可选，但若提供就需形如 REQ-XXX（宽松但可被识别）
+  if (input.requirement) {
+    const req = String(input.requirement).trim();
+    if (req && !/^[A-Z][A-Z0-9_-]*-\S+/.test(req) && req.length < 4) {
+      errs.push(`requirement 若提供需为可识别标识（例: REQ-42），当前: '${req}'`);
+    }
+  }
+  // repositories：字符串数组
+  if (input.repositories !== undefined && input.repositories !== null) {
+    if (!Array.isArray(input.repositories) ||
+        input.repositories.some((r) => typeof r !== "string" || !r.trim())) {
+      errs.push("repositories 必须为非空字符串数组");
+    }
+  }
+  if (errs.length) throw new Error("Change 创建参数错误: " + errs.join("; "));
+  return { title: title, requirement: input.requirement ? String(input.requirement).trim() : undefined };
+}
+
 /**
  * 创建 CHG-XXX 载体（生命周期容器初始化）。
  *
  * 流程（§8.5，Phase 2.4 metadata schema v2 增补）：
- * 1. nextChangeId 扫描 changes + archive 取最大 +1
+ * 1. nextChangeId 扫描 changes + archive 取最大 +1（input.id 显式指定时跳过，并校验唯一性）
  * 2. mkdir delivery/changes/<id>/evidence/ + references/
  * 3. 读 templates/artifacts/metadata.yaml 模板（保留注释）
  * 4. setIn 填充 schema-version: 2/id/title/summary/status:created/requirement/created-at/updated-at/repositories
@@ -106,13 +139,28 @@ async function findArchivedMatch(workspaceRoot, { requirement, title }) {
  *
  * @param {string} workspaceRoot Workspace 根目录绝对路径
  * @param {{title:string,summary?:string,requirement?:string,repositories?:string[],
- *          featurePath?:object}} input
+ *          featurePath?:object,id?:string}} input
  * @param {string} [harnessRoot] 可选，测试注入
  * @returns {Promise<{id:string,changeDir:string}>}
  */
 export async function runChangeCreate(workspaceRoot, input, harnessRoot) {
   const root = harnessRoot || getHarnessRoot();
-  const id = await nextChangeId(workspaceRoot);
+  const { title: cleanTitle, requirement: cleanReq } = validateCreateInput(input);
+  const pathExists = (p) => stat(p).then(() => true).catch((e) => (e.code === "ENOENT" ? false : Promise.reject(e)));
+
+  let id;
+  if (input.id !== undefined && input.id !== null && String(input.id).trim()) {
+    id = String(input.id).trim();
+    const autoId = await nextChangeId(workspaceRoot);
+    const changesDir = join(workspaceRoot, "delivery", "changes", id);
+    const archiveDir = join(workspaceRoot, "delivery", "archive", id);
+    const [liveExists, archiveExists] = await Promise.all([pathExists(changesDir), pathExists(archiveDir)]);
+    if (liveExists || archiveExists) {
+      throw new Error(`Change ID 已存在: ${id}（建议省略 --id 自动分配，下一个可用: ${autoId}）`);
+    }
+  } else {
+    id = await nextChangeId(workspaceRoot);
+  }
   const changeDir = join(workspaceRoot, "delivery", "changes", id);
 
   await mkdir(changeDir, { recursive: true });
@@ -134,10 +182,10 @@ export async function runChangeCreate(workspaceRoot, input, harnessRoot) {
   const now = new Date().toISOString();
   doc.setIn(["schema-version"], 2);
   doc.setIn(["id"], id);
-  doc.setIn(["title"], input.title || "");
-  if (input.summary !== undefined) doc.setIn(["summary"], input.summary);
+  doc.setIn(["title"], cleanTitle);
+  if (input.summary !== undefined) doc.setIn(["summary"], String(input.summary).trim());
   doc.setIn(["status"], "created");
-  doc.setIn(["requirement"], input.requirement || "");
+  doc.setIn(["requirement"], cleanReq || "");
   doc.setIn(["created-at"], now);
   doc.setIn(["updated-at"], now);
   if (Array.isArray(input.repositories) && input.repositories.length > 0) {
@@ -153,10 +201,10 @@ export async function runChangeCreate(workspaceRoot, input, harnessRoot) {
   }
 
   // §8.6.5 查 archive 关联历史（用户提供 requirement 或 title 时）
-  if (input.requirement || input.title) {
+  if (cleanReq || cleanTitle) {
     const archived = await findArchivedMatch(workspaceRoot, {
-      requirement: input.requirement,
-      title: input.title,
+      requirement: cleanReq,
+      title: cleanTitle,
     });
     if (archived) doc.setIn(["related-change"], archived);
   }

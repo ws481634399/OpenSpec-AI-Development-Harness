@@ -72,17 +72,17 @@ export function registerDoctorCommand(program) {
           // IDE 规则检查是可选增强，失败静默
         }
 
-        // Phase 3.5：product/features 四级投影检查（缺失=提示 materialize / drift=报告）
+        // Phase 3.8：product/features 派生缓存健康度（方案 D 重建模式）——info 级
         try {
           const proj = await checkFeaturesProjection(ws);
-          if (proj.missing.length > 0) {
+          if (proj.missingStories.length > 0) {
             versionInfos.push(
-              `features/ 投影缺失 ${proj.missing.length} 个节点目录——运行 'openspec feature materialize'`,
+              `features/ ${proj.missingStories.length} 个 Story 未投影（共 ${proj.storyInTree} 个）——运行 'openspec feature materialize'`,
             );
           }
-          if (proj.drifted.length > 0) {
+          if (proj.extraneousFiles.length > 0) {
             versionInfos.push(
-              `features/ drift（目录无对应树节点，未删除）：${proj.drifted.join("、")}`,
+              `features/ 下存在 ${proj.extraneousFiles.length} 个非受管文件（如 L1/L2/L3 遗留 README）——运行 'openspec feature materialize' 重建清理`,
             );
           }
           multiChecked += 1;

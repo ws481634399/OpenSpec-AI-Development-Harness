@@ -1,10 +1,13 @@
-// FeatureDirname：四级物理目录的纯名字段生成与锚点同步（Phase 3.5 修订 v0.3）
+// FeatureDirname：目录段清洗 + CHG 骨架侧锚点辅助（Phase 3.8 精简）
 //
-// 目录段 = 业务名（用户决策：纯名字，如 平台基座/用户管理/账户能力/用户登录）
-// 两大问题与对策：
-// 1. 名字漂移：树上改名后旧目录无法凭名字找到 → 以目录内 README.md front-matter 的 id
-//    作为锚点；重跑 skeleton/materialize 时按锚点 rename 同步
-// 2. 同名冲突：不同 id 的节点拿到同一目录名 → 检测后抛错（不自动加后缀，保持纯名字）
+// 拆分 responsibilities：
+// - featureDirSeg：纯名字段生成（被 CHG 骨架 / features 派生缓存共用）
+// - findNodeDirByAnchor / syncNodeDirName：仅服务于 **CHG 骨架侧** 的目录 rename 同步
+//   （即 delivery/changes/<CHG>/... 内的四级骨架）。那里 README 锚点机制仍保留
+//   （因为 CHG 的目录是长期随 feature-tree 改名而迁移的，不是"派生缓存"概念）。
+//
+// 注意：product/features/ 侧的 materialize 在方案 D 之后是"先清后重建"，不再使用
+//       本文件的锚点 rename 函数（feature-materializer.js 不再 import 它们）。
 
 import { readdir, rename, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -32,8 +35,8 @@ export function featureDirSeg(id, name) {
 }
 
 /**
- * 按 id 锚点扫描父目录下已存在的节点目录。
- * 锚点 = 目录内 README.md front-matter 的 id 字段（由 skeleton/materialize 生成，受管）。
+ * 按 id 锚点扫描父目录下已存在的节点目录（CHG 骨架专用）。
+ * 锚点 = 目录内 README.md front-matter 的 id 字段（由 change-skeleton 生成）。
  *
  * @param {string} parentDir 父目录绝对路径
  * @param {string} nodeId 节点 ID
@@ -69,11 +72,11 @@ export async function findNodeDirByAnchor(parentDir, nodeId) {
 }
 
 /**
- * 同步节点目录名到期望段名（锚点 rename）。
+ * 同步节点目录名到期望段名（锚点 rename，CHG 骨架专用）。
  *
  * - 锚点命中且名字与期望一致 → 原样返回（幂等）
  * - 锚点命中但名字不同 → rename 到新名字
- * - 目标名字已被其他目录（无锚点或不同锚点）占用 → 抛错（同名冲突）
+ * - 目标名字已被其他目录占用 → 抛错（同名冲突）
  * - 无锚点命中 → 返回 null（调用方走新建路径）
  *
  * @param {string} parentDir

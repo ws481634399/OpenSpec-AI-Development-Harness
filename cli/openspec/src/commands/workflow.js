@@ -8,9 +8,10 @@ import { Command } from 'commander';
 import { outro, note } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error, info } from '../lib/logger.js';
-import { changeExists } from '../../../../core/sdd/change-repository.js';
+import { changeExists, listChanges } from '../../../../core/sdd/change-repository.js';
 import { listWorkflows, loadWorkflow } from '../../../../core/sdd/workflow-loader.js';
 import { runWorkflow } from '../../../../core/sdd/workflow-engine.js';
+import { readMetadata } from '../../../../core/sdd/change-model.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 
 /**
@@ -84,6 +85,16 @@ export function registerWorkflowCommand(program) {
       try {
         if (!(await changeExists(ws, opts.change))) {
           throw new Error(`Change not found: ${opts.change}`);
+        }
+        // Phase 3.7：--du 仅 dev/test 阶段生效；当前不是 developing/testing 立即报错，不静默忽略
+        if (opts.du) {
+          const meta = await readMetadata(join(ws, 'delivery', 'changes', opts.change));
+          const st = meta.status || 'created';
+          if (st !== 'developing' && st !== 'testing') {
+            throw new Error(
+              `--du 仅在 developing/testing 阶段生效（当前状态: ${st}）。请先推进到 dev/test，或移除 --du。`
+            );
+          }
         }
         const harnessRoot = getHarnessRoot();
         const result = await runWorkflow(ws, opts.change, {

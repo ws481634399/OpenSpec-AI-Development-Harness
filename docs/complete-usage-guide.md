@@ -150,10 +150,10 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
   （requirement/exploration/prd/design/tasks/implementation/evidence 等）按
   `<CHG>/<L1名>/<L2名>/<L3名>/<STORY名>/` 第四级 STORY 目录存放；未绑定或 candidate
   时暂存 CHG 根，绑定后由 skeleton 自动迁移
-- **四级骨架物化（Phase 3.5）**：`bind-feature-path` 成功（非 candidate）时立即在 CHG 内
-  物化四级业务名目录骨架并写 STORY README（id/name/status/绑定 CHG）。目录段为**纯业务名**
-  （feature-tree.yaml 为权威源），README front-matter 的 `id` 作锚点，树改名后重跑按锚点
-  rename 同步；CHG 根迁移后只留 metadata.yaml + 四级骨架。归档时骨架随目录整体迁移。
+- **四级骨架物化（Phase 3.5 / v0.3）**：`bind-feature-path` 成功（非 candidate）时立即在 CHG 内
+  物化四级业务名目录骨架并写 README（L1/L2/L3/STORY 四级 README 作为 CHG 内部锚点）。目录段为**纯业务名**
+  （feature-tree.yaml 为权威源），CHG 内部 README front-matter 的 `id` 作锚点，树改名后重跑 `change skeleton`
+  按锚点 rename 同步；CHG 根迁移后只留 metadata.yaml + 四级骨架。归档时骨架随目录整体迁移。
   存量/归档 CHG 用 `openspec change skeleton <CHG>` 幂等补齐
 
 **目录形态示例（业务名段）：**
@@ -161,8 +161,8 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 ```
 delivery/changes/CHG-0002/平台基座/用户管理/账户能力/用户登录/   ← CHG 内四级骨架
     ├── requirement.md / prd.md / tasks.md / evidence/ …        ← 全部产物落 STORY 目录
-    └── README.md                                               ← front-matter id 作锚点
-product/features/平台基座/用户管理/账户能力/用户登录/README.md   ← 产品世界物理投影
+    └── README.md                                               ← CHG 内部锚点
+product/features/平台基座/用户管理/账户能力/用户登录/README.md   ← 产品世界派生缓存（仅 Story 级有人读内容，L1-L3 空目录）
 ```
 
 - **Delivery Unit（DU）**：1 DU = 1 仓库的 **Repository-specific executable delivery specification**
@@ -199,8 +199,8 @@ product/features/平台基座/用户管理/账户能力/用户登录/README.md  
 | 7   | 开发       | sdd-dev      | developing      | 代码 + repo 侧 implementation.md + result commit                          | repo 侧 DU 目录被填充；STORY 不变                                                      | 不动                                                |
 | 8   | 测试       | sdd-test     | testing         | 代码 + repo 侧 evidence/                                                  | repo 侧 DU evidence 累积；STORY 不变                                                   | 不动                                                |
 | 9   | 评审检查点 | sdd-review   | testing（同态） | review-report.md                                                          | 写到 STORY 目录                                                                        | 不动                                                |
-| 10  | 知识收敛   | sdd-converge | completed       | convergence.md + 更新 standards/product/feature-tree.yaml STORY→delivered | STORY 目录收尾；feature-tree 标 STORY-3 delivered                                      | 树状态变更（重跑 materialize 才更新 README status） |
-| 11  | 归档       | （CLI）      | archived        | —                                                                         | **整体迁移到 `delivery/archive/CHG-0003/…/STORY/`**；CHG 根消失                        | 不动（STORY README 的 bound-chg 仍指向 CHG-0003）   |
+| 10  | 知识收敛   | sdd-converge | completed       | convergence.md + 更新 standards/product/feature-tree.yaml STORY→delivered | STORY 目录收尾；feature-tree 标 STORY-3 delivered                                      | 跑 materialize：清空并重建派生缓存（Story README 的 status 变为 delivered） |
+| 11  | 归档       | （CLI）      | archived        | —                                                                         | **整体迁移到 `delivery/archive/CHG-0003/…/STORY/`**；CHG 根消失                        | 不动（下次 materialize 时 CHG 被扫到 archive 侧，Story README 的"Change 历史"会归档高亮） |
 
 #### 4.0.2 阶段 2 完成后（bind-feature-path 触发物化）
 
@@ -303,11 +303,14 @@ delivery/archive/CHG-0003/                            # CHG 平铺一层（保�
 
 #### 4.0.7 何时需要手动跑 `feature materialize`
 
-`product/features/` 投影是**纯产品知识世界**，与 Change 生命周期解耦：
+`product/features/` 是**纯派生缓存**（`feature-tree.yaml` 为唯一权威源 SSOT），每次 materialize 的语义是
+**"先清旧缓存 → 按树重建"**——不再按 README 锚点 rename，也不做"幂等跳过"：
 
-- **首次启用**：项目稳定后跑一次建立物理投影（适合人类浏览 / 对齐团队认知）
-- **树名变更后**：跑一次按锚点 rename 旧目录为新业务名
-- **不强制**：树本身（`feature-tree.yaml`）始终是权威源，features/ 是辅助投影，doctor 只提示 drift 不报错
+- **首次启用**：跑一次建立派生缓存（IDE 层层点进浏览体验）
+- **树结构变更后**（节点改名 / 节点删除 / Story 状态 / 描述 / 绑定 CHG）：跑一次重建
+- **`--dry-run`**：先看差异（哪些目录/文件会被删、哪些新建），决定没问题再实跑
+- **L1/L2/L3 目录为空（无 README）是正常情况**：只在 L4 Story 级写人读 README（面包屑路径 + 描述 + Change 历史表 + 直达审计包链接）
+- **不强制**：`openspec doctor` 只给 info 级提示（Story 缺失 / 旧 README 遗留），不阻断
 
 #### 4.0.8 关键不变量
 
@@ -835,24 +838,26 @@ openspec feature remove STORY-001-01-01   # 需确认
 
 sdd-explore 和 sdd-reverse 会自动调用 sdd-feature-tree，根据需求自动创建 Feature Tree 节点，无需手动管理。
 
-### 8.4 物理投影（Phase 3.5：materialize）
+### 8.4 派生缓存（Phase 3.8 方案 D：materialize）
 
-`feature-tree.yaml` 是唯一权威源，`openspec feature materialize` 把逻辑树投影为物理目录
-（目录段为**纯业务名**，只增不删，幂等）：
+`feature-tree.yaml` 是唯一权威源（SSOT），`openspec feature materialize` 把逻辑树投影为**物理目录派生缓存**
+（目录段为**纯业务名**，语义 = "先清旧缓存，再按树重建"，提供 `--dry-run`）：
 
 ```
 product/features/
-├── 平台基座/README.md                                  # L1 业务域
-│   └── 用户管理/README.md                              # L2 功能组
-│       └── 账户能力/README.md                          # L3 子功能
-│           └── 用户登录/README.md                      # Story（front-matter 记录绑定的 CHG）
+├── 平台基座/                                             # L1 空目录（仅导航，无 README）
+│   └── 用户管理/                                         # L2 空目录（仅导航，无 README）
+│       └── 账户能力/                                     # L3 空目录（仅导航，无 README）
+│           └── 用户登录/
+│               └── README.md                             # Story：面包屑 + 描述 + Change 历史表（active/archive 全量）+ 直达审计包相对链接
 ```
 
-- 各级 README：front-matter（id/name/level/status）+ 正文 description；STORY 级额外记录 `bound-chg`（反查 changes/archive）
-- README front-matter 的 `id` 为**锚点**：树节点改名后重跑 materialize，按锚点找到旧目录
-  并 rename 为新业务名（报告 renamed）；新建节点 → 新建目录
-- 用户自建文件永不触碰；树节点删除/无锚点的旧目录不删除，由 doctor 报 drift
-- `openspec doctor` 检查：投影缺失 → info 提示 materialize；目录有树无 → info 报 drift
+- 只有 L4 Story 级写 README（每次重写，保证 status/描述/绑定 CHG 与树同步）；L1/L2/L3 只建空目录——
+  它们的职责是"让你能在 IDE 里层层点进 Story"，不是人读文档页
+- Story README 内含 Change 历史表（active CHG 优先 + archive 历史倒序），每条带**直达审计包的相对链接**（指向
+  `delivery/<changes|archive>/<CHG>/.../STORY/`），点开就能看到完整产物，不再需要手工到 archive 里翻
+- **不再使用 README 锚点 rename**：SSOT 变更后重跑 = 清旧目录 + 重建；树节点删除后对应目录直接被清理
+- `openspec doctor` 检查：Story 未投影 → info 提示；存在遗留 L1/L2/L3 README 或非受管文件 → info 提示重建
 
 ---
 
@@ -1028,7 +1033,7 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 | 命令                                                                                                     | 用途                                                                                                    |
 | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `openspec change create --title <t> [--requirement <r>]`                                                 | 创建 CHG                                                                                                |
+| `openspec change create --title <t> [--id <CHG-NNNN>] [--requirement <r>] [--summary <s>]`                | 创建 CHG（Phase 3.7：--title 非空；--id 格式 CHG-NNNN 唯一性校验；省略 --id 自动分配）                   |
 | `openspec change list [--status <s>]`                                                                    | 列出 Change                                                                                             |
 | `openspec change show <CHG>`                                                                             | 查看 Change 详情                                                                                        |
 | `openspec change status <CHG>`                                                                           | 查看 Change 状态                                                                                        |
@@ -1036,16 +1041,17 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 | `openspec change archive <CHG>`                                                                          | 归档 Change                                                                                             |
 | `openspec change bind-feature-path <CHG> --story <ID>`                                                   | 绑定四级 feature-path（Phase 2.4），成功即物化 CHG 内四级业务名骨架并迁移产物至 STORY 目录（Phase 3.5） |
 | `openspec change skeleton <CHG>`                                                                         | 为存量/归档 CHG 补物化四级业务名骨架 + 产物迁移 + 树名 rename 同步（幂等，Phase 3.5）                   |
-| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4；Phase 2.5 增 guidance 声明）                                              |
-| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（生成 9 节 task.md 骨架）                                                    |
-| `openspec du list <CHG> [--json]` / `du show <CHG> <DU>`                                                  | 查看 DU（--json 输出聚合状态）                                                                          |
+| `openspec du create <CHG> --id <DU> --repository <repo> [--complexity <triggers>] [--pseudocode <bool>]` | 注册 Workspace DU（Phase 2.4/2.5 guidance；Phase 3.7 前移 DU id 格式校验）                              |
+| `openspec du materialize <CHG> <DU>`                                                                     | 物化 DU 到所属仓 delivery/（Phase 3.7 前移 DU id 格式校验）                                             |
+| `openspec du list <CHG> [--repo <id>] [--json]` / `du show <CHG> <DU>`                                    | 查看 DU（--json 输出；--repo 无匹配时提示 CHG 实际仓库；Phase 3.7 show 前移 DU id 格式校验）            |
 | `openspec du sync-status <CHG> [--json]`                                                                  | 回传 DU baseline/result commit（--json 输出 syncs/dirty）                                               |
+| `openspec workflow run default --change <CHG> [--du <DU>] [--json]`                                      | 执行下一步（Phase 2.7/3.6；Phase 3.7 --du 仅 developing/testing 阶段，其他阶段立即报错）                |
 | `openspec feature list [--module <id>] [--json]`                                                         | 列出 Feature Tree                                                                                       |
 | `openspec feature show <id>`                                                                             | 查看 Feature 节点                                                                                       |
 | `openspec feature add module/feature/story ...`                                                          | 添加节点                                                                                                |
 | `openspec feature update <id> [--name <n>] [--status <s>]`                                               | 更新节点                                                                                                |
 | `openspec feature remove <id>`                                                                           | 删除节点                                                                                                |
-| `openspec feature materialize`                                                                           | 生成 product/features 四级业务名 README 投影，树改名按锚点 rename（幂等，Phase 3.5）                    |
+| `openspec feature materialize`                                                                           | 按 SSOT 重建 product/features 派生缓存（先清后建，仅 Story 级 README，支持 `--dry-run`，Phase 3.8 方案 D）  |
 | `openspec gate check <CHG> --stage <s> [--json]`                                                         | Machine Gate 校验（--json 输出 passed/issues/hash）                                                     |
 | `openspec gate approve <CHG>`                                                                            | Human Gate 审批（交互式，仅人执行）                                                                     |
 | `openspec gate status <CHG> --stage <s> [--json]`                                                        | 查看 Gate 状态（--json 输出 machine/human 门禁记录）                                                    |
@@ -1056,7 +1062,7 @@ Instruction 相应新增两个 section：**DU 绑定**（DU ID / repository / re
 
 | 命令                                                       | 用途                                                                    |
 | ---------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `openspec doctor`                                          | Workspace 自检（结构/字段/版本 + 多仓架构 + CHG 骨架锚点一致性 + features 投影 drift，Phase 3.6） |
+| `openspec doctor`                                          | Workspace 自检（结构/字段/版本 + 多仓架构 + CHG 骨架锚点一致性 + features 派生缓存健康度，Phase 3.6/3.8） |
 | `openspec status`                                          | 状态概览                                                                |
 | `openspec status --json`                                   | 状态概览（JSON，供 Agent）                                              |
 | `openspec validate <CHG>`                                  | 校验 Change                                                             |

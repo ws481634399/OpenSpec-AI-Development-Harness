@@ -209,87 +209,128 @@ test('materializeChangeSkeleton: CHG 根存量产物迁移至 STORY 目录 + 树
 });
 
 // ---- feature-materializer ----
+// Phase 3.8 方案 D：派生缓存（先清后重建），L1-L3 只建空目录，只在 Story 级写 README
 
-test('materializeFeatures: 四级 README 投影（业务名目录）+ STORY README 记录绑定 CHG（反查 changes/archive）', async () => {
+test('materializeFeatures: 重建派生缓存（4 个目录 + 1 个 Story README）+ Story README 含 Change 历史', async () => {
   const root = await ws();
   await seedChange(root, { id: 'CHG-0002', meta: CHG_META });
   await seedChange(root, { scope: 'archive', id: 'CHG-0001', meta: ARCHIVE_META });
 
   const r = await materializeFeatures(root);
-  // 8 条：4 个目录 + 4 个 README（L1/L2/L3/STORY）
-  assert.equal(r.created.length, 8);
-  assert.ok(r.created.includes(join('product', 'features', '平台基座', 'README.md')));
-  assert.ok(r.created.includes(join('product', 'features', '平台基座', '账户能力', 'README.md')));
-  assert.ok(r.created.includes(join('product', 'features', '平台基座', '账户能力', '认证', 'README.md')));
-  assert.ok(
-    r.created.includes(join('product', 'features', '平台基座', '账户能力', '认证', '用户登录', 'README.md'))
-  );
-  assert.equal(r.drifted.length, 0);
+  // 4 个目录（L1/L2/L3/Story）+ 1 个 Story README
+  assert.equal(r.createdDirs.length, 4);
+  assert.equal(r.createdFiles.length, 1);
+  assert.ok(r.removedDirs.length === 0);
+  assert.ok(r.createdFiles[0].endsWith(join('用户登录', 'README.md')));
 
+  // L1/L2/L3 不写 README
+  assert.ok(!(await pathExists(join(root, 'product', 'features', '平台基座', 'README.md'))));
+  assert.ok(!(await pathExists(join(root, 'product', 'features', '平台基座', '账户能力', 'README.md'))));
+  assert.ok(!(await pathExists(join(root, 'product', 'features', '平台基座', '账户能力', '认证', 'README.md'))));
+
+  // Story README 含 Change 历史（active 优先 + 面包屑 + 审计包链接）
   const storyReadme = await readFile(
     join(root, 'product', 'features', '平台基座', '账户能力', '认证', '用户登录', 'README.md'),
     'utf8'
   );
   const fm = parse(storyReadme.split('---')[1]);
-  assert.equal(fm['bound-chg'], 'CHG-0002'); // active 优先于 archive
+  assert.equal(fm.id, 'STORY-2');
+  assert.equal(fm.level, 'story');
+  assert.equal(fm.status, 'planned');
+  assert.ok(storyReadme.includes('## Change 历史'));
+  assert.ok(storyReadme.includes('CHG-0002')); // active
+  assert.ok(storyReadme.includes('CHG-0001')); // archive
+  assert.ok(storyReadme.includes('路径：')); // 面包屑
+  assert.ok(/\/delivery\/changes\/CHG-0002\//.test(storyReadme)); // 审计包相对链接
   await rmrf(root);
 });
 
-test('materializeFeatures: 幂等 + 用户自建 README 不覆盖 + 树改名目录 rename', async () => {
+test('materializeFeatures: dry-run 不写盘 + 返回差异计划', async () => {
   const root = await ws();
-  const r1 = await materializeFeatures(root);
-  assert.equal(r1.created.length, 8);
+  const dry = await materializeFeatures(root, { dryRun: true });
+  assert.equal(dry.dryRun, true);
+  assert.equal(dry.storyCount, 1);
+  // 磁盘上 features 目录空（不写盘）
+  const storyReadme = join(root, 'product', 'features', '平台基座', '账户能力', '认证', '用户登录', 'README.md');
+  assert.ok(!(await pathExists(storyReadme)));
+  // 实跑后文件应存在
+  const r = await materializeFeatures(root);
+  assert.equal(r.dryRun, false);
+  assert.ok(await pathExists(storyReadme));
+  await rmrf(root);
+});
 
-  const readme = join(root, 'product', 'features', '平台基座', 'README.md');
-  await writeFile(readme, '# 我的模块说明');
-  const r2 = await materializeFeatures(root);
-  assert.equal(r2.created.length, 0);
-  assert.equal(r2.skipped, 4);
-  assert.equal(await readFile(readme, 'utf8'), '# 我的模块说明');
+test('materializeFeatures: 树改名 → 重建时清掉旧目录段，不依赖锚点 rename', async () => {
+  const root = await ws();
+  await materializeFeatures(root);
+  const oldReadme = join(root, 'product', 'features', '平台基座', '账户能力', '认证', '用户登录', 'README.md');
+  assert.ok(await pathExists(oldReadme));
 
-  // 树改名 L2：账户能力 → 用户管理（锚点 rename，README 保留）
+  // L2 改名：账户能力 → 用户管理（树为权威，materialize = 重建，非锚点 rename）
   await writeFile(
     join(root, 'product', 'feature-tree.yaml'),
     TREE_YAML.replace('name: 账户能力', 'name: 用户管理')
   );
-  const r3 = await materializeFeatures(root);
-  assert.ok(r3.renamed.includes(['平台基座', '用户管理'].join('/')));
-  const renamedReadme = join(root, 'product', 'features', '平台基座', '用户管理', 'README.md');
-  assert.ok(await pathExists(renamedReadme));
-  assert.ok(await pathExists(join(root, 'product', 'features', '平台基座', '用户管理', '认证', '用户登录', 'README.md')));
-  await rmrf(root);
-});
-
-test('materializeFeatures: drift 报告（目录有树无），不删除', async () => {
-  const root = await ws();
-  const stale = join(root, 'product', 'features', 'FEAT-9');
-  await mkdir(stale, { recursive: true });
-  await writeFile(join(stale, 'README.md'), 'x');
-
   const r = await materializeFeatures(root);
-  assert.deepEqual(r.drifted, ['FEAT-9']);
-  assert.ok(await pathExists(stale)); // 未删除
+  assert.ok(r.removedDirs.some((d) => d.includes('账户能力'))); // 旧目录被清
+  const newReadme = join(root, 'product', 'features', '平台基座', '用户管理', '认证', '用户登录', 'README.md');
+  assert.ok(await pathExists(newReadme));
+  assert.ok(!(await pathExists(join(root, 'product', 'features', '平台基座', '用户管理', 'README.md')))); // L2 仍无 README
   await rmrf(root);
 });
 
-test('checkFeaturesProjection: 空 features 全 missing → materialize 后归零 → drift 单独报告', async () => {
+test('materializeFeatures: 树删除节点 → 重建时整目录移除（原 drift 直接被清）', async () => {
+  const root = await ws();
+  await materializeFeatures(root);
+  const p = join(root, 'product', 'features', '平台基座', '账户能力', '认证', '用户登录', 'README.md');
+  assert.ok(await pathExists(p));
+
+  // 树中删掉 STORY-2：整棵树 modules 为空（仅 L1 也没用）——模拟树节点删除
+  const emptyTree = `product:\n  name: AI 平台\n  description: 企业级 AI 能力平台\nfeatures: []\n`;
+  await writeFile(join(root, 'product', 'feature-tree.yaml'), emptyTree);
+  const r = await materializeFeatures(root);
+  // L1 平台基座为 obsolete（整目录被删）——removedDirs = ["平台基座"]
+  assert.ok(r.removedDirs.includes('平台基座'));
+  assert.ok(!(await pathExists(p)));
+  await rmrf(root);
+});
+
+test('materializeFeatures: 遗留 L1/L2/L3 README / 手工文件 → 重建时被列为 extraneous 并删除', async () => {
+  const root = await ws();
+  // 模拟老版本遗留：L1 README + 用户手加 notes.txt
+  const l1Readme = join(root, 'product', 'features', '平台基座', 'README.md');
+  const notes = join(root, 'product', 'features', '平台基座', 'notes.txt');
+  await mkdir(join(root, 'product', 'features', '平台基座'), { recursive: true });
+  await writeFile(l1Readme, '# 遗留模块说明');
+  await writeFile(notes, 'handmade');
+  const r = await materializeFeatures(root);
+  assert.ok(r.removedFiles.includes(join('平台基座', 'README.md')) ||
+            r.removedDirs.includes('平台基座')); // 如果目录本身被重建则在 removedDirs
+  assert.ok(r.removedFiles.includes(join('平台基座', 'notes.txt')) ||
+            r.removedDirs.includes('平台基座'));
+  assert.ok(!(await pathExists(l1Readme)));
+  assert.ok(!(await pathExists(notes)));
+  await rmrf(root);
+});
+
+test('checkFeaturesProjection: 未 materialize → missingStories；materialize → 归零；删节点后 extraneous', async () => {
   const root = await ws();
   await seedChange(root, { id: 'CHG-0002', meta: CHG_META });
 
   let proj = await checkFeaturesProjection(root);
-  assert.equal(proj.missing.length, 4);
-  assert.equal(proj.drifted.length, 0);
+  assert.equal(proj.missingStories.length, 1);
+  assert.equal(proj.storyInTree, 1);
+  assert.equal(proj.storyOnDisk, 0);
 
   await materializeFeatures(root);
   proj = await checkFeaturesProjection(root);
-  assert.equal(proj.missing.length, 0);
+  assert.equal(proj.missingStories.length, 0);
+  assert.equal(proj.storyOnDisk, 1);
 
-  // 树中删掉节点模拟 drift（写一棵缺 STORY-2 的树）
-  await writeFile(
-    join(root, 'product', 'feature-tree.yaml'),
-    TREE_YAML.replace(/              - id: STORY-2[\s\S]*?status: planned\n/, '')
-  );
+  // extraneous：塞遗留文件
+  const f = join(root, 'product', 'features', '平台基座', 'README.md');
+  await writeFile(f, '#遗留');
   proj = await checkFeaturesProjection(root);
-  assert.ok(proj.drifted.some((d) => d.includes('用户登录')));
+  assert.ok(proj.extraneousFiles.some((pth) => pth.endsWith('README.md')));
   await rmrf(root);
 });

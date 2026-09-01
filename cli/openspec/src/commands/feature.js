@@ -256,22 +256,30 @@ export function registerFeatureCommand(program) {
       }
     });
 
-  // materialize：product/features 四级物理投影（Phase 3.5，只增不删，幂等）
+  // materialize：按 SSOT feature-tree.yaml 全量重建 product/features/ 派生缓存（Phase 3.8 方案 D）
+  // 语义：先清旧缓存 → 按树建 L1/L2/L3 空目录 + 只在 Story 级写人读 README（含 CHG 历史与归档链接）。
   feature
     .command('materialize')
-    .description('按 feature-tree.yaml 生成 product/features/ 四级目录 README 投影（幂等）')
-    .action(async () => {
+    .description('按 feature-tree.yaml 重建 product/features/ 派生缓存（清空后重建，仅 Story 级写 README）')
+    .option('--dry-run', '只打印重建计划，不写盘')
+    .action(async (opts) => {
       try {
         const ws = resolveWorkspaceRoot();
-        const r = await materializeFeatures(ws);
-        if (r.created.length === 0) {
-          ok(`features/ 已与特性树同步（${r.skipped} 个 README 已存在）`);
-        } else {
-          ok(`生成 ${r.created.length} 个 README：`);
-          for (const f of r.created) ok(`  ${f}`);
-        }
-        if (r.drifted.length > 0) {
-          warn(`发现 drift（目录存在但树中无对应节点，未删除）：${r.drifted.join('、')}`);
+        const r = await materializeFeatures(ws, { dryRun: !!opts.dryRun });
+        const header = opts.dryRun ? '【dry-run】features/ 派生缓存重建计划：' : 'features/ 派生缓存重建完成：';
+        note(
+          [
+            header,
+            `Story 数：${r.storyCount}`,
+            `新增目录：${r.createdDirs.length}`,
+            `写 Story README：${r.createdFiles.length}`,
+            `移除旧目录：${r.removedDirs.length}${r.removedDirs.length ? '：' + r.removedDirs.join('、') : ''}`,
+            `移除旧文件：${r.removedFiles.length}${r.removedFiles.length ? '：' + r.removedFiles.join('、') : ''}`,
+          ].join('\n'),
+          'Materialize'
+        );
+        if (!opts.dryRun) {
+          ok(`features/ 派生缓存已重建（${r.storyCount} 个 Story）`);
         }
         outro('Done.');
       } catch (e) {

@@ -21,6 +21,7 @@ import {
   syncDuCommits,
   readRepositories,
   writeWorkspaceDu,
+  DU_ID_PATTERN,
 } from '../../../../core/sdd/delivery-unit.js';
 import { readMetadata } from '../../../../core/sdd/change-model.js';
 import { resolveArtifactPath } from '../../../../core/sdd/artifact-path.js';
@@ -81,6 +82,10 @@ export function registerDuCommand(program) {
       try {
         const changeDir = join(ws, 'delivery', 'changes', changeId);
         const meta = await readMetadata(changeDir);
+        // Phase 3.7：前移格式校验，避免写半份 metadata 后报错
+        if (!DU_ID_PATTERN.test(opts.id)) {
+          throw new Error(`DU id 不符合格式: '${opts.id}'（需 DU-<别名>-NNN，别名 2-8 位大写字母数字，数字 3 位零填充；例 DU-BE-001）`);
+        }
         // Phase 2.5 §4.4：--complexity 命中任一 → pseudocode 自动置 true（显式 false 覆盖并告警）
         const triggers = opts.complexity
           ? opts.complexity.split(',').map((s) => s.trim()).filter(Boolean)
@@ -154,7 +159,16 @@ export function registerDuCommand(program) {
         }
 
         if (items.length === 0) {
-          note('No Delivery Units found.（DU 由 sdd-task 在 task 阶段创建）', changeId);
+          // Phase 3.7：--repo 过滤无匹配时告知是仓库问题，还是 CHG 本来就没有 DU
+          const hasAny = agg.total > 0;
+          if (opts.repo && hasAny) {
+            note(
+              `No DU matched repo: ${opts.repo}（当前 CHG DU 所属仓库: ${Array.from(new Set(agg.dus.map((d) => d.repository))).join(', ')}）`,
+              changeId
+            );
+          } else {
+            note('No Delivery Units found.（DU 由 sdd-task 在 task 阶段创建）', changeId);
+          }
         } else {
           const lines = items.map(
             (d) =>
@@ -186,6 +200,10 @@ export function registerDuCommand(program) {
     .action(async (changeId, duId) => {
       const ws = resolveWorkspaceRoot();
       try {
+        // Phase 3.7：前移 DU id 格式校验
+        if (!DU_ID_PATTERN.test(duId)) {
+          throw new Error(`DU id 不符合格式: '${duId}'（需 DU-<别名>-NNN；例 DU-BE-001）`);
+        }
         const changeDir = join(ws, 'delivery', 'changes', changeId);
         const meta = await readMetadata(changeDir);
         const dus = await readWorkspaceDus(changeDir, meta);
@@ -225,6 +243,10 @@ export function registerDuCommand(program) {
     .action(async (changeId, duId) => {
       const ws = resolveWorkspaceRoot();
       try {
+        // Phase 3.7：前移 DU id 格式校验（避免跑到仓库 mkdir 后才抛脏错误）
+        if (!DU_ID_PATTERN.test(duId)) {
+          throw new Error(`DU id 不符合格式: '${duId}'（需 DU-<别名>-NNN；例 DU-BE-001）`);
+        }
         const changeDir = join(ws, 'delivery', 'changes', changeId);
         const meta = await readMetadata(changeDir);
         await ensureTasksAccepted(changeDir, meta, duId);

@@ -26,16 +26,21 @@ export function registerChangeCommand(program) {
   // create：创建 CHG 载体（Agent 原子操作）
   change
     .command('create')
-    .requiredOption('--title <text>', 'Change 标题')
-    .option('--requirement <req>', '需求来源标识（REQ-XXX）')
+    .requiredOption('--title <text>', 'Change 标题（非空）')
+    .option('--id <custom-id>', '自定义 Change ID（Phase 3.7：格式 CHG-NNNN，省略则按最大编号自动分配）')
+    .option('--requirement <req>', '需求来源标识（例 REQ-XXX）')
     .option('--summary <text>', 'Change 摘要')
     .action(async (opts) => {
       const ws = resolveWorkspaceRoot();
       try {
-        const result = await runChangeCreate(ws, { title: opts.title, requirement: opts.requirement, summary: opts.summary }, getHarnessRoot());
+        const result = await runChangeCreate(
+          ws,
+          { id: opts.id, title: opts.title, requirement: opts.requirement, summary: opts.summary },
+          getHarnessRoot()
+        );
         ok(`${result.id} created`);
         note(`Path: ${result.changeDir}`, result.id);
-        outro('Done.');
+        outro('Done. 下一步：`feature bind-tree` 或 `workflow run default --change ' + result.id + '`');
       } catch (e) {
         error(e.message);
         outro('Create failed.');
