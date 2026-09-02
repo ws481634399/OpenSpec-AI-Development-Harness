@@ -1,10 +1,10 @@
-# OpenSpec SDD Skill 定义（骨架）
+﻿# OpenSpec SDD Skill 定义（骨架）
 #
 # 版本: 0.2.0
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-test
-version: 0.2.0
+version: 0.2.1
 stage: test
 description: 测试阶段 Skill——验证实现，生成 Evidence，检查质量
 input:

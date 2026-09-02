@@ -1,6 +1,6 @@
 {
   "name": "openspec-ai-development-harness",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "OpenSpec AI Development Harness - SDD framework for AI Coding Agents",
   "type": "module",

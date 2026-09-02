@@ -1,10 +1,10 @@
-# OpenSpec SDD Skill 定义（骨架）
+﻿# OpenSpec SDD Skill 定义（骨架）
 #
 # 版本: 0.2.0
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-design
-version: 0.2.0
+version: 0.2.1
 stage: design
 description: 技术设计阶段 Skill——制定技术方案，分析架构影响与风险
 input:

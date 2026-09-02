@@ -1,4 +1,4 @@
-# OpenSpec SDD Skill 定义（骨架）
+﻿# OpenSpec SDD Skill 定义（骨架）
 #
 # 版本: 0.2.0
 # 类型: Skill 元数据 + Artifact Contract
@@ -6,7 +6,7 @@
 # 见 plans/phase-2.2-sdd-review-skill-design.md §4.1
 
 id: sdd-review
-version: 0.2.0
+version: 0.2.1
 stage: review
 description: 评审检查点 Skill——需求一致性 / 设计一致性 / 代码质量 / 知识同步四项检查
 input:

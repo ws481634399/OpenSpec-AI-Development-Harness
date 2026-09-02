@@ -134,8 +134,11 @@ test('syncSkills: dry-run 零写入，changed 检出', async () => {
 test('syncSkills: 实际同步后版本对齐', async () => {
   const tmp = await makeOldWorkspace('sync-');
   await syncSkills(harnessRoot, tmp);
+  // Skill 版本独立于 Harness 版本（prd/converge 等各自 bump）：同步后应与 Harness 中该 Skill 版本一致
+  const expected = await readFile(join(harnessRoot, 'skills', 'sdd-explore', 'skill.yaml'), 'utf8');
+  const expectedVersion = expected.match(/^version:\s*(\S+)/m)[1];
   const raw = await readFile(join(tmp, 'skills', 'sdd-explore', 'skill.yaml'), 'utf8');
-  assert.ok(raw.includes(`version: ${harnessVersion}`));
+  assert.ok(raw.includes(`version: ${expectedVersion}`));
   await rmrf(tmp);
 });
 
@@ -207,9 +210,11 @@ test('applyUpgrade: 全量升级（skills + 迁移 + version.yaml）', async () 
   const report = await applyUpgrade(tmp, harnessRoot);
   assert.equal(report.upToDate, false);
 
-  // skills 同步
+  // skills 同步（Skill 版本独立于 Harness 版本，与 Harness 中该 Skill 版本对齐即可）
+  const expectedSkill = await readFile(join(harnessRoot, 'skills', 'sdd-explore', 'skill.yaml'), 'utf8');
+  const expectedSkillVersion = expectedSkill.match(/^version:\s*(\S+)/m)[1];
   const skillRaw = await readFile(join(tmp, 'skills', 'sdd-explore', 'skill.yaml'), 'utf8');
-  assert.ok(skillRaw.includes(`version: ${harnessVersion}`));
+  assert.ok(skillRaw.includes(`version: ${expectedSkillVersion}`));
 
   // 迁移已执行
   const rulesRaw = await readFile(join(tmp, '.sdd', 'context-rules.yaml'), 'utf8');

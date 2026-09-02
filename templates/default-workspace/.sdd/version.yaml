@@ -24,7 +24,7 @@
 
 harness:
 
-  version: "0.2.0"
+  version: "0.3.0"
 
 
 # Workspace Template 版本
@@ -37,7 +37,7 @@ harness:
 
 workspace-template:
 
-  version: "0.2.0"
+  version: "0.3.0"
 
 
 # Schema 版本

@@ -173,10 +173,13 @@ export async function migrateChangeSchemaV2toV3(workspaceRoot) {
 }
 
 /**
- * 更新 .sdd/version.yaml 的 harness.version 与 workspace-template.version（Document API 保留注释）。
- * schema.version 不动。
+ * 更新版本记录文件。
+ * - version.yaml：harness + workspace-template 双版本（权威版本记录；schema.version 不动）
+ * - workspace.yaml：workspace.harness.version 快照（init 时写入；doctor 校验与 version.yaml 一致，
+ *   缺失/损坏则容错跳过——该文件仅含 name/type/版本快照，不影响升级主流程）
  * @param {string} workspaceRoot Workspace 根目录
- * @param {{harnessVersion:string, templateVersion:string}} v
+ * @param {{harnessVersion:string, templateVersion:string}} [v]
+ * @returns {Promise<{workspaceYamlTouched: boolean}>}
  */
 async function patchWorkspaceVersionYaml(workspaceRoot, { harnessVersion, templateVersion }) {
   const p = join(workspaceRoot, '.sdd', 'version.yaml');
@@ -184,6 +187,20 @@ async function patchWorkspaceVersionYaml(workspaceRoot, { harnessVersion, templa
   doc.setIn(['harness', 'version'], harnessVersion);
   doc.setIn(['workspace-template', 'version'], templateVersion);
   await writeFile(p, doc.toString(), 'utf8');
+
+  // 同步 workspace.yaml 的 harness 版本快照（Phase 4.2+ 缺口修复：
+  // 不同步会导致 doctor 报「workspace.yaml 记录版本与 version.yaml 不一致」）
+  let workspaceYamlTouched = false;
+  const wsP = join(workspaceRoot, '.sdd', 'workspace.yaml');
+  try {
+    const wsDoc = parseDocument(await readFile(wsP, 'utf8'));
+    wsDoc.setIn(['workspace', 'harness', 'version'], harnessVersion);
+    await writeFile(wsP, wsDoc.toString(), 'utf8');
+    workspaceYamlTouched = true;
+  } catch {
+    // workspace.yaml 缺失/损坏 → 容错跳过（version.yaml 才是权威记录）
+  }
+  return { workspaceYamlTouched };
 }
 
 /**
@@ -297,14 +314,18 @@ export async function applyUpgrade(workspaceRoot, harnessRoot) {
     }
   }
 
-  // d. 更新 version.yaml
+  // d. 更新 version.yaml + workspace.yaml 版本快照
   if (plan.versionTransitions.harness || plan.versionTransitions.workspaceTemplate) {
-    await patchWorkspaceVersionYaml(workspaceRoot, {
+    const { workspaceYamlTouched } = await patchWorkspaceVersionYaml(workspaceRoot, {
       harnessVersion: plan.target.harnessVersion,
       templateVersion: plan.target.templateVersion,
     });
     gitRevertFiles.push(join('.sdd', 'version.yaml'));
     touched.push(join('.sdd', 'version.yaml'));
+    if (workspaceYamlTouched) {
+      gitRevertFiles.push(join('.sdd', 'workspace.yaml'));
+      touched.push(join('.sdd', 'workspace.yaml'));
+    }
   }
 
   const report = {
