@@ -1,24 +1,25 @@
 # OpenSpec Change Metadata
 #
-# 版本: v2（Phase 2.4 Multi-Repository Delivery）
+# 版本: v3（Phase 4.2 Three-Tier Spec Delivery）
 # 类型: Change Metadata（SDD 生命周期载体元信息）
 #
 # 由 ChangeModel.runChangeCreate 生成（sdd-explore 内部调用）。
 # v2 增量：schema-version / feature-path / repository-baseline / repository-result
-# 兼容规则：schema-version 缺失视为 v1（features 扁平表 → feature-path 未绑定）；
-#          旧 Change 仅在被显式操作（bind-feature-path / du materialize）时升级为 v2。
+# v3 增量：stories 列表（Change 1:N Story 权威索引）
+# 兼容规则：schema-version 缺失 = v1；= 2 旧格式（CHG↔Story 1:1 平铺）；= 3 新格式（含 stories）
+#          旧 Change 仅在被显式操作（bind-feature-path / split-story / upgrade）时升 v3
 # 后续 status/archive 由 Document API 改写（保留注释）。
 
-schema-version: 2 # 1 = 旧格式（仅 features 扁平表）；2 = 本格式
+schema-version: 3 # 1=v1(仅 features 扁平表)；2=v2(Phase 2.4-4.1，单 Story 平铺)；3=v3(本格式，1:N Stories)
 
 id: "" # CHG-XXXX，创建时填
 title: "" # 简短标题
 summary: "" # 一句话摘要（可选）
-status: created # 见 Lifecycle State（change-lifecycle.md §4）：created/exploring/specified/designed/tasked/developing/testing/completed/archived
+status: created # 见 Lifecycle State（change-lifecycle.md §4）：created/exploring/specified/designed/story-splitting/tasked/developing/testing/completed/archived
 requirement: "" # 需求来源 REQ-XXX（sdd-explore 记录，对齐 requirement.md front-matter.id）
 created-at: "" # ISO8601，创建时填
 updated-at: "" # ISO8601，每次状态变更更新
-features: # 影响的 Feature/Story id 扁平冗余索引（v2 起由 feature-path 推导，保留供旧读者兼容；可空）
+features: # 影响的 Feature/Story id 扁平冗余索引（v3 起由 stories 推导，保留供兼容；可空）
   # v1 ID 规范：MOD-xxx / FEAT-xxx / STORY-xxx
   # v2 嵌套编码：FEAT-001 / FEAT-001-02 / FEAT-001-02-03 / STORY-001-02-03-01
   # - STORY-001-02-03-01
@@ -26,17 +27,35 @@ repositories: # 影响的仓库 id 列表（对应 .sdd/repositories.yaml，可�
   # - backend
 related-change: "" # 关联的历史 CHG-XXXX（需求复用 archived Change 时记录，可空）
 
-# Phase 2.4 新增：feature-path（完整四级链，权威字段；STORY 目录物化是其投影）
-# 约束：CHG ↔ Story = 1:1；树唯一权威源是 product/feature-tree.yaml，此处为"引用不是副本"
+# Phase 4.1 轻量化：Evidence 分档（gate-validator 按档位跳过 skip-tier 命中的 machine-checks）
+# light    — 单仓、无接口变更的小改动：免 DU/多仓/逐 commit 映射等重仪式（openspec change tier <chg> light）
+# standard — 缺省档，完整 Evidence（不改此字段即 standard）
+# strict   — 跨仓/核心链路/安全变更：完整 Evidence + 全量机检
+evidence-tier: standard
+
+# Phase 2.4 保留：feature-path（完整四级链）
+# v3 语义变更：仅 inline 单 Story 场景填（兼容 v2 语义）；多 Story 场景**不填**，
+# 权威 Story 链以 stories[*].path → story-metadata.yaml.feature-path 为准。
 # candidate: explore 产出 Candidate 且未晋升时为 true（此时无法进入 task 阶段）
-feature-path: # 可空；sdd-explore Story 匹配或 bind-feature-path 时写入
+feature-path: # 可空；v3 多 Story 场景留空
   # level-1: { id: FEAT-001, name: 用户中心 }
   # level-2: { id: FEAT-001-02, name: 账户能力 }
   # level-3: { id: FEAT-001-02-03, name: 用户认证 }
   # story: { id: STORY-001-02-03-01, name: 用户注册 }
   # candidate: false
 
-# Phase 2.4 新增：仓库 Baseline / Result（DU 物化与完成时由 delivery-unit.js 写入）
+# Phase 4.2 新增：stories 列表（Change 1:N Story 权威索引）
+# - 单 Story inline 模式：长度 = 1 且 inline=true（CHG 根目录同时是 Story 目录）
+# - 多 Story 三级模式：每条路径指向 stories/<STORY-ID>/ 目录，其中含 story-metadata.yaml
+stories: [] # 默认空数组；bind-feature-path 时自动写入单条 inline；split-story 展开
+  # - id: STORY-001-02-03-01        # Story ID（对齐 feature-tree.yaml）
+  #   title: Story 标题
+  #   inline: false                 # true=平铺（无 stories/ 子目录）；false=独立子目录
+  #   evidence-tier: standard       # 可选；不填继承 Change 级
+  #   status: pending               # Story 状态同步冗余（权威源：story-metadata.yaml 或 inline CHG metadata.status）
+  #   path: stories/STORY-001-02-03-01/   # inline=false 时填；inline=true 时填 "./"
+
+# Phase 2.4 保留：仓库 Baseline / Result（DU 物化与完成时由 delivery-unit.js 写入）
 # repository-baseline：DU materialize 时记录各仓起始 commit（可由 du sync-status 刷新）
 # repository-result：DU completed 时记录各仓结果 commit
 # 与 Submodule Pointer 的一致性由 converge 阶段 submodule-pointer-aligned 机检
@@ -46,22 +65,9 @@ repository-result: {}
   # backend: { commit: abc999 }
 
 # Phase 1.5 保留：artifacts 段（Gate Result 持久化）
-# GateRepository 用 setIn 按需创建 artifacts.<name>.gates.{machine,human} 节点（不预填 7 个，避免模板臃肿）
-# 每个 artifact 节点结构示例（实际由 GateRepository 写入时填充）：
-#   <artifact-name>:
-#     path: <artifact-path>
-#     status: draft          # draft / accepted
-#     gates:
-#       machine:
-#         status: pending    # pending / passed / failed
-#         checked-at: ""     # ISO8601
-#         validator: ""      # skill id（如 sdd-prd）
-#         artifact-hash: ""  # sha256:...
-#         issues: []         # failed 时的未通过项
-#       human:
-#         status: pending    # pending / approved / rejected / bypassed
-#         reviewed-at: ""
-#         reviewer: ""
-#         artifact-hash: ""
-#         reason: ""         # bypassed 时的理由
+# v3 语义：仅存储 **Change 级** 产物 Gate（exploration / change-prd / change-design / convergence）。
+# Story 级产物（story-spec / story-design / tasks / implementation / ...）Gate 存储在
+# stories/<id>/story-metadata.yaml.artifacts（inline 模式仍存在此处，双语义合并）。
+# GateRepository 用 setIn 按需创建（不预填，避免模板臃肿）。
 artifacts: {}
+

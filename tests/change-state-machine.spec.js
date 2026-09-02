@@ -9,10 +9,11 @@ import {
   validateTransition,
 } from '../core/sdd/change-state-machine.js';
 
-test('StateMachine: 状态枚举为 9 个生命周期状态（含终态 archived）', () => {
-  assert.equal(CHANGE_STATUSES.length, 9);
+test('StateMachine: 状态枚举为 10 个生命周期状态（Phase 4.2 + story-splitting，含终态 archived）', () => {
+  assert.equal(CHANGE_STATUSES.length, 10);
   assert.equal(CHANGE_STATUSES[0], 'created');
   assert.equal(CHANGE_STATUSES[CHANGE_STATUSES.length - 1], 'archived');
+  assert.ok(CHANGE_STATUSES.includes('story-splitting'), 'Phase 4.2 新增 story-splitting 阶段');
 });
 
 test('StateMachine: isValidStatus 合法/非法判定', () => {
@@ -24,11 +25,13 @@ test('StateMachine: isValidStatus 合法/非法判定', () => {
   assert.equal(isValidStatus(undefined), false);
 });
 
-test('StateMachine: nextStatuses 线性前进，终态返回空数组', () => {
+test('StateMachine: nextStatuses 线性前进（designed 双路径直达或过 splitting），终态返回空数组', () => {
   assert.deepEqual(nextStatuses('created'), ['exploring']);
   assert.deepEqual(nextStatuses('exploring'), ['specified']);
   assert.deepEqual(nextStatuses('specified'), ['designed']);
-  assert.deepEqual(nextStatuses('designed'), ['tasked']);
+  // Phase 4.2：designed → [story-splitting, tasked] 双路径（单 Story 直接 tasked；多 Story 先拆）
+  assert.deepEqual(nextStatuses('designed'), ['story-splitting', 'tasked']);
+  assert.deepEqual(nextStatuses('story-splitting'), ['tasked']);
   assert.deepEqual(nextStatuses('tasked'), ['developing']);
   assert.deepEqual(nextStatuses('developing'), ['testing']);
   assert.deepEqual(nextStatuses('testing'), ['completed']);

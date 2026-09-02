@@ -44,6 +44,19 @@ export async function readMetadata(changeDir) {
   }
 }
 
+// 缺陷 8 修复：模板预置 artifacts/repository-baseline/repository-result 等空映射是 flow（流式）节点
+//（yaml v2 中 node.flow === true），setIn 后整棵子树输出为流式风格，人工编辑极易破坏。
+// setIn 之后把文档中所有 flow 集合节点递归置 flow=false，强制块式输出。
+// 例外：空 sequence（issues: []）无块式形态，保持单行 [] 更整洁。
+function flowToBlock(node) {
+  if (!node || typeof node !== "object" || !Array.isArray(node.items)) return;
+  const isEmptySeq = node.constructor?.name === "YAMLSeq" && node.items.length === 0;
+  if (!isEmptySeq) node.flow = false;
+  for (const item of node.items) {
+    if (item && typeof item === "object") flowToBlock(item.value);
+  }
+}
+
 /**
  * 用 parseDocument + setIn 改写 metadata.yaml 字段（保留模板注释）。
  * @param {string} changeDir CHG 目录绝对路径
@@ -56,7 +69,26 @@ export async function patchMetadata(changeDir, patch) {
   for (const [k, v] of Object.entries(patch)) {
     if (v !== undefined) doc.setIn([k], v);
   }
+  flowToBlock(doc.contents); // 缺陷 8：setIn 后统一转块式（新节点会继承 flow 父的流式标记）
   await writeFile(file, doc.toString(), "utf8");
+}
+
+// Phase 4.1 轻量化：Evidence 分档合法档位（gate-validator 按 metadata.evidence-tier 跳过 skip-tier 命中项）
+export const EVIDENCE_TIERS = ["light", "standard", "strict"];
+
+/**
+ * 设置 Change 的 evidence-tier（Phase 4.1 轻量化）。
+ * @param {string} changeDir CHG 目录绝对路径
+ * @param {string} tier 'light' | 'standard' | 'strict'
+ * @returns {Promise<{tier:string}>} 写入后的档位
+ * @throws {Error} tier 非法时抛错（含合法值提示）
+ */
+export async function setEvidenceTier(changeDir, tier) {
+  if (!EVIDENCE_TIERS.includes(tier)) {
+    throw new Error(`Invalid evidence-tier: ${tier}（合法值: ${EVIDENCE_TIERS.join("/")}）`);
+  }
+  await patchMetadata(changeDir, { "evidence-tier": tier });
+  return { tier };
 }
 
 /**
@@ -245,12 +277,38 @@ function flattenFeatureIds(fp) {
 export async function bindFeaturePath(changeDir, featurePath) {
   const fp = { ...featurePath };
   if (fp.candidate === undefined) fp.candidate = false;
-  await patchMetadata(changeDir, {
+
+  // v3 Phase 4.2：若 Change.stories 为空 → 自动填单条 inline=true（默认单 Story 平铺兼容）
+  const current = await readMetadata(changeDir).catch(() => ({}));
+  const currentStories = Array.isArray(current.stories) ? current.stories : [];
+  const sv = current["schema-version"] || 1;
+
+  const patch = {
     "feature-path": fp,
     features: flattenFeatureIds(fp),
-    "schema-version": 2,
+    "schema-version": sv < 3 ? 3 : current["schema-version"], // 自动升 v3
     "updated-at": new Date().toISOString(),
-  });
+  };
+  if (currentStories.length === 0) {
+    // 用 inline 映射避免 dynamic import 循环依赖（与 story-model.changeStatusToStoryStatus 保持一致）
+    const CSTATUS = {
+      created: "pending", exploring: "pending", specified: "specified",
+      designed: "designed", "story-splitting": "designed", tasked: "tasked",
+      developing: "developing", testing: "testing", completed: "completed",
+      archived: "completed",
+    };
+    patch.stories = [
+      {
+        id: fp.story && fp.story.id ? fp.story.id : "",
+        title: fp.story && fp.story.name ? fp.story.name : "",
+        inline: true,
+        status: CSTATUS[current.status] || "pending",
+        path: "./",
+      },
+    ];
+    if (current["evidence-tier"]) patch.stories[0]["evidence-tier"] = current["evidence-tier"];
+  }
+  await patchMetadata(changeDir, patch);
 }
 
 /**

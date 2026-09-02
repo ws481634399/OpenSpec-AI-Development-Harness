@@ -4,6 +4,7 @@ import { readHarnessVersion } from '../../../core/workspace/version.js';
 import { getHarnessRoot } from '../../../core/workspace/harness-root.js';
 import { registerInitCommand } from './commands/init.js';
 import { registerChangeCommand } from './commands/change.js';
+import { registerStoryCommand } from './commands/story.js';
 import { registerSkillCommand } from './commands/skill.js';
 import { registerGateCommand } from './commands/gate.js';
 import { registerWorkflowCommand } from './commands/workflow.js';
@@ -36,8 +37,11 @@ program
 // Phase 1.2：init 命令
 registerInitCommand(program);
 
-// Phase 1.3+：change 管理操作（create/list/show/status/archive）
+// Phase 1.3+：change 管理操作（create/list/show/status/archive/split-story）
 registerChangeCommand(program);
+
+// Phase 4.2：Story 级管理操作（list/show — 三级规格分层 1:N Story）
+registerStoryCommand(program);
 
 // Phase 1.4+：skill 元数据查询（list/show，Agent 读 SKILL.md 执行）
 registerSkillCommand(program);

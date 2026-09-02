@@ -8,9 +8,10 @@
 export const CHANGE_STATUSES = [
   'created', // CHG 已创建（sdd-explore 入口，exploration 未完成）
   'exploring', // sdd-explore 执行中/完成（exploration.md 已产出）
-  'specified', // sdd-prd 完成（prd.md 已产出）
-  'designed', // sdd-design 完成（design.md 已产出）
-  'tasked', // sdd-task 完成（tasks.md 已产出）
+  'specified', // sdd-prd 完成（change-prd.md 已产出）
+  'designed', // sdd-design 完成（change-design.md 已产出）
+  'story-splitting', // Phase 4.2：Change Design → 拆 Story；inline 单 Story 可跳过
+  'tasked', // sdd-task 完成（所有 Story tasks.md 已产出）
   'developing', // sdd-dev 执行中（implementation.md 进行中）
   'testing', // sdd-test 执行中（evidence 进行中）
   'completed', // sdd-converge 完成（convergence.md 已产出）
@@ -19,13 +20,15 @@ export const CHANGE_STATUSES = [
 
 /**
  * 合法迁移表（v0.1 线性前进，不支持回退/取消）。
- * key=from，value=合法的 to 列表。
+ * Phase 4.2：designed → tasked 允许直达（inline 单 Story 跳过 story-splitting）；
+ *             designed → story-splitting → tasked（多 Story 三级模式）。
  */
 const TRANSITIONS = {
   created: ['exploring'],
   exploring: ['specified'],
   specified: ['designed'],
-  designed: ['tasked'],
+  designed: ['story-splitting', 'tasked'], // 双路径：单 Story 直接 tasked；多 Story 过 splitting
+  'story-splitting': ['tasked'],
   tasked: ['developing'],
   developing: ['testing'],
   testing: ['completed'],

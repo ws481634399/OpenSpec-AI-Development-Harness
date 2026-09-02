@@ -59,3 +59,56 @@ export function resolveStoryDir(changeDir, meta) {
   if (!dirs) return null;
   return join(changeDir, ...dirs);
 }
+
+// ---- Phase 4.2 三级规格分层：Story 感知路径解析 ----
+//
+// 目录规则（与 Phase 3.5 兼容）：
+// - inline 单 Story（meta.stories 为空或唯一条目 inline=true）：
+//     feature-path 已绑定 → CHG/<L1名>/<L2名>/<L3名>/<STORY名>/（现有第四级目录）
+//     未绑定/candidate    → CHG 根（explore 早期产物暂存）
+// - 3-tier 多 Story（stories 含 inline=false 条目）：
+//     CHG/stories/<STORY-ID>/ （ID 目录，稳定可寻址；feature-path 权威在各 story-metadata.yaml）
+
+/**
+ * 判断 Change 是否处于 3-tier 多 Story 形态。
+ * @param {object} meta readMetadata 结果
+ * @returns {boolean}
+ */
+export function isMultiStory(meta) {
+  const stories = Array.isArray(meta?.stories) ? meta.stories : [];
+  return stories.some((s) => s && s.inline === false);
+}
+
+/**
+ * 按指定 Story 解析其产物目录（Phase 4.2）。
+ * @param {string} changeDir CHG 目录绝对路径
+ * @param {object} meta readMetadata 结果
+ * @param {string} storyId Story ID
+ * @returns {string|null} 未定位（inline 且未绑定 feature-path）返回 null
+ */
+export function resolveStoryDirV3(changeDir, meta, storyId) {
+  const stories = Array.isArray(meta?.stories) ? meta.stories : [];
+  const entry = stories.find((s) => s && s.id === storyId);
+  // 显式 3-tier 条目 → stories/<ID>/
+  if (entry && entry.inline === false) {
+    return join(changeDir, 'stories', storyId);
+  }
+  // inline / stories 未写（lazy 单 Story）→ 现有第四级目录或 CHG 根
+  const dirs = featurePathDirs(meta);
+  if (dirs) return join(changeDir, ...dirs);
+  return null;
+}
+
+/**
+ * 按指定 Story 解析 artifact 实际路径（Phase 4.2）。
+ * @param {string} changeDir
+ * @param {string} artifactName
+ * @param {object} meta
+ * @param {string} storyId
+ * @returns {string}
+ */
+export function resolveArtifactPathV3(changeDir, artifactName, meta, storyId) {
+  const storyDir = resolveStoryDirV3(changeDir, meta, storyId);
+  if (storyDir) return join(storyDir, artifactName);
+  return join(changeDir, artifactName);
+}

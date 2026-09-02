@@ -1,0 +1,42 @@
+# OpenSpec Story Metadata
+#
+# 版本: v1（Phase 4.2 Three-Tier Spec Delivery）
+# 类型: Story 级生命周期 + Gate 载体
+#
+# 由 story-model.js.createStory() 或 change split-story 命令生成。
+# Story 必绑定单个 Feature 链（feature-path 不可空）；status/DU 状态由 Workflow Engine
+# 通过 StoryPatch 函数改写（Document API 保留注释）。
+
+schema-version: 1        # Story 元信息 schema 版本
+
+change-id: ""            # 所属 Change ID（CHG-XXXX）
+story-id: ""             # Story ID（对齐 product/feature-tree.yaml）
+title: ""                # Story 标题
+summary: ""              # Story 一句话摘要（可选）
+status: pending          # Story 生命周期：pending/specified/designed/tasked/developing/testing/completed
+evidence-tier: standard  # 继承 Change 级或覆盖：light/standard/strict
+created-at: ""           # ISO8601，创建时填
+updated-at: ""           # ISO8601，每次变更更新
+
+# 交叉引用（Gate cross-reference blocking 检查：必须指向 change-prd.md / change-design.md 具体章节）
+change-prd-ref: ""       # 例：change-prd.md#32-story-1-功能范围
+change-design-ref: ""    # 例：change-design.md#41-story-1-模块改造
+
+# Feature 四级链（Story 级权威绑定；与 Change 级 feature-path 不同——Story 必非空）
+feature-path:
+  # level-1: { id: FEAT-001, name: 产品域 }
+  # level-2: { id: FEAT-001-02, name: 模块 }
+  # level-3: { id: FEAT-001-02-03, name: 功能组 }
+  # story:   { id: STORY-001-02-03-01, name: 最小可交付 Story }
+  # candidate: false
+
+# 交付单元列表（Story 1:N DU；task 阶段由 sdd-task 写入，status 由 delivery-unit 纯函数同步）
+dus: []
+  # - id: DU-BE-001
+  #   repo: backend
+  #   status: pending     # pending/developing/testing/completed
+
+# Story 级 Gate Result（与 Change 级 artifacts 独立；GateRepository 分发写入）
+# 每个 artifact 节点结构同 Change metadata.artifacts.*：
+#   story-spec / story-design / tasks / implementation / test-report / review-report
+artifacts: {}

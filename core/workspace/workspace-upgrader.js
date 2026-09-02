@@ -60,6 +60,118 @@ async function findMissingManagedFiles(harnessRoot, workspaceRoot) {
   return missing;
 }
 
+// ---- Phase 4.2：Change metadata v2→v3 迁移（delivery/changes + archive 递归扫 metadata.yaml）
+// 设计：schema-migrations.js 受「不触碰 delivery/」限制，此处作为 WorkspaceUpgrade 的扩展步骤
+// 规则（幂等）：对每个 metadata.yaml：schema-version<3 且 feature-path.story.id 非空 →
+//   写 schema-version=3；创建 stories:[{id,title,inline:true,status,path:"./"}]；不移动文件（inline 保持）
+
+function flowToBlock(node) {
+  if (!node || typeof node !== 'object' || !Array.isArray(node.items)) return;
+  const isEmptySeq = node.constructor?.name === 'YAMLSeq' && node.items.length === 0;
+  if (!isEmptySeq) node.flow = false;
+  for (const item of node.items) if (item && typeof item === 'object') flowToBlock(item.value);
+}
+
+const CSTATUS_MAP = {
+  created: 'pending', exploring: 'pending', specified: 'specified',
+  designed: 'designed', 'story-splitting': 'designed', tasked: 'tasked',
+  developing: 'developing', testing: 'testing', completed: 'completed',
+  archived: 'completed',
+};
+
+/** 递归扫目录下所有 metadata.yaml（深度最多 8 级，Module/Feature/Story/CHG4 层 + 子目录） */
+async function collectChangeMetadatas(root) {
+  const results = [];
+  async function walk(dir, depth) {
+    if (depth > 8) return;
+    let entries;
+    try { entries = await readdir(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = join(dir, e.name);
+      if (e.isDirectory()) { await walk(full, depth + 1); continue; }
+      if (e.isFile() && e.name === 'metadata.yaml') results.push(full);
+    }
+  }
+  await walk(root, 0);
+  return results;
+}
+
+/**
+ * Guard：检测是否需要 Change schema 迁移（有任何 metadata.yaml 未达 v3）。
+ * @param {string} workspaceRoot
+ * @returns {Promise<boolean>}
+ */
+export async function needsChangeSchemaMigration(workspaceRoot) {
+  const dirs = [
+    join(workspaceRoot, 'delivery', 'changes'),
+    join(workspaceRoot, 'delivery', 'archive'),
+  ];
+  for (const d of dirs) {
+    const files = await collectChangeMetadatas(d);
+    for (const f of files) {
+      try {
+        const raw = await readFile(f, 'utf8');
+        const meta = parse(raw) || {};
+        if ((meta['schema-version'] || 1) < 3 && meta['feature-path'] && meta['feature-path'].story) return true;
+      } catch { /* ignore corrupted */ }
+    }
+  }
+  return false;
+}
+
+/**
+ * 执行 Change metadata v2→v3 迁移。
+ * @param {string} workspaceRoot
+ * @returns {Promise<{files:string[], migrated:number, skipped:number}>}
+ */
+export async function migrateChangeSchemaV2toV3(workspaceRoot) {
+  const dirs = [
+    join(workspaceRoot, 'delivery', 'changes'),
+    join(workspaceRoot, 'delivery', 'archive'),
+  ];
+  const changed = [];
+  let migrated = 0, skipped = 0;
+  for (const d of dirs) {
+    const files = await collectChangeMetadatas(d);
+    for (const f of files) {
+      let raw;
+      try { raw = await readFile(f, 'utf8'); } catch { skipped++; continue; }
+      let meta;
+      try { meta = parse(raw) || {}; } catch { skipped++; continue; }
+      const sv = meta['schema-version'] || 1;
+      if (sv >= 3) { skipped++; continue; }
+      const fp = meta['feature-path'];
+      if (!fp || !fp.story || !fp.story.id) {
+        // 无 Story 绑定：仍升 schema-version=3（写默认空 stories:[]），便于统一
+      }
+      const doc = parseDocument(raw);
+      doc.setIn(['schema-version'], 3);
+      const currStories = Array.isArray(meta.stories) ? meta.stories : [];
+      // 仅 stories 为空 + 有 feature-path 时补 inline
+      if (currStories.length === 0 && fp && fp.story && fp.story.id) {
+        const status = CSTATUS_MAP[meta.status] || 'pending';
+        const entry = {
+          id: fp.story.id,
+          title: fp.story.name || meta.title || '',
+          inline: true,
+          status,
+          path: './',
+        };
+        if (meta['evidence-tier']) entry['evidence-tier'] = meta['evidence-tier'];
+        doc.setIn(['stories'], [entry]);
+      } else if (currStories.length === 0) {
+        doc.setIn(['stories'], []);
+      }
+      doc.setIn(['updated-at'], meta['updated-at'] || new Date().toISOString());
+      flowToBlock(doc.contents);
+      await writeFile(f, doc.toString(), 'utf8');
+      changed.push(f);
+      migrated++;
+    }
+  }
+  return { files: changed, migrated, skipped };
+}
+
 /**
  * 更新 .sdd/version.yaml 的 harness.version 与 workspace-template.version（Document API 保留注释）。
  * schema.version 不动。
@@ -90,11 +202,12 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
   const harnessVersion = readHarnessVersion(harnessRoot);
   const templateVersion = readTemplateVersions(harnessRoot).workspaceTemplate || harnessVersion;
 
-  const [skillsDiff, promptsDiff, missingFiles, migrations] = await Promise.all([
+  const [skillsDiff, promptsDiff, missingFiles, migrations, changeSchemaNeeded] = await Promise.all([
     syncSkills(harnessRoot, workspaceRoot, { dryRun: true }),
     syncPrompts(harnessRoot, workspaceRoot, { dryRun: true }),
     findMissingManagedFiles(harnessRoot, workspaceRoot),
     runMigrations(workspaceRoot, { dryRun: true }),
+    needsChangeSchemaMigration(workspaceRoot),
   ]);
 
   const versionTransitions = {
@@ -108,7 +221,8 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
     skillsDiff.changed.length === 0 &&
     promptsDiff.changed.length === 0 &&
     missingFiles.length === 0 &&
-    migrations.executed.length === 0;
+    migrations.executed.length === 0 &&
+    !changeSchemaNeeded;
 
   return {
     upToDate,
@@ -120,6 +234,9 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
     prompts: { changed: promptsDiff.changed, details: promptsDiff.details, added: promptsDiff.added, updated: promptsDiff.updated },
     addedFiles: missingFiles,
     migrations: { executed: migrations.executed, skipped: migrations.skipped },
+    changeSchema: changeSchemaNeeded
+      ? { needsMigration: true, step: 'delivery/changes + archive metadata.yaml v2→v3 (inline story 推导)' }
+      : { needsMigration: false },
     touchedFiles: [],
   };
 }
@@ -169,6 +286,17 @@ export async function applyUpgrade(workspaceRoot, harnessRoot) {
     touched.push(...(m.files || []));
   }
 
+  // c2. Phase 4.2：Change metadata v2→v3 迁移（delivery 下 metadata.yaml schema+stories 补齐）
+  let changeSchemaReport = { files: [], migrated: 0, skipped: 0 };
+  if (plan.changeSchema && plan.changeSchema.needsMigration) {
+    changeSchemaReport = await migrateChangeSchemaV2toV3(workspaceRoot);
+    for (const f of changeSchemaReport.files) {
+      const rel = f.startsWith(workspaceRoot) ? f.slice(workspaceRoot.length + 1).replace(/\\/g, '/') : f;
+      gitRevertFiles.push(rel);
+      touched.push(rel);
+    }
+  }
+
   // d. 更新 version.yaml
   if (plan.versionTransitions.harness || plan.versionTransitions.workspaceTemplate) {
     await patchWorkspaceVersionYaml(workspaceRoot, {
@@ -183,6 +311,7 @@ export async function applyUpgrade(workspaceRoot, harnessRoot) {
     ...plan,
     dryRun: false,
     migrations,
+    changeSchema: changeSchemaReport,
     touchedFiles: [...new Set(touched)],
     gitRevertFiles: [...new Set(gitRevertFiles)],
     gitNewFiles: [...new Set(gitNewFiles)],

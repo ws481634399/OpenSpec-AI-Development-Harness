@@ -6,16 +6,17 @@ import { outro, note } from '@clack/prompts';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { listChanges, showChange, changeExists } from '../../../../core/sdd/change-repository.js';
-import { runChangeCreate, readMetadata, bindFeaturePath } from '../../../../core/sdd/change-model.js';
+import { runChangeCreate, readMetadata, bindFeaturePath, setEvidenceTier, patchMetadata } from '../../../../core/sdd/change-model.js';
 import { nextStatuses, isValidStatus } from '../../../../core/sdd/change-state-machine.js';
 import { archiveChange } from '../../../../core/sdd/change-archiver.js';
 import { materializeChangeSkeleton, findChangeDirAny } from '../../../../core/sdd/change-skeleton.js';
 import { requestTransition } from '../../../../core/sdd/transition-service.js';
 import { getHarnessRoot } from '../../../../core/workspace/harness-root.js';
 import { confirmArchive } from '../lib/change-prompts.js';
-import { readFeatureTree } from '../../../../core/sdd/feature-model.js';
+import { readFeatureTree, findStoryChain } from '../../../../core/sdd/feature-model.js';
 import { aggregateDuStatus } from '../../../../core/sdd/delivery-unit.js';
-import { join } from 'node:path';
+import { splitInlineStory, readStories, aggregateChangeStatus } from '../../../../core/sdd/story-model.js';
+import { join, basename } from 'node:path';
 
 /**
  * 注册 change 子命令组到 commander program。
@@ -106,6 +107,8 @@ export function registerChangeCommand(program) {
         if (metadata['related-change']) {
           lines.push(`related-change: ${metadata['related-change']}`);
         }
+        // Phase 4.1：Evidence 分档（缺省 standard）
+        lines.push(`evidence-tier: ${metadata['evidence-tier'] || 'standard'}`);
         // Phase 2.4：feature-path 摘要
         const fp = metadata['feature-path'];
         if (fp && typeof fp === 'object' && fp.story?.id) {
@@ -173,10 +176,34 @@ export function registerChangeCommand(program) {
 
         if (!opts.set) {
           const next = nextStatuses(current);
-          note(
-            [`Current: ${current}`, next.length ? `Legal next: ${next.join(', ')}` : 'Legal next: none (terminal)'].join('\n'),
-            `${id} status`
-          );
+          const lines = [
+            `Current: ${current}`,
+            next.length ? `Legal next: ${next.join(', ')}` : 'Legal next: none (terminal)',
+          ];
+          // Phase 4.2：Story 状态表格（多 Story Change 的聚合视图，类似 docker ps）
+          const stories = await readStories(changeDir, metadata, readMetadata);
+          if (stories.length > 0) {
+            const header = 'STORY-ID'.padEnd(24) + 'MODE'.padEnd(9) + 'STATUS'.padEnd(13) + 'EVIDENCE'.padEnd(11) + 'TITLE';
+            lines.push('', 'Stories:', '  ' + header);
+            for (const s of stories) {
+              lines.push(
+                '  ' +
+                  [
+                    s.id.padEnd(24),
+                    (s.inline ? 'inline' : '3-tier').padEnd(9),
+                    (s.status || 'pending').padEnd(13),
+                    (s.evidenceTier || 'standard').padEnd(11),
+                    s.title || '-',
+                  ].join('')
+              );
+            }
+            // 聚合状态提示（§5.3）
+            const agg = aggregateChangeStatus(stories.map((s) => s.status));
+            if (agg) {
+              lines.push('', `Aggregated (§5.3): all-stories → ${agg}`);
+            }
+          }
+          note(lines.join('\n'), `${id} status`);
           outro('Done.');
           return;
         }
@@ -212,25 +239,9 @@ export function registerChangeCommand(program) {
           throw new Error(`Change not found: ${id}`);
         }
         const tree = await readFeatureTree(ws);
-        // 收集 {story, parentL3, parentL2, parentL1} 完整链
-        let chain = null;
-        for (const l1 of tree.modules) {
-          for (const l2 of l1.children || []) {
-            for (const l3 of l2.children || []) {
-              for (const story of l3.stories || []) {
-                if (story.id === opts.story) {
-                  chain = { 'level-1': l1, 'level-2': l2, 'level-3': l3, story };
-                }
-              }
-              // v1 过渡：story 直挂 L2
-              for (const story of l2.stories || []) {
-                if (story.id === opts.story && !chain) {
-                  chain = { 'level-1': l1, 'level-2': l2, 'level-3': { id: '', name: '' }, story };
-                }
-              }
-            }
-          }
-        }
+        // 缺陷 9 修复：遍历逻辑收敛为 core 纯函数 findStoryChain
+        // （v1 过渡形态 story 直挂 L2 且无 L3 子节点时也能命中）
+        const chain = findStoryChain(tree, opts.story);
         if (!chain) {
           throw new Error(`Story not found in feature-tree.yaml: ${opts.story}`);
         }
@@ -294,10 +305,37 @@ export function registerChangeCommand(program) {
       }
     });
 
+  // tier：设置 Evidence 分档（Phase 4.1 轻量化）
+  // light 免 DU/多仓/逐 commit 映射等重仪式机检；standard 缺省；strict 全量
+  change
+    .command('tier <id> <tier>')
+    .description('设置 Evidence 分档（light/standard/strict），gate-validator 按 skip-tier 跳过命中项')
+    .action(async (id, tier) => {
+      const ws = resolveWorkspaceRoot();
+      try {
+        const changeDir = join(ws, 'delivery', 'changes', id);
+        if (!(await changeExists(ws, id))) {
+          throw new Error(`Change not found: ${id}`);
+        }
+        const result = await setEvidenceTier(changeDir, tier);
+        ok(`${id} evidence-tier: ${result.tier}`);
+        if (result.tier === 'light') {
+          warn('light 档将跳过 skip-tier: [light] 的 machine-checks（DU/多仓/逐 commit 映射等重仪式），仅建议单仓小改动使用。');
+        }
+        outro('Done.');
+      } catch (e) {
+        error(e.message);
+        outro('Tier update failed.');
+        process.exit(1);
+      }
+    });
+
   // archive：归档（需 completed）
   change
     .command('archive <id>')
-    .action(async (id) => {
+    // 缺陷 1.3 修复：--yes 跳过交互确认（CI/沙箱等非交互环境执行）
+    .option('-y, --yes', '跳过交互确认（CI/非交互环境用；归档仍不可逆）')
+    .action(async (id, opts) => {
       const ws = resolveWorkspaceRoot();
       try {
         const changeDir = join(ws, 'delivery', 'changes', id);
@@ -311,18 +349,61 @@ export function registerChangeCommand(program) {
           throw new Error(`Cannot archive: status is ${current}. Only completed can be archived.`);
         }
 
-        const confirmed = await confirmArchive(id, current);
-        if (!confirmed) {
-          outro('Canceled.');
-          return;
+        // 归档是难逆操作：交互模式下必须人工确认；--yes 为显式声明（审计可辨）
+        if (!opts.yes) {
+          const confirmed = await confirmArchive(id, current);
+          if (!confirmed) {
+            outro('Canceled.');
+            return;
+          }
         }
 
         const { archiveDir } = await archiveChange(ws, id);
         ok(`${id} archived to ${archiveDir}`);
+        // 缺陷 6 文档化：目录移动 → git 识别为 100% rename，history 完整保留
+        note('git will record this as 100% renames — file history is preserved after archiving.');
         outro('Done.');
       } catch (e) {
         error(e.message);
         outro('Archive failed.');
+        process.exit(1);
+      }
+    });
+
+  // split-story：Phase 4.2 — 将 inline 单 Story Change 转换为 stories/<id>/ 三级形态
+  change
+    .command('split-story <id>')
+    .description('Phase 4.2：拆分平铺单 Story Change → stories/<id>/ 三级形态（不可逆）')
+    .option('--story-id <sid>', '自定义拆分后的 Story ID；默认用 feature-path.story.id')
+    .option('-y, --yes', '跳过不可逆操作的交互确认')
+    .action(async (id, opts) => {
+      const ws = resolveWorkspaceRoot();
+      try {
+        const changeDir = await findChangeDirAny(ws, id);
+        if (!changeDir) throw new Error(`Change not found: ${id}`);
+        const meta = await readMetadata(changeDir);
+        const stories = await readStories(changeDir, meta, readMetadata);
+        if (stories.length > 1 || (stories.length === 1 && !stories[0].inline)) {
+          throw new Error(`split-story 仅适用于单 Story 平铺 Change。当前：${stories.length} stories，多 Story 或已拆分。`);
+        }
+        if (!opts.yes) {
+          const prompts = await import('@clack/prompts');
+          const tip = [
+            `⚠  这是不可逆操作：会创建 stories/${opts.storyId || (meta['feature-path'] && meta['feature-path'].story ? meta['feature-path'].story.id : 'STORY-XXX')}/ 子目录，`,
+            `移动 tasks.md / implementation.md / evidence/ / du/ 等 Story 级文件，`,
+            `并清空 Change.metadata.feature-path（Story 级成为权威）。`,
+          ].join('\n');
+          note(tip, 'Split-story 不可逆');
+          const ok_ = await prompts.confirm({ message: '确认执行 split-story？' });
+          if (!ok_) { outro('Canceled.'); return; }
+        }
+        const { storyId, storyDir, movedFiles } = await splitInlineStory(changeDir, { newStoryId: opts.storyId, harnessRoot: getHarnessRoot() });
+        ok(`Split done: story-id=${storyId}`);
+        note(`Directory: ${storyDir}\nMoved: ${movedFiles.length === 0 ? '(no files to move)' : movedFiles.join(', ')}`, storyId);
+        outro(`Done. 下一步：'story list ${meta.id}' 查看拆分结果。`);
+      } catch (e) {
+        error(e.message);
+        outro('split-story failed.');
         process.exit(1);
       }
     });

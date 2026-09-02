@@ -54,9 +54,10 @@ test('ChangeStateMachine: isValidStatus 校验', () => {
   assert.equal(isValidStatus('unknown'), false);
 });
 
-test('ChangeStateMachine: CHANGE_STATUSES 含 9 态', () => {
-  assert.equal(CHANGE_STATUSES.length, 9);
+test('ChangeStateMachine: CHANGE_STATUSES 含 10 态（Phase 4.2 + story-splitting）', () => {
+  assert.equal(CHANGE_STATUSES.length, 10);
   assert.ok(CHANGE_STATUSES.includes('archived'));
+  assert.ok(CHANGE_STATUSES.includes('story-splitting'));
 });
 
 // ---- ChangeIdGenerator ----
