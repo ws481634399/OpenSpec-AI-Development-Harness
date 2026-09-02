@@ -14,7 +14,7 @@ import { readFile, writeFile, mkdir, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { parse, parseDocument } from 'yaml';
 import { readMetadata, patchMetadata } from './change-model.js';
-import { resolveStoryDir, featurePathDirs } from './artifact-path.js';
+import { resolveStoryDir, featurePathDirs, resolveStoryDirV3 } from './artifact-path.js';
 import { deriveWorkspaceRoot } from './evidence-model.js';
 
 export const DU_ID_PATTERN = /^DU-[A-Z0-9]{2,8}-\d{3}$/;
@@ -289,6 +289,47 @@ export async function readWorkspaceDus(changeDir, meta) {
 }
 
 /**
+ * 按 Story 读取 Workspace DU（Phase 4.2 Gate 分层分发）。
+ * - 3-tier 多 Story：读 stories/<storyId>/du/（Change 级 feature-path 已清空，Story 目录权威）
+ * - inline 单 Story：resolveStoryDirV3 回落四级目录/CHG 根，与 readWorkspaceDus 等价
+ *
+ * @param {string} changeDir CHG 目录绝对路径
+ * @param {object} meta readMetadata 结果
+ * @param {string} storyId Story ID
+ * @returns {Promise<Array<{dir:string, id:string, metadata:object}>>}
+ */
+export async function readWorkspaceDusForStory(changeDir, meta, storyId) {
+  const storyDir = resolveStoryDirV3(changeDir, meta, storyId);
+  if (!storyDir) return [];
+  // 3-tier 显式 Story 条目 → DU 在 stories/<id>/du/ 子目录（plan §3.1）
+  // inline 回落（四级目录/CHG 根）→ DU 直属 Story 目录（v2 布局，与 readWorkspaceDus 等价）
+  const entry = Array.isArray(meta?.stories)
+    ? meta.stories.find((s) => s && s.id === storyId)
+    : null;
+  const scanDir = entry?.inline === false ? join(storyDir, 'du') : storyDir;
+  let entries;
+  try {
+    entries = await readdir(scanDir, { withFileTypes: true });
+  } catch (e) {
+    if (e.code === 'ENOENT') return [];
+    throw e;
+  }
+  const dus = [];
+  for (const e of entries) {
+    if (!e.isDirectory() || !DU_ID_PATTERN.test(e.name)) continue;
+    const dir = join(scanDir, e.name);
+    try {
+      const raw = await readFile(join(dir, 'metadata.yaml'), 'utf8');
+      dus.push({ dir, id: e.name, metadata: parse(raw) || {} });
+    } catch {
+      // metadata 缺失/损坏 → 记录为空 metadata（由 gate 检查项报 issue）
+      dus.push({ dir, id: e.name, metadata: {} });
+    }
+  }
+  return dus;
+}
+
+/**
  * Materialize DU 到对应 Repository（Task Gate accepted 后调用）。
  *
  * 创建 repo 侧交付目录（完整父路径 CHG→L1→L2→L3→STORY→DU）：
@@ -384,6 +425,26 @@ export async function aggregateDuStatus(changeDir, workspaceRoot) {
   const root = workspaceRoot || deriveWorkspaceRoot(changeDir);
   const meta = await readMetadata(changeDir);
   const dus = await readWorkspaceDus(changeDir, meta);
+  return aggregateDuItems(dus, root);
+}
+
+/**
+ * 按 Story 聚合 DU 状态（Phase 4.2 Gate 分层分发：story mode 机检的 Fan-in 输入）。
+ *
+ * @param {string} changeDir CHG 目录绝对路径
+ * @param {object} meta readMetadata 结果
+ * @param {string} storyId Story ID
+ * @param {string} [workspaceRoot] 可选（默认从 changeDir 推导）
+ * @returns {Promise<{dus:Array, total:number, allMaterialized:boolean, allTesting:boolean, allCompleted:boolean, repositories:string[]}>}
+ */
+export async function aggregateDuStatusForStory(changeDir, meta, storyId, workspaceRoot) {
+  const root = workspaceRoot || deriveWorkspaceRoot(changeDir);
+  const dus = await readWorkspaceDusForStory(changeDir, meta, storyId);
+  return aggregateDuItems(dus, root);
+}
+
+/** DU 聚合核心（aggregateDuStatus / aggregateDuStatusForStory 共用，确定性） */
+async function aggregateDuItems(dus, root) {
   const repos = await readRepositories(root);
 
   const items = [];
@@ -475,6 +536,68 @@ export async function syncDuCommits(workspaceRoot, changeId, heads) {
     results.push({ duId: du.id, repository: repoId, updated });
   }
   return results;
+}
+
+// DU 轻量状态的合法升序（回流判断用；workspace 落后于 repo 侧才回流）
+const DU_STATUS_ORDER = ['pending', 'developing', 'testing', 'completed'];
+
+/**
+ * 缺陷 7 修复（事件驱动同步）：repo 侧 DU metadata 是 Agent 干活时的事实记录，
+ * Agent 更新 repo 侧 status/baseline/result 后不会自动回流 workspace——
+ * 本函数读取 repo 侧 DU metadata，将更靠前的 status 回流刷新 workspace 侧（单向、幂等）。
+ * commit hash 的刷新仍由 syncDuCommits 负责（两者在 workflow run 中按顺序组合调用）。
+ *
+ * @param {string} workspaceRoot Workspace 根目录
+ * @param {string} changeId CHG-XXXX
+ * @returns {Promise<Array<{duId:string, from:string, to:string}>>} 发生回流的 DU 列表
+ */
+export async function syncDuStatusFromRepos(workspaceRoot, changeId) {
+  const changeDir = join(workspaceRoot, 'delivery', 'changes', changeId);
+  const meta = await readMetadata(changeDir);
+  const dus = await readWorkspaceDus(changeDir, meta);
+  const repos = await readRepositories(workspaceRoot);
+  const dirs = featurePathDirs(meta);
+  if (!dirs) return []; // feature-path 未绑定（无 DU 物化前提）
+  const results = [];
+
+  for (const du of dus) {
+    const repoId = du.metadata.repository;
+    const repo = repos.find((r) => r.id === repoId);
+    if (!repo) continue;
+    // repo 侧 DU metadata 路径与 materializeDeliveryUnit 的写入路径严格一致
+    const repoMetaPath = join(
+      workspaceRoot,
+      repo.path,
+      'delivery',
+      changeId,
+      ...dirs,
+      du.id,
+      'metadata.yaml',
+    );
+    let repoMeta;
+    try {
+      repoMeta = parse(await readFile(repoMetaPath, 'utf8')) || {};
+    } catch (e) {
+      if (e.code === 'ENOENT') continue; // 未物化，跳过
+      throw e;
+    }
+    const repoStatus = repoStatusOf(repoMeta);
+    const wsStatus = du.metadata.status || 'pending';
+    if (DU_STATUS_ORDER.indexOf(repoStatus) > DU_STATUS_ORDER.indexOf(wsStatus)) {
+      const file = join(du.dir, 'metadata.yaml');
+      const doc = parseDocument(await readFile(file, 'utf8'));
+      doc.setIn(['status'], repoStatus);
+      await writeFile(file, doc.toString(), 'utf8');
+      results.push({ duId: du.id, from: wsStatus, to: repoStatus });
+    }
+  }
+  return results;
+}
+
+/** repo 侧 DU metadata 的 status 读取（兼容缺省 pending）。 */
+function repoStatusOf(repoMeta) {
+  const s = repoMeta.status;
+  return DU_STATUS_ORDER.includes(s) ? s : 'pending';
 }
 
 /**

@@ -4,13 +4,14 @@
 stage: design
 artifact: design.md
 
+# Phase 4.1 轻量化：advisory fail 只记 warning 不阻断；skip-tier 命中 evidence-tier 时跳过
 machine-checks:
   - required-front-matter
   - no-placeholder
   - required-sections
-  - cross-reference-valid
-  - repositories-match-metadata
-  - feature-path-bound # Phase 2.4：feature-path 四级完整且 candidate=false
+  - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
+  - { id: repositories-match-metadata, skip-tier: [light] } # 单仓轻量档免多仓声明对齐
+  - feature-path-bound # Phase 2.4：feature-path 四级完整且 candidate=false（收口项，保持 blocking）
 
 required-front-matter: []
 
@@ -28,3 +29,34 @@ human-checks:
   - "## 1. 当前状态"
   - "## 2. 提议方案"
   - "## 5. 风险"
+
+# Phase 4.2 三级规格分层（plans/phase-4.2-three-tier-spec-design.md §5/§8）
+# - inline 单 Story（缺省）：仅用上方共享配置，design.md 双语义
+# - 多 Story Change：Change 级检查 change-design.md（CHG 根）；Story 级检查 story-design.md
+three-tier:
+  change-artifact: change-design.md
+  change-non-empty-ai-sections:
+    - "## 1. 当前状态"
+    - "## 2. 提议方案"
+    - "## 3. 仓库影响（Repository Impact）"
+    - "## 5. Story 设计分派（Story Design Assignments）"
+  change-required-replacements:
+    - change-id
+    - prd-source
+    - repos-involved
+    - repo-impact-count
+  story-artifact: story-design.md
+  story-machine-checks:
+    - { id: change-ref-bound, field: change-design-ref } # Story→Change Design 章节引用（blocking）
+    - repo-subset # story-design.affected-repositories ⊆ change-design 声明（blocking）
+  story-non-empty-ai-sections:
+    - "## 1. 模块改动（Module Changes）"
+    - "## 2. 接口契约细化"
+  story-required-replacements:
+    - change-id
+    - story-id
+    - change-design-ref
+    - repos-involved
+    - module-changes
+    - need-migration
+    - data-change-summary

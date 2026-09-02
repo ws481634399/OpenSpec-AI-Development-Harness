@@ -6,11 +6,15 @@ stage: explore
 artifact: exploration.md
 
 # Machine Gate 校验项（GateValidator 执行，仅检查明确声明的项，不扫描全文 checkbox）
+# Phase 4.1 轻量化条目格式：
+#   字符串                          → severity: blocking（缺省）
+#   { id, severity: advisory }      → fail 只记 warning 不阻断
+#   { id, skip-tier: [light,...] }  → 当前 Change evidence-tier 命中时整条跳过
 machine-checks:
   - required-front-matter
   - no-placeholder
   - required-sections
-  - cross-reference-valid
+  - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
 
 # machine-checks: required-front-matter 的具体字段（exploration.md 无 front-matter）
 required-front-matter: []

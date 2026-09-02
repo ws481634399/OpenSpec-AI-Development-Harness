@@ -363,3 +363,79 @@ test('GitSubmodule.resolveSubmoduleHead: loose ref / packed-refs / detached / �
   assert.equal(await resolveSubmoduleHead(tmp, 'notexist'), null);
   await rmrf(tmp);
 });
+
+// ---- 缺陷 7 修复：DU 状态回流同步（事件驱动） ----
+
+const { parseDocument } = await import('yaml');
+const { syncDuStatusFromRepos } = await import('../core/sdd/delivery-unit.js');
+
+/** 物化 DU 后改写 repo 侧 metadata（模拟 Agent 在仓库干活时更新状态）。 */
+async function writeRepoDuStatus(tmp, changeId, status) {
+  const dirs = ['用户中心', '账户能力', '用户认证', '用户注册'];
+  const repoMetaPath = join(
+    tmp,
+    'implementation',
+    'backend',
+    'delivery',
+    changeId,
+    ...dirs,
+    'DU-BE-001',
+    'metadata.yaml'
+  );
+  const doc = parseDocument(await readFile(repoMetaPath, 'utf8'));
+  doc.setIn(['status'], status);
+  await writeFile(repoMetaPath, doc.toString(), 'utf8');
+}
+
+test('syncDuStatusFromRepos: repo 侧 status 领先 → 回流刷新 workspace 侧（缺陷 7）', async () => {
+  const tmp = await setupMultiRepoWorkspace();
+  const { changeId, changeDir } = await setupChange(tmp, ['backend']);
+  await bindFeaturePath(changeDir, FP);
+  const meta = await readMetadata(changeDir);
+  await writeWorkspaceDu(changeDir, meta, { id: 'DU-BE-001', repository: 'backend' });
+  await materializeDeliveryUnit(tmp, changeId, 'DU-BE-001');
+
+  // Agent 在仓库干活 → repo 侧推进到 testing，workspace 侧仍 pending
+  await writeRepoDuStatus(tmp, changeId, 'testing');
+
+  const results = await syncDuStatusFromRepos(tmp, changeId);
+  assert.equal(results.length, 1);
+  assert.deepEqual(results[0], { duId: 'DU-BE-001', from: 'pending', to: 'testing' });
+
+  // workspace 侧已回流
+  const meta2 = await readMetadata(changeDir);
+  const dus = await readWorkspaceDus(changeDir, meta2);
+  assert.equal(dus[0].metadata.status, 'testing');
+  await rmrf(tmp);
+});
+
+test('syncDuStatusFromRepos: workspace 领先/持平 → 不回写（幂等）', async () => {
+  const tmp = await setupMultiRepoWorkspace();
+  const { changeId, changeDir } = await setupChange(tmp, ['backend']);
+  await bindFeaturePath(changeDir, FP);
+  const meta = await readMetadata(changeDir);
+  await writeWorkspaceDu(changeDir, meta, { id: 'DU-BE-001', repository: 'backend' });
+  await materializeDeliveryUnit(tmp, changeId, 'DU-BE-001');
+
+  // repo 侧 status=pending（缺省），workspace 侧手动推到 developing（领先）
+  const meta1 = await readMetadata(changeDir);
+  await updateWorkspaceDuStatus(changeDir, meta1, 'DU-BE-001', 'developing');
+  const results = await syncDuStatusFromRepos(tmp, changeId);
+  assert.deepEqual(results, []);
+  // 再次执行仍为空（幂等）
+  const results2 = await syncDuStatusFromRepos(tmp, changeId);
+  assert.deepEqual(results2, []);
+  await rmrf(tmp);
+});
+
+test('syncDuStatusFromRepos: 未物化的 DU → 跳过不报错', async () => {
+  const tmp = await setupMultiRepoWorkspace();
+  const { changeId, changeDir } = await setupChange(tmp, ['backend']);
+  await bindFeaturePath(changeDir, FP);
+  const meta = await readMetadata(changeDir);
+  await writeWorkspaceDu(changeDir, meta, { id: 'DU-BE-001', repository: 'backend' });
+  // 不 materialize → repo 侧无 metadata
+  const results = await syncDuStatusFromRepos(tmp, changeId);
+  assert.deepEqual(results, []);
+  await rmrf(tmp);
+});

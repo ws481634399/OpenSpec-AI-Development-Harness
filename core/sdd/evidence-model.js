@@ -9,18 +9,24 @@ import { parseDocument, parse } from 'yaml';
 import { resolveStoryDir, resolveArtifactPath } from './artifact-path.js';
 
 /**
- * 解析 evidence.yaml 落位：feature-path 已绑定 → STORY 目录/evidence/；
- * 未绑定/读取兼容 → CHG 根/evidence/（存量迁移前位置）。
+ * 解析 evidence.yaml 落位：
+ * - 显式 storyDir（Phase 4.2 story mode，3-tier 多 Story）→ stories/<id>/evidence/
+ * - feature-path 已绑定 → STORY 目录/evidence/
+ * - 未绑定/读取兼容 → CHG 根/evidence/（存量迁移前位置）
  * @param {string} changeDir
  * @param {object} [meta] 已读 metadata（省则内部读取）
+ * @param {string} [storyDir] 显式 Story 目录（story mode 机检传入，优先级最高）
  * @returns {Promise<{file:string, write:boolean}>} write=true 表示该位置为当前规范落位
  */
-async function locateEvidenceFile(changeDir, meta) {
+async function locateEvidenceFile(changeDir, meta, storyDir) {
+  const rootFile = join(changeDir, 'evidence', 'evidence.yaml');
+  if (storyDir) {
+    return { file: join(storyDir, 'evidence', 'evidence.yaml'), root: rootFile, write: true };
+  }
   // 动态 import 规避 change-model ↔ evidence-model 循环依赖（运行时已初始化完毕）
   const m = meta || (await import('./change-model.js').then((mod) => mod.readMetadata(changeDir)).catch(() => null));
-  const storyDir = m ? resolveStoryDir(changeDir, m) : null;
-  const storyFile = storyDir ? join(storyDir, 'evidence', 'evidence.yaml') : null;
-  const rootFile = join(changeDir, 'evidence', 'evidence.yaml');
+  const dir = m ? resolveStoryDir(changeDir, m) : null;
+  const storyFile = dir ? join(dir, 'evidence', 'evidence.yaml') : null;
   if (storyFile) {
     // 绑定后：STORY 位置为规范落位；存量根位置仅在 STORY 无文件时读取兼容
     return { file: storyFile, root: rootFile, write: true };
@@ -120,10 +126,11 @@ export async function initEvidence(changeDir, changeId, harnessRoot) {
  * 读取并解析 CHG 的 evidence/evidence.yaml。
  *
  * @param {string} changeDir CHG 目录绝对路径
+ * @param {{storyDir?: string}} [opts] storyDir：Phase 4.2 story mode 显式 Story 目录（3-tier 多 Story）
  * @returns {Promise<object|null>} 解析结果；文件缺失返回 null
  */
-export async function loadEvidence(changeDir) {
-  const { file, root } = await locateEvidenceFile(changeDir);
+export async function loadEvidence(changeDir, opts = {}) {
+  const { file, root } = await locateEvidenceFile(changeDir, null, opts.storyDir);
   let raw;
   try {
     raw = await readFile(file, 'utf8');
@@ -304,7 +311,7 @@ export function validateEvidence(doc, opts = {}) {
  * @param {{reposCoverage: boolean, testCoverage: boolean, findingsClosure?: boolean}} flags
  * @returns {Promise<{issues: string[]}>}
  */
-export async function checkCoverage(changeDir, doc, flags, meta) {
+export async function checkCoverage(changeDir, doc, flags, meta, opts = {}) {
   const issues = [];
   const items = Array.isArray(doc?.items) ? doc.items : [];
 
@@ -312,7 +319,8 @@ export async function checkCoverage(changeDir, doc, flags, meta) {
   if (flags.reposCoverage) {
     let implRaw = null;
     try {
-      implRaw = await readFile(resolveArtifactPath(changeDir, 'implementation.md', meta), 'utf8');
+      const implPath = opts.implPath || resolveArtifactPath(changeDir, 'implementation.md', meta);
+      implRaw = await readFile(implPath, 'utf8');
     } catch (e) {
       if (e.code !== 'ENOENT') throw e;
     }

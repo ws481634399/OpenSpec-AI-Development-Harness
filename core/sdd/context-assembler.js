@@ -20,7 +20,7 @@ import { readFile, stat, readdir } from 'node:fs/promises';
 import { join, relative } from 'node:path';
 import { parse } from 'yaml';
 import { listFiles } from './fs-walker.js';
-import { featurePathDirs, resolveStoryDir } from './artifact-path.js';
+import { featurePathDirs, resolveStoryDir, resolveStoryDirV3 } from './artifact-path.js';
 import { readMetadata } from './change-model.js';
 import { readRepositories, findRepository, readWorkspaceDus } from './delivery-unit.js';
 
@@ -123,10 +123,13 @@ async function collectEntryFiles(workspaceRoot, entryPath) {
  *
  * @param {string} workspaceRoot Workspace 根目录绝对路径
  * @param {string} stage SDD 阶段名
- * @param {{changeDir?:string, metadata?:object, du?:string|{id:string, repository?:string}}} [opts]
+ * @param {{changeDir?:string, metadata?:object, du?:string|{id:string, repository?:string},
+ *          storyId?:string}} [opts]
  *   changeDir：CHG 目录绝对路径（Change Artifacts 注入 + feature-path 解析）
  *   metadata：readMetadata 结果（避免重复读；changeDir 缺省时忽略）
  *   du：绑定的 Delivery Unit id（Phase 2.7；注入 repo 侧上下文 + 激活 per-repo 规则段）
+ *   storyId：Phase 4.2 Story 上下文（3-tier 多 Story）——产物/DU 定位到 stories/<id>/，
+ *           并自动注入 Change 级规格引用（prd/design 阶段 inline；task/dev/test/review 阶段 outline）
  * @returns {Promise<{
  *   stage:string,
  *   dirs:string[],
@@ -247,18 +250,33 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
     await processEntry(entry, 'rule');
   }
 
-  // ---- 2. Change Artifacts（显式 + 自动注入，§4.3）----
+  // ---- 2. Change Artifacts（显式 + 自动注入，§4.3；Phase 4.2 storyId 分发）----
   if (changeDir) {
     const meta = opts.metadata || null;
+    const storyId = opts.storyId || null;
+    // Phase 4.2：story mode 的 Story 目录（3-tier → stories/<id>/；inline → 四级目录回落）
+    const storyDirV3 =
+      storyId && meta ? resolveStoryDirV3(changeDir, meta, storyId) : null;
     const explicit = (Array.isArray(stageRule['change-artifacts']) ? stageRule['change-artifacts'] : [])
       .map((a) => (typeof a === 'string' ? a : a?.path))
       .filter(Boolean);
 
-    /** 注入单个 Change Artifact（存在性检查 + 预算；绑定后产物在 STORY 目录，兼容 CHG 根存量）。 */
-    const pushArtifact = async (rel, source, missingReason) => {
-      const storyDir = meta ? resolveStoryDir(changeDir, meta) : null;
+    /**
+     * 注入单个 Change Artifact（存在性检查 + 预算；候选位置优先 STORY 目录，兼容 CHG 根存量）。
+     * @param {string} rel 相对 CHG 目录的路径
+     * @param {'change-artifact'|'auto'} source 来源标记
+     * @param {string} [missingReason] 缺失原因（缺省用 not found）
+     * @param {'inline'|'outline'} [mode] outline 只登记路径不读正文（Change 级引用防过载）
+     */
+    const pushArtifact = async (rel, source, missingReason, mode = 'inline') => {
+      const sDir =
+        storyId && meta
+          ? storyDirV3
+          : meta
+            ? resolveStoryDir(changeDir, meta)
+            : null;
       const candidates = [];
-      if (storyDir) candidates.push(join(storyDir, rel));
+      if (sDir) candidates.push(join(sDir, rel));
       candidates.push(join(changeDir, rel));
       let abs = null;
       for (const c of candidates) {
@@ -274,6 +292,21 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
       }
       if (!abs) {
         missingArtifacts.push(missingReason ? `${rel} (${missingReason})` : `${rel} (not found)`);
+        return;
+      }
+      if (mode === 'outline') {
+        if (!fitsBudget(0)) {
+          skipped.push(`delivery/changes/${changeId}/${toPosix(rel)} (over budget)`);
+          return;
+        }
+        budget.usedFiles += 1;
+        files.push({
+          path: `delivery/changes/${changeId}/${toPosix(rel)}`,
+          content: '',
+          category: 'artifact',
+          mode,
+          source,
+        });
         return;
       }
       const content = await readContent(abs);
@@ -298,35 +331,77 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
       await pushArtifact(rel, 'change-artifact');
     }
 
-    // 2b. 自动：STORY 级 tasks.md（feature-path 已绑定 → 存在性检查）
+    // 2b. 自动：STORY 级 tasks.md（feature-path 已绑定或 story mode → 存在性检查）
     if (AUTO_TASKS_STAGES.has(stage)) {
-      const fp = meta ? featurePathDirs(meta) : null;
-      if (!fp) {
-        missingArtifacts.push('tasks.md (feature-path not bound)');
+      if (storyId) {
+        // Phase 4.2 story mode：tasks.md 在 stories/<id>/（3-tier）或四级目录（inline 回落）
+        await pushArtifact('tasks.md', 'auto', 'story tasks.md not found');
       } else {
-        await pushArtifact([...fp, 'tasks.md'].join('/'), 'auto');
+        const fp = meta ? featurePathDirs(meta) : null;
+        if (!fp) {
+          missingArtifacts.push('tasks.md (feature-path not bound)');
+        } else {
+          await pushArtifact([...fp, 'tasks.md'].join('/'), 'auto');
+        }
       }
     }
 
     // 2c. 自动：STORY 目录下 DU-*/metadata.yaml（readdir 扫描，仅一层）
     if (AUTO_DU_STAGES.has(stage)) {
-      const fp = meta ? featurePathDirs(meta) : null;
-      if (!fp) {
-        missingArtifacts.push('DU-*/metadata.yaml (feature-path not bound)');
+      if (storyId) {
+        if (!storyDirV3) {
+          missingArtifacts.push('DU-*/metadata.yaml (story dir not resolved)');
+        } else {
+          let duIds = [];
+          try {
+            duIds = (await readdir(storyDirV3, { withFileTypes: true }))
+              .filter((d) => d.isDirectory() && d.name.startsWith('DU-'))
+              .map((d) => d.name)
+              .sort();
+          } catch {
+            duIds = []; // Story 目录未创建（task 未开始）→ 不标注 missing（tasks.md 已标）
+          }
+          for (const du of duIds) {
+            await pushArtifact(join(du, 'metadata.yaml'), 'auto');
+          }
+        }
       } else {
-        const storyDir = join(changeDir, ...fp);
-        let duIds = [];
-        try {
-          duIds = (await readdir(storyDir, { withFileTypes: true }))
-            .filter((d) => d.isDirectory() && d.name.startsWith('DU-'))
-            .map((d) => d.name)
-            .sort();
-        } catch {
-          duIds = []; // STORY 目录未创建（task 未开始）→ 不标注 missing（tasks.md 已标）
+        const fp = meta ? featurePathDirs(meta) : null;
+        if (!fp) {
+          missingArtifacts.push('DU-*/metadata.yaml (feature-path not bound)');
+        } else {
+          const storyDir = join(changeDir, ...fp);
+          let duIds = [];
+          try {
+            duIds = (await readdir(storyDir, { withFileTypes: true }))
+              .filter((d) => d.isDirectory() && d.name.startsWith('DU-'))
+              .map((d) => d.name)
+              .sort();
+          } catch {
+            duIds = []; // STORY 目录未创建（task 未开始）→ 不标注 missing（tasks.md 已标）
+          }
+          for (const du of duIds) {
+            await pushArtifact([...fp, du, 'metadata.yaml'].join('/'), 'auto');
+          }
         }
-        for (const du of duIds) {
-          await pushArtifact([...fp, du, 'metadata.yaml'].join('/'), 'auto');
-        }
+      }
+    }
+
+    // 2d. Phase 4.2 story mode：自动注入 Change 级规格引用（story-spec/design 的锚定上下文）
+    // prd/design 阶段 inline（写 Story 规格需读 Change 规格）；
+    // task/dev/test/review 阶段 outline（只登记标题骨架，防上下文过载，plan §9 风险缓解）
+    if (storyId) {
+      const changeRefs =
+        stage === 'prd'
+          ? ['change-prd.md']
+          : stage === 'design'
+            ? ['change-prd.md', 'change-design.md']
+            : AUTO_TASKS_STAGES.has(stage)
+              ? ['change-prd.md', 'change-design.md']
+              : [];
+      const refMode = stage === 'prd' || stage === 'design' ? 'inline' : 'outline';
+      for (const name of changeRefs) {
+        await pushArtifact(name, 'auto', undefined, refMode);
       }
     }
   }
@@ -460,6 +535,13 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
   // Phase 3.5 修订：产物落位信息（Agent 依据其在 Instruction 中写对位置）
   const featureDirs = opts.metadata ? featurePathDirs(opts.metadata) : null;
 
+  // Phase 4.2：Story 上下文透传（3-tier 时为 stories/<id>/ 相对路径）
+  const storyId = opts.storyId || null;
+  const storyDir =
+    storyId && changeDir && opts.metadata
+      ? toPosix(relative(changeDir, resolveStoryDirV3(changeDir, opts.metadata, storyId) || changeDir))
+      : null;
+
   return {
     stage,
     dirs,
@@ -471,5 +553,7 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
     duBinding,
     changeId,
     featureDirs,
+    storyId,
+    storyDir,
   };
 }

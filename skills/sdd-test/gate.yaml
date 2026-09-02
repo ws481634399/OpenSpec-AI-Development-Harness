@@ -4,13 +4,14 @@
 stage: test
 artifact: evidence/test-report.md
 
+# Phase 4.1 轻量化：advisory fail 只记 warning 不阻断；skip-tier 命中 evidence-tier 时跳过
 machine-checks:
   - required-front-matter
   - no-placeholder
   - required-sections
-  - cross-reference-valid
-  - evidence-coverage # Phase 2.1：test-run 覆盖机检
-  - du-fan-in-testing # Phase 2.4：所有 DU status ≥ testing
+  - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
+  - evidence-coverage # Phase 2.1：test-run 覆盖机检（轻量仍有价值，保持 blocking）
+  - { id: du-fan-in-testing, skip-tier: [light] } # Phase 2.4：所有 DU status ≥ testing（单仓轻量档跳过）
 
 # Phase 2.1 evidence-coverage 开关（phase-2.1-evidence-system-design.md §4.2）
 evidence-coverage:
@@ -30,3 +31,8 @@ non-empty-ai-sections:
 human-checks:
   - "## 1. 测试范围"
   - "## 3. 证据清单"
+
+# Phase 4.2 三级规格分层：3-tier 多 Story 时 test-report 落 stories/<id>/evidence/，
+# workflow 传 storyId 激活 story mode（路径分发 + DU Fan-in 检查限定该 Story）；检查项不变。
+three-tier:
+  story-artifact: evidence/test-report.md

@@ -4,13 +4,14 @@
 stage: task
 artifact: tasks.md
 
+# Phase 4.1 轻量化：advisory fail 只记 warning 不阻断；skip-tier 命中 evidence-tier 时跳过
 machine-checks:
   - required-front-matter
   - no-placeholder
   - required-sections
-  - cross-reference-valid
-  - du-coverage # Phase 2.4：design 声明仓 ⊆ DU 覆盖 + DU 结构完整性
-  - du-guidance # Phase 2.5：DU Implementation Guidance 完整性（Sketch 必填/Pseudocode 条件/Verification 必填）
+  - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
+  - { id: du-coverage, skip-tier: [light] } # Phase 2.4：DU 覆盖对齐（单仓轻量档跳过）
+  - { id: du-guidance, skip-tier: [light] } # Phase 2.5：DU Implementation Guidance 完整性（单仓轻量档跳过）
 
 required-front-matter: []
 
@@ -23,3 +24,10 @@ non-empty-ai-sections:
 
 human-checks:
   - "## 任务清单"
+
+# Phase 4.2 三级规格分层：3-tier 多 Story 时 tasks.md 逐 Story 生成（stories/<id>/tasks.md），
+# workflow 传 storyId 激活 story mode；DU 覆盖/指导检查自动限定该 Story 的 DU 集合。
+three-tier:
+  story-artifact: tasks.md
+  story-machine-checks:
+    - { id: scope-subset, target: du } # DU Scope ⊆ Story Scope（[S<n>] 编号引用；无引用条目仅 warning）

@@ -4,11 +4,12 @@
 stage: prd
 artifact: prd.md
 
+# Phase 4.1 轻量化：advisory fail 只记 warning 不阻断；skip-tier 命中 evidence-tier 时跳过
 machine-checks:
   - required-front-matter
   - no-placeholder
   - required-sections
-  - cross-reference-valid
+  - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
 
 required-front-matter: []
 
@@ -27,3 +28,36 @@ human-checks:
   - "## 1. 背景"
   - "## 2. 用户价值"
   - "## 5. 验收标准"
+
+# Phase 4.2 三级规格分层（plans/phase-4.2-three-tier-spec-design.md §5/§8）
+# - inline 单 Story（缺省）：仅用上方共享配置，prd.md 双语义（Change+Story 合并，一次机检/人审）
+# - 多 Story Change：Change 级检查 change-prd.md（CHG 根）；Story 级（workflow 传 storyId）检查 story-spec.md
+three-tier:
+  change-artifact: change-prd.md
+  change-non-empty-ai-sections:
+    - "## 1. 背景"
+    - "## 2. 用户价值"
+    - "## 3. 功能范围"
+    - "## 5. 全局验收标准"
+  change-required-replacements:
+    - change-id
+    - requirement
+    - target-user
+    - pain-points
+    - expected-value
+    - scope-in
+    - scope-out
+  story-artifact: story-spec.md
+  story-machine-checks:
+    - { id: change-ref-bound, field: change-prd-ref } # Story→Change PRD 章节引用（blocking，评审决策：Story 级从 advisory 升 blocking）
+    - { id: scope-subset, target: change } # Story Scope ⊆ Change Scope（[S<n>] 编号引用，blocking）
+  story-non-empty-ai-sections:
+    - "## 1. Story 目标"
+    - "## 2. Scope（范围）"
+    - "## 5. Story 验收标准"
+  story-required-replacements:
+    - change-id
+    - story-id
+    - change-prd-ref
+    - scope-in
+    - scope-out
