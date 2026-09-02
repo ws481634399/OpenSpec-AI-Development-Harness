@@ -33,7 +33,7 @@
 - 技术选型（框架、库、工具）
 - 测试策略（单元/集成/E2E）
 
-写入 `standards/<category>.md`（更新或新建）。
+写入 `standards/engineering/<topic>.md` 或 `standards/project/<topic>.md`（子目录制，优先合并已有文件，禁止写 `standards/` 根下）。
 
 ### 3. 提取业务能力 → product/
 
@@ -42,7 +42,10 @@
 - 核心能力（从入口/路由/控制器推断）
 - 数据模型（从 models/entities 推断）
 
-写入 `product/<domain>.md`（更新或新建）。
+写入规则（禁止在 `product/` 根下新建 .md）：
+- 业务域与核心能力 → 调用 sdd-feature-tree 创建 Feature Tree 节点
+- 确认的业务规则 → Spec 晋升候选草稿（写入 reverse-report.md，人工确认后落 `product/specs/<feature-domain>.md`）
+- 业务术语 → `product/glossary/terms.md`（单文件表格式）
 
 ### 4. 生成 Feature Tree
 

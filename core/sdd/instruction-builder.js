@@ -92,6 +92,26 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('');
   }
 
+  // 3.6 Story 执行上下文（Phase 4.2 三级规格分层：3-tier 多 Story + storyId 时注入）
+  const storyId = context?.storyId || null;
+  if (storyId) {
+    lines.push('## Story 执行上下文');
+    lines.push('');
+    lines.push(
+      `- Story: ${storyId}（三级模式，产物写入 \`${context.storyDir || `stories/${storyId}`}/\`）`
+    );
+    lines.push(
+      '- 本次为 Story 级执行：产物使用 Story 级模板（story-spec.md / story-design.md / tasks.md），而非 Change 级产物'
+    );
+    lines.push(
+      '- 交叉引用（blocking）：story-spec 的 change-prd-ref / story-design 的 change-design-ref 必须指向 Change 级产物的具体章节锚点（如 `change-prd.md#5-全局验收标准`）'
+    );
+    lines.push(
+      '- Scope 约束（blocking）：Story Scope ⊆ Change Scope、DU Scope ⊆ Story Scope，用 [S<n>] 编号对齐 Change/Story 范围条目'
+    );
+    lines.push('');
+  }
+
   // 4. Context（Phase 2.6 v2：Change Artifacts + 内联文件 + 文件清单三 section；
   //    Phase 2.7：DU 绑定时增加 Repository Delivery Context section）
   const allFiles = context?.files || [];

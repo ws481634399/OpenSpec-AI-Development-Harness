@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdtemp, writeFile, rm, readFile, mkdir } from 'node:fs/promises';
 import { loadWorkflow, listWorkflows, findStageByToState } from '../core/sdd/workflow-loader.js';
-import { runWorkflow, WORKFLOW_RESULT } from '../core/sdd/workflow-engine.js';
+import { runWorkflow, detectStaleArtifacts, WORKFLOW_RESULT } from '../core/sdd/workflow-engine.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
 import { runInit } from '../core/workspace/workspace-initializer.js';
 import { runChangeCreate, readMetadata, patchStatus, patchMetadata } from '../core/sdd/change-model.js';
@@ -93,15 +93,23 @@ test('WorkflowEngine: 无 Artifact → WAITING_FOR_ARTIFACT（生成 Instruction
   await rmrf(tmp);
 });
 
-test('WorkflowEngine: Artifact 存在但 Human Gate pending → WAITING_FOR_HUMAN', async () => {
+// 完整的 prd.md 内容（通过 sdd-prd gate 的所有 machine-checks）
+const FULL_PRD =
+  '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n';
+
+test('WorkflowEngine: explore 免人审（human-gate: skip）→ 机检通过自动推进 → WAITING_FOR_ARTIFACT(prd)', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
   await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
   const r = await runWorkflow(tmp, changeId, { harnessRoot });
-  // Machine Gate 应 passed，Human Gate pending → WAITING_FOR_HUMAN
-  assert.equal(r.result, WORKFLOW_RESULT.WAITING_FOR_HUMAN);
-  // 验证 Machine Gate 已持久化为 passed
+  // Machine Gate passed → human-gate skip → 自动推进 exploring → prd Artifact 不存在
+  assert.equal(r.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
+  assert.equal(r.stage.skill, 'sdd-prd');
+  const meta = await readMetadata(changeDir);
+  assert.equal(meta.status, 'exploring');
+  // Gate Result：machine passed + human skipped（留痕，非 approved）
   const gateResult = await readGateResult(changeDir, 'exploration.md');
   assert.equal(gateResult.gates.machine.status, 'passed');
+  assert.equal(gateResult.gates.human.status, 'skipped');
   await rmrf(tmp);
 });
 
@@ -134,21 +142,16 @@ test('WorkflowEngine: Human approved + hash 匹配 → ADVANCED + 状态推进�
   await rmrf(tmp);
 });
 
-test('WorkflowEngine: Human approved 但 Artifact 已修改（hash 不匹配）→ WAITING_FOR_HUMAN', async () => {
+test('WorkflowEngine: prd（human-gate required）Human approved 但 Artifact 已修改（hash 不匹配）→ WAITING_FOR_HUMAN', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
-  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
-  // 写旧的 Machine + Human Gate（hash 不匹配当前 Artifact）
-  await writeMachineGate(changeDir, 'exploration.md', {
-    status: 'passed',
-    artifactHash: 'sha256:old',
-    validator: 'sdd-explore',
-  });
-  await writeHumanGate(changeDir, 'exploration.md', {
+  await advanceTo(changeDir, 'exploring');
+  await writeFile(join(changeDir, 'prd.md'), FULL_PRD, 'utf8');
+  // 写 Human Gate approved 但 hash 是旧的（Artifact 在 approve 后被修改）
+  await writeHumanGate(changeDir, 'prd.md', {
     status: 'approved',
     artifactHash: 'sha256:old',
   });
-  // workflow run：machine gate 会重跑（hash 变化），覆盖旧 machine hash
-  // human gate hash 仍为 'sha256:old'，与新 machine hash 不匹配 → WAITING_FOR_HUMAN
+  // workflow run：machine gate 重跑通过（刷新 machine hash），human hash 仍为旧值 → WAITING_FOR_HUMAN
   const r = await runWorkflow(tmp, changeId, { harnessRoot });
   assert.equal(r.result, WORKFLOW_RESULT.WAITING_FOR_HUMAN);
   await rmrf(tmp);
@@ -183,28 +186,109 @@ test('WorkflowEngine: completed 状态 → COMPLETED', async () => {
   await rmrf(tmp);
 });
 
-test('WorkflowEngine: 断点续跑——第一次 WAITING_FOR_HUMAN，approve 后再 run → ADVANCED', async () => {
+test('WorkflowEngine: 断点续跑——prd 阶段 WAITING_FOR_HUMAN，approve 后再 run → ADVANCED', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
-  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  await advanceTo(changeDir, 'exploring');
+  await writeFile(join(changeDir, 'prd.md'), FULL_PRD, 'utf8');
 
-  // 第一次 run：machine passed + human pending → WAITING_FOR_HUMAN
+  // 第一次 run：machine passed + human pending（required）→ WAITING_FOR_HUMAN
   const r1 = await runWorkflow(tmp, changeId, { harnessRoot });
   assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_HUMAN);
 
   // 模拟 gate approve：用 machine gate 写入的真实 hash 写 Human Gate
-  const gateResult = await readGateResult(changeDir, 'exploration.md');
+  const gateResult = await readGateResult(changeDir, 'prd.md');
   const realHash = gateResult.gates.machine['artifact-hash'];
-  await writeHumanGate(changeDir, 'exploration.md', {
+  await writeHumanGate(changeDir, 'prd.md', {
     status: 'approved',
     artifactHash: realHash,
   });
 
-  // 第二次 run：ADVANCED → exploring → 下一阶段 sdd-prd Artifact 不存在 → WAITING_FOR_ARTIFACT
+  // 第二次 run：ADVANCED → specified → 下一阶段 design Artifact 不存在 → WAITING_FOR_ARTIFACT
   const r2 = await runWorkflow(tmp, changeId, { harnessRoot });
   assert.equal(r2.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
-  assert.equal(r2.stage.skill, 'sdd-prd');
+  assert.equal(r2.stage.skill, 'sdd-design');
   const meta = await readMetadata(changeDir);
-  assert.equal(meta.status, 'exploring');
+  assert.equal(meta.status, 'specified');
+  await rmrf(tmp);
+});
+
+// ---- Phase 4.1 Stale 传播检测（痛点 2a）----
+
+test('detectStaleArtifacts: passed 产物 Gate 后被改动 → hash-mismatch', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  const hash = sha256(FULL_EXPLORATION);
+  await writeMachineGate(changeDir, 'exploration.md', {
+    status: 'passed',
+    artifactHash: hash,
+    validator: 'sdd-explore',
+  });
+  // Gate 后修改产物（模拟上游变更）
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION + '\n补充内容', 'utf8');
+  const stale = await detectStaleArtifacts(changeDir);
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].artifact, 'exploration.md');
+  assert.equal(stale[0].kind, 'hash-mismatch');
+  await rmrf(tmp);
+});
+
+test('detectStaleArtifacts: failed 产物被修复不报 stale（合法编辑）', async () => {
+  const { tmp, changeId, changeDir } = await setupChange();
+  // 残缺产物 → machine gate failed（WAITING_FOR_MACHINE_FIX）
+  await writeFile(join(changeDir, 'exploration.md'), '# Exploration\n\n## 1. 需求理解\n内容\n', 'utf8');
+  const r1 = await runWorkflow(tmp, changeId, { harnessRoot });
+  assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_MACHINE_FIX);
+  // 用户按提示修复产物（合法编辑，非 stale）
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  const stale = await detectStaleArtifacts(changeDir);
+  assert.deepEqual(stale, []);
+  await rmrf(tmp);
+});
+
+test('detectStaleArtifacts: passed 产物被删除 → missing', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  const hash = sha256(FULL_EXPLORATION);
+  await writeMachineGate(changeDir, 'exploration.md', {
+    status: 'passed',
+    artifactHash: hash,
+    validator: 'sdd-explore',
+  });
+  const { unlink } = await import('node:fs/promises');
+  await unlink(join(changeDir, 'exploration.md'));
+  const stale = await detectStaleArtifacts(changeDir);
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].kind, 'missing');
+  await rmrf(tmp);
+});
+
+test('detectStaleArtifacts: 无产物时返回空数组', async () => {
+  const { tmp, changeDir } = await setupChange();
+  const stale = await detectStaleArtifacts(changeDir);
+  assert.deepEqual(stale, []);
+  await rmrf(tmp);
+});
+
+test('runWorkflow: 返回值带 stale 字段（缺省空数组）', async () => {
+  const { tmp, changeId } = await setupChange();
+  const r = await runWorkflow(tmp, changeId, { harnessRoot });
+  assert.deepEqual(r.stale, []);
+  await rmrf(tmp);
+});
+
+test('runWorkflow: 产物 Gate 后被改动 → stale 非空且 run 结果正常返回', async () => {
+  const { tmp, changeId, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  // 第一次 run：机检 passed + human skip → 推进到 exploring → WAITING_FOR_ARTIFACT(prd)
+  const r1 = await runWorkflow(tmp, changeId, { harnessRoot });
+  assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
+  // Gate 后修改已通过的 exploration.md
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION + '\n补充内容', 'utf8');
+  const r2 = await runWorkflow(tmp, changeId, { harnessRoot });
+  assert.equal(r2.stale.length, 1);
+  assert.equal(r2.stale[0].artifact, 'exploration.md');
+  // run 本身不被 stale 阻断（prd artifact 仍缺 → WAITING_FOR_ARTIFACT）
+  assert.equal(r2.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
   await rmrf(tmp);
 });
 
@@ -277,7 +361,7 @@ test('WorkflowEngine: testing 状态无 review-report → WAITING_FOR_ARTIFACT(s
   await rmrf(tmp);
 });
 
-test('WorkflowEngine: 检查点双门禁通过 → review-report accepted 且状态保持 testing → 继续 converge', async () => {
+test('WorkflowEngine: 检查点免人审（human-gate: skip）→ 双门禁通过 → review-report accepted 且状态保持 testing → 继续 converge', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
   await advanceTo(changeDir, 'testing');
   // review gate 含 du-fan-in-complete（Phase 2.4）：预置已完成 DU
@@ -291,25 +375,15 @@ test('WorkflowEngine: 检查点双门禁通过 → review-report accepted 且状
     'utf8'
   );
 
-  // 第一次 run：machine passed + human pending → WAITING_FOR_HUMAN
+  // 一次 run：machine passed + human skip → 检查点验收（accepted）→ 继续 converge Artifact 缺失
   const r1 = await runWorkflow(tmp, changeId, { harnessRoot });
-  assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_HUMAN);
+  assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
+  assert.equal(r1.stage.skill, 'sdd-converge');
 
-  // 用 machine gate 写入的真实 hash 模拟 gate approve --stage review
-  const gr = await readGateResult(changeDir, 'review-report.md');
-  await writeHumanGate(changeDir, 'review-report.md', {
-    status: 'approved',
-    artifactHash: gr.gates.machine['artifact-hash'],
-  });
-
-  // 第二次 run：检查点验收（状态不变）→ 循环继续 → converge Artifact 缺失
-  const r2 = await runWorkflow(tmp, changeId, { harnessRoot });
-  assert.equal(r2.result, WORKFLOW_RESULT.WAITING_FOR_ARTIFACT);
-  assert.equal(r2.stage.skill, 'sdd-converge');
-
-  // 检查点已 accepted，Change 状态保持 testing
+  // 检查点已 accepted，human 段记 skipped（留痕），Change 状态保持 testing
   const reviewGate = await readGateResult(changeDir, 'review-report.md');
   assert.equal(reviewGate.status, 'accepted');
+  assert.equal(reviewGate.gates.human.status, 'skipped');
   const meta = await readMetadata(changeDir);
   assert.equal(meta.status, 'testing');
   await rmrf(tmp);

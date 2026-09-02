@@ -79,6 +79,10 @@ export function registerWorkflowCommand(program) {
       '--du <du-id>',
       '绑定 Delivery Unit（DU-<别名>-NNN）：dev/test 阶段注入 repo 侧上下文并激活 per-repo 规则段（Phase 2.7）'
     )
+    .option(
+      '--story <story-id>',
+      'Story 级执行（Phase 4.2 三级规格）：多 Story Change 的 dev/test/review 阶段按 Story 状态推进对应 stage'
+    )
     .option('--json', '机器可读 JSON 输出（Agent/IDE 集成用，stdout 纯 JSON）')
     .action(async (name, opts) => {
       const ws = resolveWorkspaceRoot();
@@ -101,6 +105,7 @@ export function registerWorkflowCommand(program) {
           workflowName: name,
           harnessRoot,
           du: opts.du,
+          ...(opts.story ? { storyId: opts.story } : {}),
         });
 
         // Phase 3.6：--json 机器可读输出（Agent 集成不再解析 stdout 文案）
@@ -112,16 +117,40 @@ export function registerWorkflowCommand(program) {
                 workflow: name,
                 result: result.result,
                 reason: result.reason,
+                story: result.story ?? null,
                 stage: result.stage
                   ? { skill: result.stage.skill, artifact: result.stage.artifact }
                   : null,
                 instruction: result.instruction ?? null,
+                stale: result.stale ?? [],
               },
               null,
               2
             )
           );
           return;
+        }
+
+        // Phase 4.1/4.2：Stale 传播提示（分层展示：Change 级 / Story 级 / 传播）
+        // 仅提示不阻断，随后继续展示本次 run 的真实结果
+        if (result.stale && result.stale.length > 0) {
+          const direct = result.stale.filter((s) => s.kind !== 'stale-propagated');
+          const propagated = result.stale.filter((s) => s.kind === 'stale-propagated');
+          const lines = [];
+          if (direct.length > 0) {
+            lines.push('产物 Gate 后被改动（下游可能过期）:');
+            for (const s of direct) {
+              const tag = s.layer === 'story' ? `  [story ${s.story}] ` : '  [change] ';
+              lines.push(`${tag}${s.artifact}  (${s.kind})`);
+            }
+          }
+          if (propagated.length > 0) {
+            lines.push('上游产物变更传播（建议重刷后重新过 Gate）:');
+            for (const s of propagated) {
+              lines.push(`  [story ${s.story}] ${s.artifact}  ← ${s.from}`);
+            }
+          }
+          warn(`Stale artifacts detected:\n${lines.join('\n')}`);
         }
 
         switch (result.result) {

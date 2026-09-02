@@ -7,15 +7,30 @@
 import { join } from 'node:path';
 import { stat, readFile } from 'node:fs/promises';
 import { readMetadata, patchStatus } from './change-model.js';
-import { validateTransition } from './change-state-machine.js';
+import { validateTransition, CHANGE_STATUSES } from './change-state-machine.js';
 import { loadWorkflow, findStageByToState } from './workflow-loader.js';
 import { loadGate } from './gate-config-loader.js';
 import { readGateResult, patchArtifactStatus } from './gate-repository.js';
 import { sha256 } from './artifact-hash.js';
-import { resolveArtifactPath } from './artifact-path.js';
+import { resolveArtifactPath, isMultiStory } from './artifact-path.js';
+import { readStories, aggregateChangeStatus, STORY_RANK } from './story-model.js';
 
 const pathExists = (p) =>
   stat(p).then(() => true).catch((e) => (e.code === 'ENOENT' ? false : Promise.reject(e)));
+
+// Phase 4.2 §5.3：聚合推进目标（completed 由 sdd-converge 人审驱动，不走聚合）
+const AGGREGATED_TARGETS = new Set(['tasked', 'developing', 'testing']);
+
+/**
+ * 线性生命周期前向路径（CHANGE_STATUSES 严格前向有序）。
+ * 聚合推进允许跨态（如 tasked → testing），逐态落盘保证每个中间状态真实存在。
+ */
+function forwardPath(from, to) {
+  const i = CHANGE_STATUSES.indexOf(from);
+  const j = CHANGE_STATUSES.indexOf(to);
+  if (i < 0 || j < 0 || j <= i) return [];
+  return CHANGE_STATUSES.slice(i + 1, j + 1);
+}
 
 /**
  * 请求状态推进。唯一合法的 Change 状态推进入口。
@@ -43,6 +58,20 @@ export async function requestTransition(changeDir, targetState, opts = {}) {
   // 1. 读 metadata
   const meta = await readMetadata(changeDir);
   const current = meta.status || 'created';
+
+  // Phase 4.2 §5.3 聚合推进：多 Story 模式下 tasked/developing/testing 按 Story 状态聚合判定
+  // （允许跨态推进如 tasked → testing，逐态落盘；Story 级 Gate 校验由 Workflow Engine processStoryStage 完成）
+  if (isMultiStory(meta) && AGGREGATED_TARGETS.has(targetState)) {
+    return requestAggregatedTransition(changeDir, meta, current, targetState);
+  }
+
+  // Phase 4.2：story-splitting 是结构性状态（进入 Story 执行期，无自身 artifact/Gate），
+  // workflow state-map 无对应 stage，直接校验状态机后落盘
+  if (targetState === 'story-splitting') {
+    validateTransition(current, targetState);
+    await patchStatus(changeDir, targetState);
+    return { advanced: true, reason: `${current} → story-splitting（进入 Story 执行期）` };
+  }
 
   // 2. 状态机校验（caller bug 抛错；Gate 未通过在后续步骤返回 advanced:false）
   validateTransition(current, targetState);
@@ -83,15 +112,20 @@ export async function requestTransition(changeDir, targetState, opts = {}) {
   }
 
   // 7. 确认 Human Gate = approved 且 hash 匹配
-  //    v0.1 不识别 bypassed 推进（见 §10.4），bypassed 视为未通过
+  //    Phase 4.1 轻量化：status 'skipped'（workflow human-gate: skip 档写入，reviewer=workflow 留痕）
+  //    视为该阶段人工确认完成，放行且不校验 human hash（无人审语义）；
+  //    bypassed 仍视为未通过（见 §10.4）
   const humanStatus = gateResult.gates.human.status;
-  if (humanStatus !== 'approved') {
+  if (humanStatus !== 'approved' && humanStatus !== 'skipped') {
     return {
       advanced: false,
-      reason: `WAITING_FOR_HUMAN: gate ${humanStatus} (v0.1 requires approved)`,
+      reason: `WAITING_FOR_HUMAN: gate ${humanStatus} (requires approved or skipped)`,
     };
   }
-  if (gateResult.gates.human['artifact-hash'] !== currentHash) {
+  if (
+    humanStatus === 'approved' &&
+    gateResult.gates.human['artifact-hash'] !== currentHash
+  ) {
     return {
       advanced: false,
       reason: `WAITING_FOR_HUMAN: gate stale (hash mismatch)`,
@@ -146,12 +180,15 @@ export async function requestCheckpoint(changeDir, stage, opts = {}) {
     return { accepted: false, reason: `WAITING_FOR_MACHINE: gate stale or not passed` };
   }
 
-  // 确认 Human Gate = approved 且 hash 匹配（bypassed 视为未通过）
+  // 确认 Human Gate = approved 且 hash 匹配（skipped 放行，bypassed 视为未通过）
   const humanStatus = gateResult.gates.human.status;
-  if (humanStatus !== 'approved') {
-    return { accepted: false, reason: `WAITING_FOR_HUMAN: gate ${humanStatus} (v0.1 requires approved)` };
+  if (humanStatus !== 'approved' && humanStatus !== 'skipped') {
+    return { accepted: false, reason: `WAITING_FOR_HUMAN: gate ${humanStatus} (requires approved or skipped)` };
   }
-  if (gateResult.gates.human['artifact-hash'] !== currentHash) {
+  if (
+    humanStatus === 'approved' &&
+    gateResult.gates.human['artifact-hash'] !== currentHash
+  ) {
     return { accepted: false, reason: `WAITING_FOR_HUMAN: gate stale (hash mismatch)` };
   }
 
@@ -159,4 +196,36 @@ export async function requestCheckpoint(changeDir, stage, opts = {}) {
   await patchArtifactStatus(changeDir, artifactName, 'accepted');
 
   return { accepted: true, reason: `checkpoint ${artifactName} accepted (state unchanged)` };
+}
+
+/**
+ * Phase 4.2 §5.3 聚合推进（多 Story 模式专用，由 requestTransition 拦截分发）：
+ * Change.tasked/developing/testing 由 Story 状态聚合推导，允许跨态（逐态落盘）。
+ * Story 级 Gate 已在 Workflow Engine processStoryStage 推进 Story 状态前校验，
+ * 此处仅校验「聚合结果达到目标」+ 前向性，不再重复 Artifact/Hash 检查。
+ *
+ * @returns {Promise<{advanced:boolean, reason:string}>}
+ */
+async function requestAggregatedTransition(changeDir, meta, current, targetState) {
+  const stories = await readStories(changeDir, meta);
+  const agg = aggregateChangeStatus(stories.map((s) => s.status));
+  const rank = (s) => STORY_RANK[s] ?? -1;
+  // 聚合结果须达到目标（allow agg 超前，如全 Story completed → 允许推到 testing 作为 converge 前置）
+  if (!agg || rank(agg) < rank(targetState)) {
+    return {
+      advanced: false,
+      reason: `WAITING_FOR_AGGREGATION: stories aggregate=${agg || 'none'}, target=${targetState}（§5.3）`,
+    };
+  }
+  const path = forwardPath(current, targetState);
+  if (path.length === 0) {
+    return { advanced: false, reason: `Change already at/beyond ${targetState}` };
+  }
+  for (const s of path) {
+    await patchStatus(changeDir, s);
+  }
+  return {
+    advanced: true,
+    reason: `${current} → ${targetState}（§5.3 聚合推进，覆盖 ${stories.length} Story）`,
+  };
 }
