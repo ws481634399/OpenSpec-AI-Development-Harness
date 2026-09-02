@@ -139,7 +139,7 @@ test('SkillRegistry: getSkill 返回完整定义', async () => {
 
 // ---- ContextAssembler ----
 
-test('ContextAssembler: explore 阶段读取 standards/ + product/', async () => {
+test('ContextAssembler: explore 阶段读取 standards/ + product SSOT（拆条，不含 features 派生缓存）', async () => {
   const tmp = await mkdtemp(join(tmpdir(), 'ctx-'));
   await mkdir(join(tmp, '.sdd'), { recursive: true });
   const rulesRaw = await readFile(
@@ -149,18 +149,28 @@ test('ContextAssembler: explore 阶段读取 standards/ + product/', async () =>
   await writeFile(join(tmp, '.sdd', 'context-rules.yaml'), rulesRaw);
   await mkdir(join(tmp, 'standards', 'sdd'), { recursive: true });
   await writeFile(join(tmp, 'standards', 'sdd', 'test.md'), '# Test Standard');
-  await mkdir(join(tmp, 'product'), { recursive: true });
+  await mkdir(join(tmp, 'product', 'specs'), { recursive: true });
   await writeFile(join(tmp, 'product', 'feature-tree.yaml'), 'product:\n  name: test\nfeatures: []');
+  await writeFile(join(tmp, 'product', 'specs', 'order-rules.md'), '# Order Rules');
 
   const ctx = await assembleContext(tmp, 'explore');
   assert.equal(ctx.stage, 'explore');
   assert.ok(ctx.dirs.includes('standards'));
-  assert.ok(ctx.dirs.includes('product'));
+  assert.ok(ctx.dirs.includes('product/feature-tree.yaml'));
+  assert.ok(ctx.dirs.includes('product/specs'));
+  assert.ok(ctx.dirs.includes('product/glossary'));
   assert.ok(ctx.files.some((f) => f.path.startsWith('standards/')));
-  assert.ok(ctx.files.some((f) => f.path.startsWith('product/')));
+  assert.ok(ctx.files.some((f) => f.path === 'product/feature-tree.yaml'));
   const stdFile = ctx.files.find((f) => f.path === 'standards/sdd/test.md');
   assert.ok(stdFile);
   assert.ok(stdFile.content.includes('# Test Standard'));
+  const specFile = ctx.files.find((f) => f.path === 'product/specs/order-rules.md');
+  assert.ok(specFile);
+  assert.ok(specFile.content.includes('# Order Rules'));
+  // glossary/ 目录不存在 → 条目优雅跳过，不报错、不产生文件
+  assert.ok(!ctx.files.some((f) => f.path.startsWith('product/glossary/')));
+  // features/ 派生缓存不在任何 read 条目中
+  assert.ok(!ctx.dirs.includes('product') && !ctx.dirs.includes('product/features'));
   await rmrf(tmp);
 });
 

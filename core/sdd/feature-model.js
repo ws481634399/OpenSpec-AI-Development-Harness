@@ -125,6 +125,37 @@ export function* walkModules(levels) {
 }
 
 /**
+ * 按 Story ID 查找完整四级链（L1→L2→L3→Story）。
+ * 缺陷 9 修复：v1 过渡形态（story 直挂 L2）必须独立于 L3 循环检查——
+ * 若嵌套在 L3 循环内，L2 无 L3 子节点时循环体不执行，直挂 story 永远匹配不到。
+ * @param {{modules:Array}} tree
+ * @param {string} storyId
+ * @returns {{'level-1':object, 'level-2':object, 'level-3':object, story:object}|null}
+ *   level-3 为 { id:'', name:'' } 表示 story 直挂 L2（v1 过渡形态）
+ */
+export function findStoryChain(tree, storyId) {
+  if (!storyId) return null;
+  for (const l1 of tree?.modules || []) {
+    for (const l2 of l1.children || []) {
+      for (const l3 of l2.children || []) {
+        for (const story of l3.stories || []) {
+          if (story.id === storyId) {
+            return { 'level-1': l1, 'level-2': l2, 'level-3': l3, story };
+          }
+        }
+      }
+      // v1 过渡：story 直挂 L2（L3 之外独立检查，保证无 L3 子节点时也能命中）
+      for (const story of l2.stories || []) {
+        if (story.id === storyId) {
+          return { 'level-1': l1, 'level-2': l2, 'level-3': { id: '', name: '' }, story };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * 按任意层级 ID 查找节点。
  * @param {{modules:Array}} tree
  * @param {string} id

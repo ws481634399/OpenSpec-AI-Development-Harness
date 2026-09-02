@@ -1,6 +1,6 @@
 # OpenSpec SDD Skill 定义
 #
-# 版本: 0.2.0
+# 版本: 0.2.1
 # 类型: Knowledge Reverse Skill（旧项目接入）
 #
 # 与 7 个生命周期 Skill 不同：sdd-reverse 不进 7 状态生命周期，
@@ -8,7 +8,7 @@
 # Agent 执行后写入 standards/product/ 知识，用户手动归档。
 
 id: sdd-reverse
-version: 0.2.0
+version: 0.2.1
 stage: reverse
 description: Knowledge Reverse 骨架——扫描 implementation/ 代码树，生成 Agent 执行指令，指导知识提取
 input:

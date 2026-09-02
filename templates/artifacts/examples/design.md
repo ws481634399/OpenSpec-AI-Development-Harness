@@ -37,7 +37,7 @@ src/
 
 当前无认证模块，本次新增。
 
-参考 `standards/architecture-principles.md`：遵循分层架构 Controller → Service → Repository → Model。
+参考 `standards/engineering/architecture-principles.md`：遵循分层架构 Controller → Service → Repository → Model。
 
 ## §2 提议方案
 

@@ -4,6 +4,12 @@
 # state-map：每个 stage 显式声明 from-state / to-state / skill / artifact / gate
 # TransitionService 通过 to-state 反查此表定位 Skill 和 Artifact，不反查 skill.yaml
 #（避免 state→skill→gate.yaml→artifact 的循环依赖，见 §8.2 第 3 步）
+#
+# human-gate：Human Gate 分级（Phase 4.1 轻量化）
+#   required — 该阶段产物需人工 gate approve（缺省值，向后兼容）
+#   skip     — 免人审，机检通过即推进；Gate Result 的 human 段记 status: skipped（留痕，非 approved）
+# 最小人审策略：仅 prd（产品范围）与 converge（知识沉淀）保留人审；
+# dev/test 质量由 Machine Gate + Evidence 分档兜底。
 
 id: default
 name: SDD 完整生命周期
@@ -15,31 +21,37 @@ stages:
     from-state: created
     to-state: exploring
     artifact: exploration.md
+    human-gate: skip
   - skill: sdd-prd
     gate: prd
     from-state: exploring
     to-state: specified
     artifact: prd.md
+    human-gate: required
   - skill: sdd-design
     gate: design
     from-state: specified
     to-state: designed
     artifact: design.md
+    human-gate: skip
   - skill: sdd-task
     gate: task
     from-state: designed
     to-state: tasked
     artifact: tasks.md
+    human-gate: skip
   - skill: sdd-dev
     gate: dev
     from-state: tasked
     to-state: developing
     artifact: implementation.md
+    human-gate: skip
   - skill: sdd-test
     gate: test
     from-state: developing
     to-state: testing
     artifact: evidence/test-report.md
+    human-gate: skip
   # Phase 2.2：同态检查点（from-state === to-state）——双门禁通过但不推进 Change 状态
   # 见 plans/phase-2.2-sdd-review-skill-design.md §3.1
   - skill: sdd-review
@@ -47,8 +59,10 @@ stages:
     from-state: testing
     to-state: testing
     artifact: review-report.md
+    human-gate: skip
   - skill: sdd-converge
     gate: converge
     from-state: testing
     to-state: completed
     artifact: convergence.md
+    human-gate: required

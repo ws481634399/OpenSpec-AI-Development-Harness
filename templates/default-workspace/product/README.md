@@ -280,22 +280,14 @@ features: []
 ## 6.2 features/
 
 
-存储 Feature 定义。
+feature-tree 的派生缓存（SSOT 派生，只读）。
 
+由 `openspec feature materialize` 从 `feature-tree.yaml` 清空重建：
 
-例如：
+- L1/L2/L3 目录为空（仅作 IDE 导航）；
+- 仅 Story 级目录含 README.md（面包屑、简介、Change 历史、审计包链接）。
 
-```
-FEAT-ORDER-CANCEL.md
-```
-
-
-每个 Feature 文件应描述：
-
-- 功能目标；
-- 用户价值；
-- 能力范围；
-- 关联业务术语。
+禁止手改本目录；树内容以 `feature-tree.yaml` 为准，发现不一致时重跑 materialize。
 
 
 ---
@@ -303,19 +295,27 @@ FEAT-ORDER-CANCEL.md
 ## 6.3 specs/
 
 
-存储正式规格。
+存储已确认的产品规则（正式规格）。
 
+组织约定：
 
-规则：
-
-只有：
 
 ```
-approved
+specs/
+
+├── 订单能力.md
+
+└── 账户能力.md
 ```
 
-状态才能进入。
 
+按 L2 Feature 域一个文件，文件格式见 `templates/artifacts/spec.md`（front-matter 含 source-chg / promoted-at / status: approved）。
+
+晋升机制：
+
+- Agent 在 converge 阶段将 SPEC 草稿写入 convergence.md 的「Spec 晋升候选」节；
+- 人工评审通过后，才落入本目录；
+- Agent 不得绕过评审直接写入 specs/。
 
 内容包括：
 
@@ -332,21 +332,20 @@ spec 用于沉淀已经确认的产品知识，作为开发依据。
 ## 6.4 glossary/
 
 
-存储业务术语。
+存储业务术语（单文件表格式）。
 
-
-例如：
+约定文件：
 
 ```
-order.md
+glossary/
 
-payment.md
+└── terms.md
 ```
 
 
-每个术语应该包含：
+terms.md 为表格式术语表，每个条目包含：
 
-- 名称；
+- 术语名称；
 - 定义；
 - 使用范围；
 - 关联概念。

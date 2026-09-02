@@ -656,47 +656,49 @@ Standards 在 SDD 流程中被加载：
 ```
 explore 阶段
 
-读取 standards/
+读取 standards/ + product/（feature-tree.yaml / specs / glossary）
 
 ↓
 
 prd 阶段
 
-读取 product/ + delivery/
+读取 product/（feature-tree.yaml / specs）+ standards/
 
 ↓
 
 design 阶段
 
-读取 standards/ + product/ + implementation/
+读取 standards/ + product/（feature-tree.yaml / specs）+ implementation/
 
 ↓
 
 task 阶段
 
-读取 delivery/
+读取 standards/ + delivery/
 
 ↓
 
 dev 阶段
 
-读取 delivery/ + implementation/
+读取 standards/ + implementation/
 
 ↓
 
 test 阶段
 
-读取 delivery/ + implementation/
+读取 standards/ + implementation/
 
 ↓
 
 converge 阶段
 
-读取 delivery/ + implementation/
+读取 product/（feature-tree.yaml / specs / glossary）+ standards/
 ```
 
 
 完整规则见 [.sdd/context-rules.yaml](file:///d:/Desktop/OpenSpec-AI-Development-Harness/templates/default-workspace/.sdd/context-rules.yaml)。
+
+注意：`product/features/` 为 feature-tree 的派生缓存（仅 IDE 导航用），任何阶段都不读取。
 
 
 ---

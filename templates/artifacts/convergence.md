@@ -33,7 +33,7 @@
 ### Product
 
 - 是否需更新: {{product-need-update}} <!-- yes/no -->
-- 更新内容: <!-- feature-tree.yaml / specs/ 改动概要 -->
+- 更新内容: <!-- Spec 晋升候选（specs/ 待评审）/ glossary 改动概要；能力变更走 feature-tree -->
 - 理由:
 
 ### feature-tree.yaml

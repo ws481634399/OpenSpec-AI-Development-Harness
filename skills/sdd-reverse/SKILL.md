@@ -213,8 +213,9 @@ Feature Tree 草稿：
 ## 产出草稿
 - `delivery/changes/<CHG>/instruction.md` — 知识提取指令
 - `delivery/changes/<CHG>/reverse-report.md` — 知识提取报告
-- `standards/<category>.md` — 技术规则草稿
-- `product/<domain>.md` — 产品知识草稿
+- `standards/engineering/<file>.md` 或 `standards/project/<file>.md` — 技术规则草稿
+- Feature Tree 节点（走 sdd-feature-tree 命令）+ `product/glossary/terms.md` 术语草稿
+- Spec 晋升候选草稿（写入 reverse-report.md，人工确认后落 `product/specs/`）
 - `standards/INDEX.md` / `product/INDEX.md` — 索引
 
 ## 用户确认

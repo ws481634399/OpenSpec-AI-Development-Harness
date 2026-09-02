@@ -87,6 +87,14 @@ engineering/
 
 │
 
+├── architecture-principles.md
+
+├── git-conventions.md
+
+├── security-guidelines.md
+
+│
+
 ├── frontend/
 
 ├── backend/

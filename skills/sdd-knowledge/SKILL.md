@@ -32,12 +32,10 @@
 
 对每个 standards 晋升项：
 
-**确定目标文件：**
-- 编码规范 → `standards/coding-standards.md`
-- 架构决策 → `standards/architecture-decisions.md`
-- 安全实践 → `standards/security.md`
-- 测试约定 → `standards/testing-conventions.md`
-- 错误处理 → `standards/error-handling.md`
+**确定目标文件（子目录制，禁止在 `standards/` 根下新建文件）：**
+- 通用工程规则 → `standards/engineering/`（优先合并已有文件：`coding-standard.md` / `api-standard.md` / `database-standard.md` / `testing-standard.md` / `architecture-principles.md` / `git-conventions.md` / `security-guidelines.md`；确无对应主题再新建 `<topic>.md`）
+- 项目专属规则 → `standards/project/<topic>.md`
+- SDD 流程规则 → 不写入（`standards/sdd/` 由 Harness 维护，项目不应修改）
 
 **合并策略：**
 - 文件已存在 → 读取现有内容，将新知识合并（追加段落或更新现有 section）
@@ -66,10 +64,12 @@ updated-at: <ISO8601>
 
 #### 3. 写入 product/
 
-对每个 product 更新项：
+对每个 product 更新项，只允许三个合法位置（**禁止在 `product/` 根下新建 .md**）：
 
-**确定目标文件：**
-- 业务域 → `product/<domain>.md`（如 `user-center.md`、`order-flow.md`）
+**确定目标位置：**
+- 已确认业务规则 → `product/specs/<feature-domain>.md`（需人工评审，Agent 只产出草稿，见 sdd-converge 的 Spec 晋升机制）
+- 业务术语 → `product/glossary/terms.md`（单文件表格式，合并条目）
+- 能力/状态变更 → `openspec feature` 命令更新 `feature-tree.yaml`（不手写 yaml）
 
 **合并策略同 standards。**
 
@@ -84,8 +84,9 @@ updated-at: <ISO8601>
 - [ ] 冲突是否标注？
 
 ### 产出
-- `standards/<category>.md` — 技术规则知识（更新或新建）
-- `product/<domain>.md` — 产品知识（更新或新建）
+- `standards/engineering/<file>.md` 或 `standards/project/<file>.md` — 技术规则知识（更新或新建）
+- `product/glossary/terms.md` — 术语更新（如有）
+- Spec 晋升候选草稿（写入调用方 Artifact，人工评审后落 `product/specs/`）
 
 ---
 
@@ -108,11 +109,12 @@ updated-at: <ISO8601>
 
 #### 2. 分析内容确定路径
 
-**文件命名规则：**
-- 编码规范 → `coding-standards.md`
-- 架构决策 → `architecture-decisions.md` 或 `adr-NNN-<title>.md`
-- 业务域 → `<domain>.md`（如 `user-center.md`）
-- 通用约定 → `<topic>.md`（如 `git-conventions.md`）
+**文件命名规则（standards 走子目录制，product 走三合法位置，禁止在 standards/ 或 product/ 根下新建文件）：**
+- 通用工程规则 → `standards/engineering/<topic>.md`（优先合并已有文件）
+- 项目专属规则 → `standards/project/<topic>.md`（如 `naming-convention.md`、`adr-NNN-<title>.md`）
+- 已确认产品规则 → `product/specs/<feature-domain>.md`（按 `templates/artifacts/spec.md` 格式，status: approved，需注明来源）
+- 业务术语 → `product/glossary/terms.md`（单文件表格式，合并条目）
+- 通用约定 → `standards/engineering/<topic>.md`（如 `git-conventions.md`）
 
 如果文件已存在，读取后合并。
 
@@ -132,8 +134,11 @@ updated-at: <ISO8601>
 
 #### 4. 调用能力 C 重建索引
 
+执行本 SKILL「能力 C：索引构建」段落，更新索引文件。
+
 ### 产出
-- `standards/<file>.md` 或 `product/<file>.md`
+- `standards/engineering/<file>.md` 或 `standards/project/<file>.md` — 技术规则知识（更新或新建）
+- `product/specs/<feature-domain>.md` / `product/glossary/terms.md` — 产品知识（需评审晋升 / 合并条目）
 
 ---
 
@@ -145,9 +150,13 @@ updated-at: <ISO8601>
 
 #### 1. 扫描知识目录
 
-遍历以下目录的全部 `.md` 文件（排除 INDEX.md 自身）：
-- `standards/`
-- `product/`
+递归遍历以下目录的全部 `.md` 文件（含子目录）：
+- `standards/`（sdd/ · engineering/ · project/）
+- `product/`（specs/ · glossary/）
+
+**排除（不进索引）：**
+- `INDEX.md`、`README.md`（索引与世界说明自身）
+- `product/features/`（SSOT 派生缓存，Story README 由 `feature materialize` 维护，不属于沉淀知识）
 
 #### 2. 提取文档元信息
 
@@ -196,15 +205,15 @@ title: 代码规范
 > 最后更新: 2026-01-01T00:00:00Z
 > 关联 Change: CHG-0001, CHG-0002
 
-## 编码规范
-- [代码规范](coding-standards.md) — 代码风格、命名约定、格式化规则
-- [Git 提交规范](git-conventions.md) — Commit message 格式、分支命名
+## 工程规范（engineering/）
+- [代码规范](engineering/coding-standard.md) — 代码质量原则与编码细则
+- [Git 提交规范](engineering/git-conventions.md) — Commit message 格式、分支命名
 
-## 架构决策
-- [ADR-001 模块化架构](architecture-decisions.md) — 模块划分依据和边界
+## 项目专属规则（project/）
+- [ADR-001 模块化架构](project/adr-001-modular-architecture.md) — 模块划分依据和边界
 
-## 安全实践
-- [密码存储规范](security.md) — bcrypt 哈希，cost=10
+## 安全实践（engineering/）
+- [密码存储规范](engineering/security-guidelines.md) — bcrypt 哈希，cost=10
 ```
 
 #### 4. 生成 product/INDEX.md
@@ -223,7 +232,7 @@ title: 代码规范
   "standards": [
     {
       "title": "代码规范",
-      "path": "standards/coding-standards.md",
+      "path": "standards/engineering/coding-standard.md",
       "tags": ["code", "style"],
       "summary": "代码风格、命名约定、格式化规则",
       "related-changes": ["CHG-0001"]
@@ -231,8 +240,8 @@ title: 代码规范
   ],
   "product": [
     {
-      "title": "用户中心能力",
-      "path": "product/user-center.md",
+      "title": "业务术语表",
+      "path": "product/glossary/terms.md",
       "tags": ["user", "auth"],
       "summary": "用户注册、登录、个人中心",
       "related-changes": ["CHG-0002"]
@@ -301,9 +310,9 @@ title: 代码规范
 返回匹配的知识文档路径列表，格式：
 ```
 匹配的知识文档：
-  1. standards/coding-standards.md — 代码规范（tags: code, style）[score: 3]
-  2. product/user-center.md — 用户中心能力（tags: user, auth）[score: 2]
-  3. standards/email-conventions.md — 邮件通知规范（tags: email）[score: 1]
+  1. standards/engineering/coding-standard.md — 代码规范（tags: code, style）[score: 3]
+  2. product/specs/账户能力.md — 账户域产品规则（tags: user, auth）[score: 2]
+  3. standards/engineering/email-conventions.md — 邮件通知规范（tags: email）[score: 1]
 ```
 
 #### 5. 注入探索上下文

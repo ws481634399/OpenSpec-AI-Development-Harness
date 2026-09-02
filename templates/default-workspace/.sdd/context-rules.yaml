@@ -37,19 +37,29 @@ limits:
 stages:
 
   # 探索阶段：理解需求 / 分析业务上下文 / 识别影响范围
+  # product/ 只读 SSOT 与知识文件，不读 features/（派生缓存，方案 D 后仅作 IDE 导航）
   explore:
     read:
       - path: standards/
         mode: inline
-      - path: product/
+      - path: product/feature-tree.yaml
         mode: inline
+      - path: product/specs/
+        mode: inline
+      - path: product/glossary/
+        mode: outline
     change-artifacts: [] # requirement.md 尚未产出
 
   # 产品规格阶段：生成产品规格 / 定义验收标准 / 明确业务规则
+  # 补充 standards/ 读取：PRD 需确认功能范围与现有技术约束一致
   prd:
     read:
-      - path: product/
+      - path: product/feature-tree.yaml
         mode: inline
+      - path: product/specs/
+        mode: inline
+      - path: standards/
+        mode: outline
     change-artifacts:
       - requirement.md
 
@@ -58,7 +68,9 @@ stages:
     read:
       - path: standards/
         mode: inline
-      - path: product/
+      - path: product/feature-tree.yaml
+        mode: inline
+      - path: product/specs/
         mode: outline
       - path: implementation/
         mode: outline # 多仓：仅结构清单，代码正文按需读取
@@ -125,10 +137,15 @@ stages:
       - design.md
 
   # 知识沉淀阶段：逆向分析 / 更新项目知识 / 沉淀经验
+  # product/ 只读 SSOT 与知识文件（同 explore），不读 features/ 派生缓存
   converge:
     read:
-      - path: product/
+      - path: product/feature-tree.yaml
         mode: inline
+      - path: product/specs/
+        mode: inline
+      - path: product/glossary/
+        mode: outline
       - path: standards/
         mode: outline
     change-artifacts:

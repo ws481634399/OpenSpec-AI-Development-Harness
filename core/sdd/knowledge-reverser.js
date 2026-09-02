@@ -155,11 +155,10 @@ ${fileList}${truncationNote}
 - 数据模型与 API 设计
 
 ### 2. 写入 standards/
-将长期技术规则写入 \`standards/\`：
-- 编码规范
-- 架构约束
-- 技术选型规则
-- 数据库设计规范
+将长期技术规则写入 \`standards/\`（子目录制，禁止写 standards/ 根下）：
+- 通用工程规则 → \`standards/engineering/\`（优先合并已有文件：coding-standard.md / api-standard.md / database-standard.md / testing-standard.md / architecture-principles.md / git-conventions.md / security-guidelines.md）
+- 项目专属规则 → \`standards/project/<topic>.md\`
+- \`standards/sdd/\` 由 Harness 维护，不写入
 
 ### 3. 写入 product/
 将业务能力写入 \`product/\`：

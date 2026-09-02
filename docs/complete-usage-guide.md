@@ -865,19 +865,26 @@ product/features/
 
 ### 9.1 Standards（技术规则世界）
 
-init 时自带 5 个种子文件：
+子目录制三段结构（扁平种子文件已并入子目录，禁止在 standards/ 根下新建文件）：
 
-| 文件                       | 内容                                                   |
-| -------------------------- | ------------------------------------------------------ |
-| coding-standards.md        | 命名约定、文件组织、格式化、注释、错误处理             |
-| architecture-principles.md | 分层架构、SOLID、Repository/Factory/Strategy、API 设计 |
-| testing-conventions.md     | 测试金字塔、AAA 模式、边界值、覆盖率                   |
-| git-conventions.md         | 分支命名、Commit 格式、PR 流程、.gitignore             |
-| security-guidelines.md     | 输入校验、认证授权、密码存储、OWASP Top 10             |
+| 目录                    | 内容                                                     |
+| ----------------------- | -------------------------------------------------------- |
+| standards/sdd/          | SDD 流程规则（change-lifecycle / knowledge-management / skill-execution），Harness 维护，项目不应修改 |
+| standards/engineering/  | 通用工程规范：coding-standard.md（含编码细则速查）、api-standard.md、database-standard.md、testing-standard.md（含测试细则速查）、architecture-principles.md、git-conventions.md、security-guidelines.md |
+| standards/project/      | 项目专属规则，init 后为空；人工维护 / sdd-reverse 逆向 / converge 沉淀 |
 
 ### 9.2 Product（产品知识世界）
 
-init 时为空（项目特定）。随 Change 推进，sdd-converge 逐步沉淀产品知识。
+| 位置                               | 内容                                                                                     |
+| ---------------------------------- | ---------------------------------------------------------------------------------------- |
+| product/feature-tree.yaml          | 特性树 SSOT（唯一权威源），能力变更走 `openspec feature` 命令                             |
+| product/features/                  | SSOT 派生缓存，只读；`feature materialize` 清空重建，仅 Story 级 README                   |
+| product/specs/                     | 已确认产品规则；按 L2 Feature 域一个文件（格式见 `templates/artifacts/spec.md`）；**晋升需人工评审，Agent 不得直接写入** |
+| product/glossary/terms.md          | 业务术语表（单文件表格式）                                                                |
+
+**Spec 晋升机制**：Agent 在 converge 阶段将 SPEC 草稿写入 convergence.md 的「Spec 晋升候选」节 → 人工评审通过 → 落盘 `product/specs/<feature-domain>.md`。
+
+**禁止**在 `product/` 根下新建任何 .md 文件（业务规则进 specs/，术语进 glossary/，能力变更进 feature-tree.yaml）。
 
 ### 9.3 知识索引
 
@@ -1247,13 +1254,11 @@ my-project/
 │   ├── context-rules.yaml      # 上下文规则
 │   ├── knowledge-index.json    # 知识索引（Agent 检索用）
 │   └── version.yaml            # Harness 版本
-├── standards/                  # 技术规则世界
+├── standards/                  # 技术规则世界（子目录制，禁止根下新建文件）
 │   ├── INDEX.md                # 索引（人读）
-│   ├── coding-standards.md     # 编码规范
-│   ├── architecture-principles.md  # 架构原则
-│   ├── testing-conventions.md  # 测试规范
-│   ├── git-conventions.md      # Git 规范
-│   └── security-guidelines.md  # 安全指南
+│   ├── sdd/                    # SDD 流程规则（Harness 维护，项目不改）
+│   ├── engineering/            # 通用工程规范（coding/api/database/testing/architecture/git/security）
+│   └── project/                # 项目专属规则（init 后为空）
 ├── product/                    # 产品知识世界
 │   ├── INDEX.md                # 索引（人读）
 │   ├── feature-tree.yaml       # 四级 Feature Tree（唯一权威源）

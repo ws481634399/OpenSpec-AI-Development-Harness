@@ -33,11 +33,11 @@ reuse-decision: "新建"
 
 ### 知识检索结果
 
-检索 `standards/security-guidelines.md`：
+检索 `standards/engineering/security-guidelines.md`：
 - 密码存储必须用 bcrypt，cost ≥ 10
 - 不返回密码哈希给客户端
 
-检索 `standards/coding-standards.md`：
+检索 `standards/engineering/coding-standard.md`：
 - 错误分类：400 参数无效 / 409 资源冲突
 - 命名：camelCase 函数，PascalCase Model
 

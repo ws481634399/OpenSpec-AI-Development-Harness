@@ -16,7 +16,7 @@ sdd-prd 阶段必须遵守的硬约束（对应 change-lifecycle.md §7 与 back
 
 ## R3：知识写入约束
 
-- **禁止直接写入 `product/specs/`**——SPEC 仅当 prd 经过人工 review、进入 approved 状态时，由人工迁移
+- **禁止直接写入 `product/specs/`**——晋升门槛：① Agent 将需求中确认的产品规则**总结成 SPEC 草稿**（留在 Change 内）；② 人工评审通过后晋升进 specs。Agent 不得绕过人工评审直接写入
 - 不得修改 `product/feature-tree.yaml`（Feature 归属在 sdd-explore 阶段已完成）
 
 ## R4：状态推进约束

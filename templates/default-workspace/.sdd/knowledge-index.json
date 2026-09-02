@@ -11,35 +11,35 @@
     },
     {
       "title": "编码规范",
-      "path": "standards/coding-standards.md",
+      "path": "standards/engineering/coding-standard.md",
       "tags": ["code", "style", "naming", "formatting"],
-      "summary": "命名约定、文件组织、格式化、注释规则、错误处理",
+      "summary": "代码质量原则与编码细则速查（命名、组织、格式化、错误处理）",
       "related-changes": []
     },
     {
       "title": "架构原则",
-      "path": "standards/architecture-principles.md",
+      "path": "standards/engineering/architecture-principles.md",
       "tags": ["architecture", "solid", "layered", "patterns"],
       "summary": "分层架构、SOLID 原则、Repository/Factory/Strategy 模式、API 设计规范",
       "related-changes": []
     },
     {
       "title": "测试规范",
-      "path": "standards/testing-conventions.md",
+      "path": "standards/engineering/testing-standard.md",
       "tags": ["testing", "unit", "integration", "coverage"],
-      "summary": "测试金字塔、AAA 模式、边界值分析、覆盖率要求",
+      "summary": "测试原则与测试细则速查（金字塔、AAA、边界值、覆盖率）",
       "related-changes": []
     },
     {
       "title": "Git 规范",
-      "path": "standards/git-conventions.md",
+      "path": "standards/engineering/git-conventions.md",
       "tags": ["git", "commit", "branch", "workflow"],
       "summary": "分支命名、Commit 消息格式、PR 流程、.gitignore 基线",
       "related-changes": []
     },
     {
       "title": "安全指南",
-      "path": "standards/security-guidelines.md",
+      "path": "standards/engineering/security-guidelines.md",
       "tags": ["security", "owasp", "auth", "crypto", "input-validation"],
       "summary": "输入校验、认证授权、密码存储、数据保护、OWASP Top 10",
       "related-changes": []
