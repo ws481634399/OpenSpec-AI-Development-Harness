@@ -16,18 +16,24 @@ import { getHarnessRoot } from '../core/workspace/harness-root.js';
 const rmrf = (p) => rm(p, { recursive: true, force: true });
 const harnessRoot = getHarnessRoot();
 
-// sdd-explore gate.yaml 的 required-sections（非空标题）
+// sdd-explore gate.yaml 的 required-sections（非空标题，五节与模板对齐）
 const EXPLORATION = [
   '# Exploration',
   '',
-  '## 1. 需求理解',
+  '## 1. 需求要点',
   '用户需要登录能力。',
   '',
-  '## 2. Feature 归属',
+  '## 2. Story 归属判定',
   '归属现有 Feature。',
   '',
-  '## 3. 影响分析',
-  '影响认证模块。',
+  '## 3. 证据评估',
+  '证据充分。',
+  '',
+  '## 4. 冲突点检测',
+  '无冲突。',
+  '',
+  '## 5. 待澄清问题',
+  '无。',
   '',
 ].join('\n');
 

@@ -265,7 +265,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
   lines.push('## 执行指引');
   lines.push('');
   lines.push('你（外部 Agent：Trae / Cursor / Claude Code）负责：');
-  lines.push('- 推理、非结构化分析（需求理解 / 影响分析 / 未知问题）');
+  lines.push('- 推理、非结构化分析（需求要点 / Story 归属 / 证据评估 / 冲突检测 / 待澄清）');
   lines.push('- 按 Artifact 模板补充内容');
   lines.push('- 产出写入上方「Artifact 产出」指定的路径（feature-path 绑定后为 STORY 目录，第四层级）');
   lines.push('');

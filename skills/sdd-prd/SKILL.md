@@ -1,4 +1,4 @@
-# sdd-prd: 产品需求文档
+﻿# sdd-prd: 产品需求文档
 
 > 阶段: prd
 > 状态转换: exploring → specified
@@ -24,14 +24,15 @@
 - 用户原始描述（保持原话，PRD 中引用）
 
 从 exploration.md 提取：
-- Feature 归属路径（理解产品定位）
-- 需求理解分析（exploration 中的"需求本质"分析）
-- 影响分析（涉及的模块/仓库）
-- 未知问题（exploration 列出的待澄清项）
+- Story 归属路径（理解产品定位）
+- 需求要点（exploration §1 的拆解分析）
+- 证据评估结论（§3，含不足时的缺口）
+- 冲突点检测（§4，含处理决策）
+- 待澄清问题（exploration §5 列出的待澄清项）
 
-#### 1.2 处理未知问题
+#### 1.2 处理待澄清问题
 
-exploration.md 中的"未知问题"必须在 PRD 阶段解决：
+exploration.md §5 中的"待澄清问题"必须在 PRD 阶段解决：
 - 可通过用户澄清解决的 → 向用户提问
 - 需技术调查的 → 标注为"待设计阶段确认"
 - 已在分析中解决的 → 在 PRD 中明确回答
@@ -55,15 +56,13 @@ exploration.md 中的"未知问题"必须在 PRD 阶段解决：
 - `{{change-id}}`：Change ID
 - `{{requirement}}`：需求来源标识
 - `{{feature-id}}`：Story ID
-- `{{from-state}}`：exploring
-- `{{to-state}}`：specified
 
 #### 3.1 PRD 分析方法论
 
 **§1 背景：**
 - 需求产生的业务背景（为什么现在要做？）
 - 与现有功能/产品的关系（是新增、增强还是替代？）
-- 引用 exploration.md 的影响分析结论
+- 引用 exploration.md 的冲突点检测结论（§4，确认 PRD 范围不与已确认规则矛盾）
 
 **§2 目标用户（用 Job-to-be-Done 框架分析）：**
 - 用户角色：谁使用这个功能？（普通用户、管理员、系统...）
@@ -122,7 +121,7 @@ Scope 判断原则：
 - [ ] Scope In/Out 是否清晰，无歧义？
 - [ ] 每条业务规则是否有明确的条件→结果？
 - [ ] 每条验收标准是否可测试（有输入/输出）？
-- [ ] exploration.md 的未知问题是否已解决或标注待设计？
+- [ ] exploration.md 的待澄清问题是否已解决或标注待设计？
 - [ ] 业务规则是否与 product/ 已有知识一致？
 - [ ] 功能范围是否与 standards/ 技术约束兼容？
 
@@ -199,6 +198,6 @@ Scope Out:
 - 不修改 requirement.md / exploration.md
 - 验收标准必须可测试，拒绝模糊表述（如"界面友好""性能良好"）
 - AC 编号（AC-1、AC-2…）一旦确认保持稳定——task 阶段 DU Acceptance 按编号引用，避免跨仓验收失联
-- 主动解决 exploration 的未知问题，不遗留到设计阶段
+- 主动解决 exploration 的待澄清问题，不遗留到设计阶段
 
 > 通用行为约束（产出草稿供用户确认 / 不修改 product/ 或 standards/ 等）见 prompts/common/constraints.md。

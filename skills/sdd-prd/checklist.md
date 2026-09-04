@@ -17,7 +17,7 @@ sdd-prd 执行后，外部 Agent 补充完毕 prd.md 前，必须检查以下项
 
 ## 3. 一致性
 
-- [ ] prd.md 与 exploration.md 的需求理解一致，不前后矛盾
+- [ ] prd.md 与 exploration.md 的需求要点/冲突结论一致，不前后矛盾
 - [ ] 验收标准可追溯到 scope-in 中的需求点
 
 ## 4. 状态推进

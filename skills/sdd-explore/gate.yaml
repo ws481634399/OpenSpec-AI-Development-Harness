@@ -21,18 +21,25 @@ required-front-matter: []
 
 # machine-checks: no-placeholder 的具体占位符（这些 {{...}} 不应出现在正文中）
 required-replacements:
+  - requirement-points
   - feature-id
+  - story-id
   - feature-path
   - is-new-candidate
+  - evidence-verdict
   - reuse-decision
+  - conflict-resolution
 
 # machine-checks: required-sections 的具体标题（标题下必须有非注释内容）
 non-empty-ai-sections:
-  - "## 1. 需求理解"
-  - "## 2. Feature 归属"
-  - "## 3. 影响分析"
+  - "## 1. 需求要点"
+  - "## 2. Story 归属判定"
+  - "## 3. 证据评估"
+  - "## 4. 冲突点检测"
+  - "## 5. 待澄清问题"
 
 # Human Gate review 段（人工判断，CLI gate approve 时展示）
 human-checks:
-  - "## 1. 需求理解"
-  - "## 3. 影响分析"
+  - "## 2. Story 归属判定"
+  - "## 3. 证据评估"
+  - "## 4. 冲突点检测"

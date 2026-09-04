@@ -38,8 +38,8 @@ async function setupChange() {
   return { tmp, changeId: id, changeDir };
 }
 
-// 完整的 exploration.md 内容（通过 sdd-explore gate 的所有 machine-checks）
-const FULL_EXPLORATION = '# Exploration\n\n## 1. 需求理解\n需求内容\n\n## 2. Feature 归属\n归属\n\n## 3. 影响分析\n影响\n\n## 4. 未知问题\n无\n\n## 5. 旧需求沿用判断\n无\n';
+// 完整的 exploration.md 内容（通过 sdd-explore gate 的所有 machine-checks，与 gate.yaml 五节对齐）
+const FULL_EXPLORATION = '# Exploration\n\n## 1. 需求要点\n- 需求内容\n\n## 2. Story 归属判定\n归属\n\n## 3. 证据评估\n证据充分\n\n## 4. 冲突点检测\n无冲突\n\n## 5. 待澄清问题\n无\n';
 
 // ---- WorkflowLoader ----
 
@@ -95,7 +95,7 @@ test('WorkflowEngine: 无 Artifact → WAITING_FOR_ARTIFACT（生成 Instruction
 
 // 完整的 prd.md 内容（通过 sdd-prd gate 的所有 machine-checks）
 const FULL_PRD =
-  '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n';
+  '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n\n## 6. 成功指标\n本期不度量\n';
 
 test('WorkflowEngine: explore 免人审（human-gate: skip）→ 机检通过自动推进 → WAITING_FOR_ARTIFACT(prd)', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
@@ -162,7 +162,7 @@ test('WorkflowEngine: Machine Gate failed → WAITING_FOR_MACHINE_FIX', async ()
   // 写一个不完整的 exploration.md（缺 section）
   await writeFile(
     join(changeDir, 'exploration.md'),
-    '# Exploration\n\n## 1. 需求理解\n内容\n',
+    '# Exploration\n\n## 1. 需求要点\n内容\n',
     'utf8'
   );
   const r = await runWorkflow(tmp, changeId, { harnessRoot });
@@ -235,7 +235,7 @@ test('detectStaleArtifacts: passed 产物 Gate 后被改动 → hash-mismatch', 
 test('detectStaleArtifacts: failed 产物被修复不报 stale（合法编辑）', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
   // 残缺产物 → machine gate failed（WAITING_FOR_MACHINE_FIX）
-  await writeFile(join(changeDir, 'exploration.md'), '# Exploration\n\n## 1. 需求理解\n内容\n', 'utf8');
+  await writeFile(join(changeDir, 'exploration.md'), '# Exploration\n\n## 1. 需求要点\n内容\n', 'utf8');
   const r1 = await runWorkflow(tmp, changeId, { harnessRoot });
   assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_MACHINE_FIX);
   // 用户按提示修复产物（合法编辑，非 stale）

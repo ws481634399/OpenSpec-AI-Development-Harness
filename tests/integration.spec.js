@@ -370,19 +370,20 @@ test('integration: sdd-explore 全新需求 → 新建 CHG + 创建 Candidate + 
     harnessRoot
   );
 
-  // 2f. 生成 exploration.md
+  // 2f. 生成 exploration.md（占位符与新模板五节对齐）
   await writeArtifact(
     changeDir,
     'exploration.md',
     {
       replacements: {
+        'requirement-points': '- 根据用户历史行为推荐商品',
         'feature-id': '',
+        'story-id': '不存在 → 新建',
         'feature-path': '',
         'is-new-candidate': 'yes',
-        'affected-repos': '',
-        'matched-change': 'none',
-        'archived-change': 'none',
+        'evidence-verdict': '充分',
         'reuse-decision': '新建',
+        'conflict-resolution': '无冲突',
       },
     },
     harnessRoot
@@ -418,7 +419,7 @@ test('integration: sdd-explore 全新需求 → 新建 CHG + 创建 Candidate + 
   // 3c. exploration.md（正文占位符已替换）
   const expRaw = await readFile(join(changeDir, 'exploration.md'), 'utf8');
   assert.ok(expRaw.includes('是否新建 candidate: yes'));
-  assert.ok(expRaw.includes('决策: 新建'));
+  assert.ok(expRaw.includes('与既有 Change 重叠或沿用: 新建'));
   assert.ok(!expRaw.includes('{{feature-id}}'), '占位符不应残留');
   // 3d. 状态推进
   assert.equal(afterMeta.status, 'exploring');
@@ -517,13 +518,14 @@ test('integration: sdd-explore 旧需求命中进行中 Change → 沿用 + 写 
     'exploration.md',
     {
       replacements: {
+        'requirement-points': '- 根据用户历史行为推荐商品',
         'feature-id': '',
+        'story-id': '不存在 → 新建',
         'feature-path': '',
         'is-new-candidate': 'yes',
-        'affected-repos': '',
-        'matched-change': candidates[0].id,
-        'archived-change': 'none',
-        'reuse-decision': '沿用现有',
+        'evidence-verdict': '充分',
+        'reuse-decision': `匹配进行中（${candidates[0].id}）→ 沿用现有`,
+        'conflict-resolution': '沿用现有 Change',
       },
     },
     harnessRoot
@@ -544,8 +546,8 @@ test('integration: sdd-explore 旧需求命中进行中 Change → 沿用 + 写 
   assert.ok(reqRaw.includes('REQ-001'));
   assert.ok(reqRaw.includes('智能商品推荐'));
   const expRaw = await readFile(join(changeDir, 'exploration.md'), 'utf8');
-  assert.ok(expRaw.includes('匹配进行中 Change: CHG-0001'));
-  assert.ok(expRaw.includes('决策: 沿用现有'));
+  assert.ok(expRaw.includes('匹配进行中（CHG-0001）→ 沿用现有'));
+  assert.ok(expRaw.includes('处理决策: 沿用现有 Change'));
 
   await rmrf(tmp);
 });

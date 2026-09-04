@@ -20,18 +20,20 @@
 - Candidate 写入由 CandidateRepository.writeCandidate 负责
 - 不允许 FeatureModel 同时负责查询与 Candidate 生命周期
 
-## R4. 旧需求沿用策略
+## R4. 冲突点检测（含旧需求沿用）
 
 - 必须执行 findChangeByRequirement 查进行中 Change
 - 命中进行中 Change → 用户决策（沿用/新建），不自动沿用
 - 新建时 runChangeCreate 自动查 archive 写 related-change
 - archived 匹配不自动复用，仅记录关联
+- 必须检查三类冲突：product/specs/ 已确认规则 / 既有 Change 范围重叠 / feature-tree 已规划 Story 重复
+- 有冲突不阻断，但必须给出处理决策（conflict-resolution 必填）
 
 ## R5. Skill 不调模型
 
 - sdd-explore 不执行 AI
 - 结构化字段由 core/sdd 纯函数填充
-- 非结构化分析（需求理解/影响分析/未知问题）由外部 Agent 按 Instruction 补充
+- 非结构化分析（需求要点/Story 归属/证据评估/冲突检测/待澄清）由外部 Agent 按 Instruction 补充
 - OpenSpec 只装配上下文、生成 Instruction、管理 Artifact
 
 ## R6. 状态迁移合法
