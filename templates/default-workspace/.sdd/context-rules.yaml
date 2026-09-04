@@ -1,6 +1,6 @@
 # OpenSpec Context Rules Configuration
 #
-# 版本: v0.3（Phase 2.7：per-repo 规则段 + DU 绑定装配；基线 v0.1 / v0.2）
+# 版本: v0.4（Phase 4.2 缺口修复：exploration 注入 prd/design + converge 全链视图；基线 v0.1 / v0.2 / v0.3）
 # 类型: AI Context Loading Rules
 #
 # 定义 AI Agent 在不同 SDD 阶段应该读取的 Workspace 上下文。
@@ -28,7 +28,7 @@
 #
 # limits：全局预算（超限确定性截断，清单列入 Instruction 的 skipped 段；per-repo 段同受约束）。
 
-version: 0.3
+version: 0.4
 
 limits:
   total-max-bytes: 262144 # 256KB
@@ -62,6 +62,7 @@ stages:
         mode: outline
     change-artifacts:
       - requirement.md
+      - exploration.md # v0.4：探索分析（Feature 归属/影响分析/未知问题）随交接注入，不再只传状态不传内容
 
   # 设计阶段：生成技术设计 / 分析架构影响 / 评估风险
   design:
@@ -76,6 +77,7 @@ stages:
         mode: outline # 多仓：仅结构清单，代码正文按需读取
     change-artifacts:
       - requirement.md
+      - exploration.md # v0.4：未知问题清单是设计阶段澄清的直接输入
       - prd.md
 
   # 任务拆分阶段：拆解为 Delivery Unit / 产出 Implementation Guidance
@@ -150,3 +152,7 @@ stages:
         mode: outline
     change-artifacts:
       - design.md
+      - prd.md # v0.4：全局验收标准（change-prd §5）对照
+      - implementation.md # v0.4：跨仓实施汇总（DU 状态/Fan-in）
+      - evidence/test-report.md # v0.4：测试证据（多 Story 模式下 Story 级报告在 stories/<id>/，此处标注 missing 属预期）
+      - review-report.md # v0.4：审查结论与发现闭环情况（人审全链视图）

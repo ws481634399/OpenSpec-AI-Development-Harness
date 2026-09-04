@@ -1,4 +1,4 @@
-# sdd-converge: 知识收敛
+﻿# sdd-converge: 知识收敛
 
 > 阶段: converge
 > 状态转换: testing → completed
@@ -153,8 +153,6 @@
 
 - `{{change-id}}`：Change ID
 - `{{completed-at}}`：ISO8601 时间戳
-- `{{from-state}}`：testing
-- `{{to-state}}`：completed
 - `{{standards-need-update}}`：yes/no
 - `{{product-need-update}}`：yes/no
 - `{{featuretree-need-update}}`：yes/no

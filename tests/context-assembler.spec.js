@@ -5,8 +5,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
-import { mkdtemp, writeFile, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, mkdir, rm } from 'node:fs/promises';
 import { assembleContext, globToRegExp } from '../core/sdd/context-assembler.js';
+import { getHarnessRoot } from '../core/workspace/harness-root.js';
 
 const rmrf = (p) => rm(p, { recursive: true, force: true });
 
@@ -478,5 +479,56 @@ test('Phase 2.7 DU 绑定未传 changeDir → 抛错', async () => {
   const tmp = await mkWs();
   await writeRules(tmp, ['version: 0.3', 'stages:', '  dev:', '    read: []'].join('\n'));
   await assert.rejects(() => assembleContext(tmp, 'dev', { du: 'DU-BE-001' }), /changeDir/);
+  await rmrf(tmp);
+});
+
+// ---- v0.4 模板规则：交接缺口修复（exploration 注入 prd/design + converge 全链视图）----
+
+/** 将 Harness 模板 context-rules.yaml 原样复制为被测规则。 */
+async function writeTemplateRules(tmp) {
+  const raw = await readFile(
+    join(getHarnessRoot(), 'templates', 'default-workspace', '.sdd', 'context-rules.yaml'),
+    'utf8'
+  );
+  await writeRules(tmp, raw);
+}
+
+test('模板规则 v0.4：prd/design 注入 exploration.md（缺口 1：探索分析随交接流动）', async () => {
+  const tmp = await mkWs();
+  await writeTemplateRules(tmp);
+  await writeDeep(tmp, 'delivery/changes/CHG-0001/requirement.md', 'REQ-MARKER');
+  await writeDeep(tmp, 'delivery/changes/CHG-0001/exploration.md', 'EXPLORATION-MARKER');
+  await writeDeep(tmp, 'delivery/changes/CHG-0001/prd.md', 'PRD-MARKER');
+  const ctx = await assembleContext(tmp, 'design', { changeDir: changeDirOf(tmp) });
+  assert.equal(ctx.rulesVersion, '0.4');
+  const expl = ctx.files.find((f) => f.path === 'delivery/changes/CHG-0001/exploration.md');
+  assert.ok(expl, 'exploration.md 应注入 design 上下文');
+  assert.equal(expl.content, 'EXPLORATION-MARKER');
+  assert.equal(expl.source, 'change-artifact');
+  assert.ok(!ctx.missingArtifacts.some((m) => m.includes('exploration.md')), ctx.missingArtifacts.join(';'));
+  await rmrf(tmp);
+});
+
+test('模板规则 v0.4：converge 注入全链产物（缺口 2：人审全链视图）', async () => {
+  const tmp = await mkWs();
+  await writeTemplateRules(tmp);
+  const base = 'delivery/changes/CHG-0001';
+  await writeDeep(tmp, `${base}/design.md`, 'DESIGN-MARKER');
+  await writeDeep(tmp, `${base}/prd.md`, 'PRD-MARKER');
+  await writeDeep(tmp, `${base}/implementation.md`, 'IMPL-MARKER');
+  await writeDeep(tmp, `${base}/evidence/test-report.md`, 'TEST-MARKER');
+  await writeDeep(tmp, `${base}/review-report.md`, 'REVIEW-MARKER');
+  const ctx = await assembleContext(tmp, 'converge', { changeDir: changeDirOf(tmp) });
+  assert.equal(ctx.rulesVersion, '0.4');
+  for (const rel of ['design.md', 'prd.md', 'implementation.md', 'evidence/test-report.md', 'review-report.md']) {
+    const f = ctx.files.find((x) => x.path === `delivery/changes/CHG-0001/${rel}`);
+    assert.ok(f, `${rel} 应注入 converge 上下文`);
+    assert.equal(f.source, 'change-artifact');
+  }
+  assert.deepEqual(
+    ctx.missingArtifacts.filter((m) => !m.includes('tasks.md') && !m.includes('DU-')),
+    [],
+    `不应有非 DU 仪式性 missing: ${ctx.missingArtifacts.join(';')}`
+  );
   await rmrf(tmp);
 });

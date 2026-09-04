@@ -203,7 +203,7 @@ test('GateValidator: 占位符未替换 → failed', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
     join(changeDir, 'prd.md'),
-    '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值\n\n## 5. 验收标准\n标准\n\n{{scope-in}} {{scope-out}}',
+    '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值\n\n## 5. 验收标准\n标准\n\n## 6. 成功指标\n本期不度量\n\n{{scope-in}} {{scope-out}}',
     'utf8'
   );
   const gateConfig = await loadGate('sdd-prd', harnessRoot);
@@ -232,7 +232,7 @@ test('GateValidator: 完整 prd.md（占位符全替换 + sections 非空）→ 
   const { tmp, changeDir } = await setupChange();
   await writeFile(
     join(changeDir, 'prd.md'),
-    '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n',
+    '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n\n## 6. 成功指标\n本期不度量\n',
     'utf8'
   );
   const gateConfig = await loadGate('sdd-prd', harnessRoot);
@@ -327,6 +327,9 @@ test('GateValidator: 主流程 gate.yaml 轻量化配置正确（Phase 4.1）', 
   assert.ok(converge['machine-checks'].includes('all-predecessors-accepted'));
   const sub = converge['machine-checks'].find((e) => typeof e === 'object' && e.id === 'submodule-pointer-aligned');
   assert.deepEqual(sub['skip-tier'], ['light']);
+  // sdd-converge: 缺陷 10 收口——全局验收标准对照节进入机检（非空）与人审清单
+  assert.ok(converge['non-empty-ai-sections'].includes('## 4. 全局验收标准对照'));
+  assert.ok(converge['human-checks'].includes('## 4. 全局验收标准对照'));
   // sdd-prd: cross-reference-valid 降 advisory
   const prd = await loadGate('sdd-prd', harnessRoot);
   const xref = prd['machine-checks'].find((e) => typeof e === 'object' && e.id === 'cross-reference-valid');
