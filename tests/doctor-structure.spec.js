@@ -1,10 +1,10 @@
 // Unit tests: Doctor 结构检查 runStructureChecks（Phase 3.6）
-// 锁定 CHG 四级骨架锚点一致性体检：锚点损坏 / README 缺失 / 树名落后 / 未绑定跳过
+// 锁定 CHG 四级骨架一致性体检（v0.4 去锚点）：遗留 README / 目录缺失 / 树名落后 / 未绑定跳过
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm, rename } from 'node:fs/promises';
 import { runStructureChecks } from '../core/sdd/doctor-checks.js';
 import { materializeChangeSkeleton } from '../core/sdd/change-skeleton.js';
 import { readMetadata } from '../core/sdd/change-model.js';
@@ -89,41 +89,45 @@ test('StructureChecks: 未绑定/candidate CHG → 跳过不计入', async () =>
   await rmrf(root);
 });
 
-test('StructureChecks: README 锚点损坏（id ≠ feature-path）→ issue', async () => {
+test('StructureChecks: 骨架遗留 v0.3 锚点 README → issue（提示清理）', async () => {
   const root = await ws();
   const changeDir = await buildHealthySkeleton(root, { id: 'CHG-0002' });
-  const readmePath = join(changeDir, '平台基座', '账户能力', '认证', '用户登录', 'README.md');
-  const raw = await readFile(readmePath, 'utf8');
-  await writeFile(readmePath, raw.replace('id: STORY-2', 'id: STORY-9'));
-
-  const r = await runStructureChecks(root);
-  assert.ok(r.issues.some((i) => i.includes('CHG-0002') && i.includes('锚点损坏') && i.includes('STORY-9')), r.issues.join('; '));
-  await rmrf(root);
-});
-
-test('StructureChecks: README 缺失 → issue（提示重跑 skeleton 补齐）', async () => {
-  const root = await ws();
-  const changeDir = await buildHealthySkeleton(root, { id: 'CHG-0002' });
-  await rm(join(changeDir, '平台基座', '账户能力', '认证', '用户登录', 'README.md'));
+  // v0.3 存量：手动放回一个锚点 README
+  await writeFile(
+    join(changeDir, '平台基座', '账户能力', '认证', '用户登录', 'README.md'),
+    '---\nid: STORY-2\n---\n\n# 用户登录\n',
+    'utf8'
+  );
 
   const r = await runStructureChecks(root);
   assert.ok(
-    r.issues.some((i) => i.includes('CHG-0002') && i.includes('README 锚点缺失') && i.includes('change skeleton')),
+    r.issues.some((i) => i.includes('CHG-0002') && i.includes('遗留锚点 README')),
     r.issues.join('; ')
   );
   await rmrf(root);
 });
 
-test('StructureChecks: STORY README bound-chg 指向其他 CHG → issue', async () => {
+test('StructureChecks: 无 README（v0.4 新常态）→ 无 issue', async () => {
+  const root = await ws();
+  await buildHealthySkeleton(root, { id: 'CHG-0002' });
+
+  const r = await runStructureChecks(root);
+  assert.ok(!r.issues.some((i) => i.includes('README')), r.issues.join('; '));
+  await rmrf(root);
+});
+
+test('StructureChecks: 目录被手动改名（与 feature-path 名不符）→ 目录缺失 issue', async () => {
   const root = await ws();
   const changeDir = await buildHealthySkeleton(root, { id: 'CHG-0002' });
-  const readmePath = join(changeDir, '平台基座', '账户能力', '认证', '用户登录', 'README.md');
-  const raw = await readFile(readmePath, 'utf8');
-  await writeFile(readmePath, raw.replace('bound-chg: CHG-0002', 'bound-chg: CHG-9999'));
+  // 模拟用户手动 rename 目录（metadata 旧名锚点失效场景）
+  await rename(
+    join(changeDir, '平台基座', '账户能力', '认证'),
+    join(changeDir, '平台基座', '账户能力', '身份认证')
+  );
 
   const r = await runStructureChecks(root);
   assert.ok(
-    r.issues.some((i) => i.includes('CHG-0002') && i.includes('bound-chg') && i.includes('CHG-9999')),
+    r.issues.some((i) => i.includes('CHG-0002') && i.includes('目录缺失') && i.includes('认证')),
     r.issues.join('; ')
   );
   await rmrf(root);

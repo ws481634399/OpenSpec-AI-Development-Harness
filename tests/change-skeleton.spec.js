@@ -76,9 +76,10 @@ async function seedChange(root, { scope = 'changes', id = 'CHG-0002', meta = CHG
 }
 
 // ---- change-skeleton ----
-// Phase 3.5 修订 v0.3：目录段为纯业务名（平台基座/账户能力/认证/用户登录）
+// Phase 3.5 修订 v0.4：目录段为纯业务名（平台基座/账户能力/认证/用户登录）；
+// v0.4 去 README 锚点——骨架不再写 README.md，rename 依据 metadata 旧名链
 
-test('materializeChangeSkeleton: 生成四级目录（业务名）+ STORY README（front-matter 含 bound-chg）', async () => {
+test('materializeChangeSkeleton: 生成四级目录（业务名），不写 README（v0.4 去锚点）', async () => {
   const root = await ws();
   const changeDir = await seedChange(root);
   const meta = await readMetadata(changeDir);
@@ -87,34 +88,25 @@ test('materializeChangeSkeleton: 生成四级目录（业务名）+ STORY README
   const r = await materializeChangeSkeleton(changeDir, meta, tree, root);
   assert.equal(r.skipped, false);
   assert.ok(r.created.includes(join('平台基座', '账户能力', '认证', '用户登录')));
-  assert.ok(r.created.includes(join('平台基座', '账户能力', '认证', '用户登录', 'README.md')));
+  // v0.4：骨架不产生 README
+  assert.ok(!r.created.some((c) => c.endsWith('README.md')));
 
   const storyDir = join(changeDir, '平台基座', '账户能力', '认证', '用户登录');
   assert.ok(await pathExists(storyDir));
-  const readme = await readFile(join(storyDir, 'README.md'), 'utf8');
-  const fm = parse(readme.split('---')[1]);
-  assert.equal(fm.id, 'STORY-2');
-  assert.equal(fm['bound-chg'], 'CHG-0002');
-  assert.equal(fm.level, 'story');
-  assert.ok(readme.includes('# 用户登录'));
+  assert.equal(await pathExists(join(storyDir, 'README.md')), false);
   await rmrf(root);
 });
 
-test('materializeChangeSkeleton: 幂等——二次运行 README 不覆盖，目录不重建', async () => {
+test('materializeChangeSkeleton: 幂等——二次运行目录不重建', async () => {
   const root = await ws();
   const changeDir = await seedChange(root);
   const meta = await readMetadata(changeDir);
   const tree = await readFeatureTree(root);
 
   await materializeChangeSkeleton(changeDir, meta, tree, root);
-  const readmePath = join(changeDir, '平台基座', '账户能力', '认证', '用户登录', 'README.md');
-  // 用户编辑 README 正文（保留 front-matter 锚点，锚点被删会破坏 rename 同步）
-  const original = await readFile(readmePath, 'utf8');
-  const fmPart = original.split('---').slice(0, 3).join('---');
-  await writeFile(readmePath, `${fmPart}\n\n# 用户自定义内容\n`);
   const r = await materializeChangeSkeleton(changeDir, meta, tree, root);
   assert.equal(r.created.length, 0); // 全部已存在
-  assert.ok((await readFile(readmePath, 'utf8')).includes('# 用户自定义内容'));
+  assert.equal(r.renamed.length, 0);
   await rmrf(root);
 });
 
@@ -167,7 +159,7 @@ test('CLI 集成语义: 对归档 CHG 补骨架（skeleton 命令核心路径）
   const tree = await readFeatureTree(root);
   const r = await materializeChangeSkeleton(found.dir, meta, tree, root);
   assert.equal(r.skipped, false);
-  assert.ok(await pathExists(join(dir, '平台基座', '账户能力', '认证', '用户登录', 'README.md')));
+  assert.ok(await pathExists(join(dir, '平台基座', '账户能力', '认证', '用户登录')));
   await rmrf(root);
 });
 
@@ -190,7 +182,7 @@ test('materializeChangeSkeleton: CHG 根存量产物迁移至 STORY 目录 + 树
   let rootEntries = (await readdir(changeDir, { withFileTypes: true })).map((e) => e.name);
   assert.deepEqual(rootEntries.sort(), ['metadata.yaml', '平台基座']);
 
-  // 树改名（认证 → 身份认证；用户登录 → 账密登录）→ 锚点 rename 同步
+  // 树改名（认证 → 身份认证；用户登录 → 账密登录）→ metadata 旧名锚点 rename 同步
   await writeFile(
     join(root, 'product', 'feature-tree.yaml'),
     TREE_YAML.replace('name: 认证', 'name: 身份认证').replace('name: 用户登录', 'name: 账密登录')
@@ -199,7 +191,7 @@ test('materializeChangeSkeleton: CHG 根存量产物迁移至 STORY 目录 + 树
   const meta2 = await readMetadata(changeDir);
   r = await materializeChangeSkeleton(changeDir, meta2, tree2, root);
   assert.equal(r.nameSynced, true);
-  assert.ok(r.renamed.length >= 2); // L3 与 STORY 两级改名
+  assert.ok(r.renamed.length >= 2); // L3 与 STORY 两级改名（v0.4：metadata 旧名锚点）
   assert.ok(await pathExists(join(changeDir, '平台基座', '账户能力', '身份认证', '账密登录', 'requirement.md')));
   // metadata 名称已同步为树名
   assert.equal(meta2['feature-path']['level-3'].name, '身份认证');

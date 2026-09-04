@@ -1,29 +1,26 @@
-// ChangeSkeleton：CHG 工作目录同步器（Phase 3.5 修订 v0.3）
+// ChangeSkeleton：CHG 工作目录同步器（Phase 3.5 修订 v0.4）
 //
 // 职责（幂等，重跑 = 同步）：
 // 1. 树名同步：feature-tree.yaml 是唯一权威源——metadata.feature-path 的 name 落后于树时
-//    更新 metadata（rename 联动）
+//    更新 metadata
 // 2. 目录段：纯业务名（featureDirSeg 清洗），CHG/<L1名>/<L2名>/<L3名>/<STORY名>/
-// 3. 锚点 rename：目录按 README.md front-matter 的 id 识别；名字变更 → rename 同步
-// 4. 产物迁移：CHG 根的历史产物（除 metadata.yaml 外全部文件/目录）迁入 STORY 目录
+//    幂等同步：metadata 旧名目录存在且树名变更 → rename 跟随；否则存在即用/缺失即建
+// 3. 产物迁移：CHG 根的历史产物（除 metadata.yaml 外全部文件/目录）迁入 STORY 目录
 //    ——修订后全部 Artifact 落第四级，CHG 根只留 metadata.yaml
+//
+// 锚点说明（v0.4 去锚点）：早期版本用目录内 README.md front-matter id 作锚点做
+// rename 同步；v0.4 废除 README 锚点——metadata.feature-path 的旧名（树同步前采集）
+// 本身就是 rename 依据，且 3-tier 模式产物在 stories/<STORY-ID>/（ID 目录与业务名
+// 解耦），骨架四级目录多为空。目录名被手动改动且与 metadata 旧名不一致时 rename
+// 不命中（按新名新建，旧目录残留），由 doctor 报告清理。
 //
 // 边界：candidate / 链不完整 → 拒绝（层级未定不预建）；树节点缺失 → 拒绝（悬挂绑定）
 
-import {
-  mkdir,
-  writeFile,
-  readFile,
-  readdir,
-  rename,
-  stat,
-} from "node:fs/promises";
-import { join, basename } from "node:path";
-import { stringify } from "yaml";
-import { featurePathDirs, resolveStoryDir } from "./artifact-path.js";
+import { mkdir, readFile, readdir, rename, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { featurePathDirs } from "./artifact-path.js";
 import { findNodeById } from "./feature-model.js";
 import { bindFeaturePath } from "./change-model.js";
-import { findNodeDirByAnchor, syncNodeDirName } from "./feature-dirname.js";
 
 const pathExists = (p) =>
   stat(p).then(
@@ -86,7 +83,16 @@ export async function materializeChangeSkeleton(
     };
   }
 
-  // 1. 树名同步到 metadata（树为权威）
+  // 1. 采集旧名链（metadata 同步前的名字段）——v0.4 rename 依据：metadata 旧名即锚点，
+  //    无需目录内 README（锚点机制废除）；树改名 → 旧名目录 rename 跟随新名
+  const oldSegs = [
+    fp["level-1"].name,
+    fp["level-2"].name,
+    fp["level-3"].name,
+    fp.story.name,
+  ];
+
+  // 2. 树名同步到 metadata（树为权威）
   const latest = {
     "level-1": { id: l1Node.id, name: l1Node.name },
     "level-2": { id: l2Node.id, name: l2Node.name },
@@ -106,57 +112,25 @@ export async function materializeChangeSkeleton(
     fp.story = latest.story;
   }
 
-  // 2. 逐级目录段：锚点 rename / 新建 + README 锚点（四级统一，缺失才写）
-  //    README front-matter 的 id 是目录锚点：树改名后重跑可按锚点 rename 同步
-  const segs = featurePathDirs(meta); // 名字段（已清洗）
+  // 3. 逐级目录段：旧名目录存在且名字变更 → rename 跟随；否则存在即用 / 缺失即建
+  const segs = featurePathDirs(meta); // 名字段（已同步为树最新名）
   const created = [];
   const renamed = [];
-  const nodes = [l1Node, l2Node, l3Node, l3Story];
-  const levels = ["module", "feature", "capability", "story"];
-  const ids = [
-    fp["level-1"].id,
-    fp["level-2"].id,
-    fp["level-3"].id,
-    fp.story.id,
-  ];
-  const boundChg = basename(changeDir);
   let parent = changeDir;
   for (let i = 0; i < segs.length; i++) {
-    const synced = await syncNodeDirName(parent, ids[i], segs[i]);
-    if (synced) {
-      if (synced.renamed)
-        renamed.push(join(...segs.slice(0, i), `${segs[i]}`));
-    } else if (!(await pathExists(join(parent, segs[i])))) {
-      await mkdir(join(parent, segs[i]), { recursive: true });
+    const dir = join(parent, segs[i]);
+    if (oldSegs[i] !== segs[i]) {
+      const oldDir = join(parent, oldSegs[i]);
+      if ((await pathExists(oldDir)) && !(await pathExists(dir))) {
+        await rename(oldDir, dir);
+        renamed.push(join(...segs.slice(0, i), segs[i]));
+      }
+    }
+    if (!(await pathExists(dir))) {
+      await mkdir(dir, { recursive: true });
       created.push(join(...segs.slice(0, i + 1)));
     }
-    parent = join(parent, segs[i]);
-
-    // README 锚点（缺失才写；用户自建/已存在不覆盖）
-    const readmePath = join(parent, "README.md");
-    if (!(await pathExists(readmePath))) {
-      const node = nodes[i];
-      const isStory = i === levels.length - 1;
-      const fm = {
-        id: ids[i],
-        name: node.name,
-        level: levels[i],
-        ...(isStory ? { "bound-chg": boundChg } : {}),
-      };
-      const body = [
-        `# ${node.name || ids[i]}`,
-        "",
-        node.description || "",
-        "",
-        ...(isStory ? [`> 绑定 Change：\`${boundChg}\``, ""] : []),
-      ].join("\n");
-      await writeFile(
-        readmePath,
-        `---\n${stringify(fm).trimEnd()}\n---\n\n${body}`,
-        "utf8",
-      );
-      created.push(join(...segs.slice(0, i + 1), "README.md"));
-    }
+    parent = dir;
   }
   const storyDir = parent;
 

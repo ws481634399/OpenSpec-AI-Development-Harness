@@ -7,12 +7,13 @@
 // - standards/ product/ delivery/ implementation/ 绝不触碰
 // 回滚依赖 Git：报告 touchedFiles 清单，git checkout -- <files> 即可回滚
 
-import { readFile, writeFile, readdir, mkdir, copyFile, stat } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir, copyFile, stat, rm } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { parse, parseDocument, stringify } from 'yaml';
 import { readHarnessVersion, readWorkspaceVersions, readTemplateVersions } from './version.js';
 import { runMigrations } from './schema-migrations.js';
 import { syncSkills, syncPrompts } from '../sdd/skill-registry.js';
+import { featurePathDirs } from '../sdd/artifact-path.js';
 
 const MANAGED_DIRS = ['.sdd', 'skills', 'prompts']; // upgrade 允许写入的顶层目录
 
@@ -172,6 +173,54 @@ export async function migrateChangeSchemaV2toV3(workspaceRoot) {
   return { files: changed, migrated, skipped };
 }
 
+// ---- v0.4：CHG 骨架遗留锚点 README 清理（去锚点后四级骨架内不应再有 README.md） ----
+// doctor 侧将遗留 README 报为 issue（doctor-checks.js runStructureChecks）；upgrade 侧执行确定性删除，
+// 与 changeSchema 迁移同为 delivery/ 的扩展升级步骤。删除文件不入 gitRevertFiles（废弃文件不做回滚
+// 恢复；回滚到 0.3.x 后重跑 'openspec change skeleton' 会重建锚点 README）。
+
+/**
+ * 收集 delivery/changes + archive 下绑定 feature-path 的 CHG 四级骨架内的 README.md（绝对路径）。
+ * 规则与 doctor 骨架检查一致：仅扫描绑定 CHG 的四级目录链（含中间级），candidate/未绑定跳过。
+ * @param {string} workspaceRoot
+ * @returns {Promise<string[]>}
+ */
+export async function findLegacyAnchorReadmes(workspaceRoot) {
+  const bases = [
+    join(workspaceRoot, 'delivery', 'changes'),
+    join(workspaceRoot, 'delivery', 'archive'),
+  ];
+  const found = [];
+  for (const base of bases) {
+    let entries;
+    try {
+      entries = await readdir(base, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory() || !/^CHG-\d+/.test(e.name)) continue;
+      const changeDir = join(base, e.name);
+      let meta;
+      try {
+        meta = parse(await readFile(join(changeDir, 'metadata.yaml'), 'utf8')) || {};
+      } catch {
+        continue; // metadata 损坏由 doctor 侧报告，此处跳过
+      }
+      const fp = meta['feature-path'];
+      if (!fp || fp.candidate === true || !fp['level-1']?.id || !fp.story?.id) continue;
+      const segs = featurePathDirs(meta);
+      if (!segs || segs.length === 0) continue;
+      let parent = changeDir;
+      for (const seg of segs) {
+        parent = join(parent, seg);
+        const readme = join(parent, 'README.md');
+        if (await pathExists(readme)) found.push(readme);
+      }
+    }
+  }
+  return found;
+}
+
 /**
  * 更新版本记录文件。
  * - version.yaml：harness + workspace-template 双版本（权威版本记录；schema.version 不动）
@@ -219,12 +268,13 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
   const harnessVersion = readHarnessVersion(harnessRoot);
   const templateVersion = readTemplateVersions(harnessRoot).workspaceTemplate || harnessVersion;
 
-  const [skillsDiff, promptsDiff, missingFiles, migrations, changeSchemaNeeded] = await Promise.all([
+  const [skillsDiff, promptsDiff, missingFiles, migrations, changeSchemaNeeded, legacyReadmes] = await Promise.all([
     syncSkills(harnessRoot, workspaceRoot, { dryRun: true }),
     syncPrompts(harnessRoot, workspaceRoot, { dryRun: true }),
     findMissingManagedFiles(harnessRoot, workspaceRoot),
     runMigrations(workspaceRoot, { dryRun: true }),
     needsChangeSchemaMigration(workspaceRoot),
+    findLegacyAnchorReadmes(workspaceRoot),
   ]);
 
   const versionTransitions = {
@@ -239,7 +289,8 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
     promptsDiff.changed.length === 0 &&
     missingFiles.length === 0 &&
     migrations.executed.length === 0 &&
-    !changeSchemaNeeded;
+    !changeSchemaNeeded &&
+    legacyReadmes.length === 0;
 
   return {
     upToDate,
@@ -254,6 +305,15 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
     changeSchema: changeSchemaNeeded
       ? { needsMigration: true, step: 'delivery/changes + archive metadata.yaml v2→v3 (inline story 推导)' }
       : { needsMigration: false },
+    anchorReadme: legacyReadmes.length
+      ? {
+          needsCleanup: true,
+          count: legacyReadmes.length,
+          files: legacyReadmes.map((abs) =>
+            abs.startsWith(workspaceRoot) ? abs.slice(workspaceRoot.length + 1).replace(/\\/g, '/') : abs
+          ),
+        }
+      : { needsCleanup: false, count: 0, files: [] },
     touchedFiles: [],
   };
 }
@@ -314,6 +374,17 @@ export async function applyUpgrade(workspaceRoot, harnessRoot) {
     }
   }
 
+  // c3. v0.4：清理四级骨架遗留锚点 README（删除项仅记入 touchedFiles 供审计，不做回滚恢复）
+  const anchorReadmeReport = { removed: [], count: 0 };
+  if (plan.anchorReadme?.needsCleanup) {
+    for (const rel of plan.anchorReadme.files) {
+      await rm(join(workspaceRoot, rel));
+      anchorReadmeReport.removed.push(rel);
+      touched.push(rel);
+    }
+    anchorReadmeReport.count = anchorReadmeReport.removed.length;
+  }
+
   // d. 更新 version.yaml + workspace.yaml 版本快照
   if (plan.versionTransitions.harness || plan.versionTransitions.workspaceTemplate) {
     const { workspaceYamlTouched } = await patchWorkspaceVersionYaml(workspaceRoot, {
@@ -333,6 +404,7 @@ export async function applyUpgrade(workspaceRoot, harnessRoot) {
     dryRun: false,
     migrations,
     changeSchema: changeSchemaReport,
+    anchorReadme: anchorReadmeReport,
     touchedFiles: [...new Set(touched)],
     gitRevertFiles: [...new Set(gitRevertFiles)],
     gitNewFiles: [...new Set(gitNewFiles)],

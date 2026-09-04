@@ -48,6 +48,13 @@ function formatReport(r) {
   lines.push(`新增受管文件: ${r.addedFiles.length} 个`);
   for (const f of r.addedFiles) lines.push(`  + ${f}`);
 
+  // v0.4：骨架遗留锚点 README 清理
+  if (r.anchorReadme?.needsCleanup) {
+    lines.push('');
+    lines.push(`骨架遗留锚点 README 清理: ${r.anchorReadme.count} 个（v0.4 锚点机制已废弃）`);
+    for (const f of r.anchorReadme.files) lines.push(`  - ${f}`);
+  }
+
   // 迁移
   const migrations = r.migrations.executed;
   lines.push('');

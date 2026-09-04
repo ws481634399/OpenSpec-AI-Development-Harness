@@ -249,6 +249,73 @@ test('applyUpgrade: 幂等（二次执行 upToDate）', async () => {
   await rmrf(tmp);
 });
 
+// ---- v0.4：骨架遗留锚点 README 清理 ----
+
+const CHG_META = `id: CHG-0001
+title: 用户登录实现
+status: created
+feature-path:
+  level-1: { id: FEAT-1, name: 平台基座 }
+  level-2: { id: FEAT-1-01, name: 账户能力 }
+  level-3: { id: FEAT-1-01-01, name: 认证 }
+  story: { id: STORY-2, name: 用户登录 }
+`;
+
+/** 在 CHG 四级骨架内种一个 v0.3 遗留锚点 README。 */
+async function seedLegacyReadme(tmp, scope) {
+  const storyDir = join(tmp, 'delivery', scope, 'CHG-0001', '平台基座', '账户能力', '认证', '用户登录');
+  await mkdir(storyDir, { recursive: true });
+  await writeFile(join(tmp, 'delivery', scope, 'CHG-0001', 'metadata.yaml'), CHG_META);
+  await writeFile(join(storyDir, 'README.md'), '---\nid: STORY-2\n---\n\n# 用户登录\n', 'utf8');
+}
+
+test('applyUpgrade: 清理骨架遗留锚点 README（plan 检出 + apply 删除 + 二次幂等）', async () => {
+  const tmp = await makeOldWorkspace('apply-anchor-');
+  await seedLegacyReadme(tmp, 'changes');
+  await seedLegacyReadme(tmp, 'archive');
+
+  // plan：检出 2 个遗留 README
+  const plan = await planUpgrade(tmp, harnessRoot);
+  assert.equal(plan.upToDate, false);
+  assert.equal(plan.anchorReadme.needsCleanup, true);
+  assert.equal(plan.anchorReadme.count, 2);
+  assert.ok(plan.anchorReadme.files.every((f) => f.endsWith('README.md')));
+  assert.ok(plan.anchorReadme.files.some((f) => f.startsWith('delivery/changes/')));
+  assert.ok(plan.anchorReadme.files.some((f) => f.startsWith('delivery/archive/')));
+
+  // apply：删除 + 报告 + touchedFiles 审计
+  const report = await applyUpgrade(tmp, harnessRoot);
+  assert.equal(report.anchorReadme.count, 2);
+  assert.equal(report.anchorReadme.removed.length, 2);
+  assert.ok(report.touchedFiles.some((f) => f.startsWith('delivery/changes/') && f.endsWith('README.md')));
+  assert.equal(await pathExists(join(tmp, 'delivery', 'changes', 'CHG-0001', '平台基座', '账户能力', '认证', '用户登录', 'README.md')), false);
+  assert.equal(await pathExists(join(tmp, 'delivery', 'archive', 'CHG-0001', '平台基座', '账户能力', '认证', '用户登录', 'README.md')), false);
+
+  // 二次升级：遗留 README 已清空
+  const second = await applyUpgrade(tmp, harnessRoot);
+  assert.equal(second.upToDate, true);
+  assert.equal(second.anchorReadme.count, 0);
+  await rmrf(tmp);
+});
+
+test('findLegacyAnchorReadmes: 未绑定/candidate CHG 与 CHG 根 README 跳过', async () => {
+  const tmp = await makeOldWorkspace('anchor-skip-');
+  // candidate CHG：骨架 README 不属于锚点清理范围
+  const candDir = join(tmp, 'delivery', 'changes', 'CHG-0002');
+  await mkdir(candDir, { recursive: true });
+  await writeFile(
+    join(candDir, 'metadata.yaml'),
+    'id: CHG-0002\ntitle: x\nstatus: created\nfeature-path:\n  candidate: true\n',
+    'utf8'
+  );
+  await writeFile(join(candDir, 'README.md'), '# candidate 根 README', 'utf8');
+
+  const { findLegacyAnchorReadmes } = await import('../core/workspace/workspace-upgrader.js');
+  const files = await findLegacyAnchorReadmes(tmp);
+  assert.deepEqual(files, []);
+  await rmrf(tmp);
+});
+
 // ---- 升级日志与回滚（Phase 3.1+：Roadmap「Upgrade 支持回滚」补齐）----
 // git checkout 与新增文件删除在 CLI 层（core 不执行 git），此处覆盖 core 的日志/校验/恢复
 

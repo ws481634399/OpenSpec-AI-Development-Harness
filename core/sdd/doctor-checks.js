@@ -472,19 +472,19 @@ export async function runIdeRulesChecks(workspaceRoot, harnessRoot) {
   return { issues, infos, checked };
 }
 
-// ---- Phase 3.6：CHG 四级骨架锚点一致性检查 ----
-// v0.3 目录以 README front-matter 的 id 为锚点（skeleton/materialize 按锚点 rename），
-// 锚点被手动破坏后 rename 无法命中，此处提供确定性体检（features 投影侧由 checkFeaturesProjection 覆盖）。
+// ---- Phase 3.6：CHG 四级骨架一致性检查（v0.4 去锚点） ----
+// v0.3 曾以目录内 README front-matter id 为锚点做 rename 同步；v0.4 移除锚点机制
+// （3-tier 产物在 stories/<STORY-ID>/，骨架目录为空，rename 无产物可迁）。
+// 此处保留确定性体检：目录存在性 + 遗留锚点 README 清理提示 + 树名落后。
 
 const LEVEL_NAMES = ['module', 'feature', 'capability', 'story'];
 
 /**
- * CHG 四级骨架锚点一致性检查（changes 与 archive 两个 scope）。
+ * CHG 四级骨架一致性检查（changes 与 archive 两个 scope）。
  * 对绑定 feature-path 的 CHG 逐级校验：
  * 1. 各级目录存在（changes scope 目录缺失已由多仓检查 7 报告，此处不再重复）
- * 2. README.md 存在且 front-matter id === feature-path 对应层 id（锚点损坏 → issue）
- * 3. STORY README 的 bound-chg 存在时 === CHG ID
- * 4. metadata name 落后于树最新 name（仅 changes scope，info 级，重跑 change skeleton 同步）
+ * 2. 目录内遗留 v0.3 锚点 README → issue（v0.4 已废弃，提示手动删除）
+ * 3. metadata name 落后于树最新 name（仅 changes scope，info 级，重跑 change skeleton 同步）
  *
  * @param {string} workspaceRoot Workspace 根目录
  * @returns {Promise<{issues:string[], infos:string[], checked:number}>}
@@ -522,6 +522,7 @@ export async function runStructureChecks(workspaceRoot) {
       const names = [fp['level-1'].name, fp['level-2'].name, fp['level-3'].name, fp.story.name];
       let parent = changeDir;
       let broken = false;
+      let legacyReadme = false;
       for (let i = 0; i < dirs.length; i++) {
         const dir = join(parent, dirs[i]);
         if (!(await pathExists(dir))) {
@@ -532,32 +533,10 @@ export async function runStructureChecks(workspaceRoot) {
           broken = true;
           break;
         }
-        // README 锚点
-        let anchorId = null;
-        let boundChg = null;
-        try {
-          const raw = await readFile(join(dir, 'README.md'), 'utf8');
-          const m = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
-          if (m) {
-            const fm = parse(m[1]) || {};
-            anchorId = fm.id ?? null;
-            boundChg = fm['bound-chg'] ?? null;
-          }
-        } catch {
-          // 无 README → anchorId 保持 null
-        }
-        if (anchorId === null) {
-          issues.push(`${e.name}: ${LEVEL_NAMES[i]} 级 README 锚点缺失（${dirs[i]}/README.md 无 front-matter id）——重跑 'openspec change skeleton ${e.name}' 补齐`);
-          broken = true;
-          break;
-        }
-        if (anchorId !== ids[i]) {
-          issues.push(`${e.name}: ${LEVEL_NAMES[i]} 级锚点损坏（README id '${anchorId}' ≠ feature-path '${ids[i]}'）`);
-          broken = true;
-          break;
-        }
-        if (i === dirs.length - 1 && boundChg !== null && boundChg !== e.name) {
-          issues.push(`${e.name}: STORY README bound-chg '${boundChg}' 与 CHG ID 不一致`);
+        // v0.4 去锚点：目录内遗留 v0.3 锚点 README → 提示手动删除（每个 CHG 报一次）
+        if (!legacyReadme && (await pathExists(join(dir, 'README.md')))) {
+          legacyReadme = true;
+          issues.push(`${e.name}: 骨架存在 v0.3 遗留锚点 README（锚点机制已废弃）——手动删除四级骨架内的 README.md`);
         }
         parent = dir;
       }
