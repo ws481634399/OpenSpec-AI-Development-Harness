@@ -1,4 +1,4 @@
-# sdd-dev: 代码实现
+﻿# sdd-dev: 代码实现
 
 > 阶段: dev
 > 状态转换: tasked → developing
@@ -219,8 +219,6 @@ openspec du sync-status <CHG> <DU-ID>
 
 - `{{change-id}}`：Change ID
 - `{{tasks-source}}`：STORY 级 tasks.md 相对路径（`<L1>/<L2>/<L3>/<STORY>/tasks.md`）
-- `{{from-state}}`：tasked
-- `{{to-state}}`：developing
 - `{{started-at}}`：ISO8601 时间戳
 - `{{primary-repo}}`：metadata.repositories[0]
 

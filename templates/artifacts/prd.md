@@ -1,20 +1,20 @@
 # PRD
 
-> 阶段：sdd-prd 产物
+> 阶段：sdd-prd 产物（inline 单 Story 模式，Change+Story 双语义合并）
+> 业界锚点：PRD（Problem → Goals/Metrics → Scope → Requirements → AC）
 > 输入：CHG Context（exploration.md + requirement.md）
 > 产出状态：specified
 
 本文档将需求转化为产品规格。
 
-结构化字段由 sdd-prd 通过 ArtifactWriter 填充（{{placeholder}}），
-非结构化段落（背景/用户价值/业务规则/验收标准）由外部 Agent 按 Instruction 补充。
+<!-- 结构化字段（{{placeholder}}）由 sdd-prd 通过 ArtifactWriter 填充；
+     非结构化段落由外部 Agent 按 Instruction 补充。 -->
 
 ## 0. 元信息
 
 - Change ID: {{change-id}}
 - Requirement: {{requirement}}
 - Feature ID: {{feature-id}}
-- 状态流转: {{from-state}} → {{to-state}}
 
 ## 1. 背景
 
@@ -48,5 +48,13 @@
 
 ## 5. 验收标准
 
+<!-- AI 补充：能不能用的验收线（可测试，AC 编号稳定） -->
+
 - [ ] 验收点 1
 - [ ] 验收点 2
+
+## 6. 成功指标
+
+<!-- AI 补充（业界标配 Success Metrics）：做了值不值的度量——验收标准管"能用"，
+     成功指标管"有用"。给出可观测指标与预期值（如转化率、耗时、错误率）；可写"本期不度量"。 -->
+

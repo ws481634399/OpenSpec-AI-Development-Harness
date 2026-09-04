@@ -24,10 +24,12 @@ required-replacements:
 non-empty-ai-sections:
   - "## 1. 当前状态"
   - "## 2. 提议方案"
+  - "## 2.1 备选方案对比（Alternatives Considered）" # 业界标配，可写"无（唯一可行路径）"
 
 human-checks:
   - "## 1. 当前状态"
   - "## 2. 提议方案"
+  - "## 2.1 备选方案对比（Alternatives Considered）"
   - "## 5. 风险"
 
 # Phase 4.2 三级规格分层（plans/phase-4.2-three-tier-spec-design.md §5/§8）
@@ -38,6 +40,7 @@ three-tier:
   change-non-empty-ai-sections:
     - "## 1. 当前状态"
     - "## 2. 提议方案"
+    - "## 2.1 备选方案对比（Alternatives Considered）" # 业界标配，可写"无（唯一可行路径）"
     - "## 3. 仓库影响（Repository Impact）"
     - "## 5. Story 设计分派（Story Design Assignments）"
   change-required-replacements:

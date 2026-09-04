@@ -1,4 +1,4 @@
-# sdd-task: 任务分解（Delivery Decomposition + Delivery Unit Specification）
+﻿# sdd-task: 任务分解（Delivery Decomposition + Delivery Unit Specification）
 
 > 阶段: task
 > 状态转换: designed → tasked
@@ -50,8 +50,6 @@ Repository-specific executable delivery specification）：每个 DU 除分解�
 
 - `{{change-id}}`：Change ID
 - `{{design-source}}`：`<CHG>/design.md`
-- `{{from-state}}`：designed
-- `{{to-state}}`：tasked
 - `{{feature-path}}`：`L1 > L2 > L3 > STORY`
 - `{{du-count}}`：DU 总数
 

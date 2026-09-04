@@ -4,7 +4,7 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-dev
-version: 0.2.1
+version: 0.2.2
 stage: dev
 description: 开发阶段 Skill——执行 Task，修改实现代码，遵循工程规范
 input:

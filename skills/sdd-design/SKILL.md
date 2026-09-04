@@ -1,4 +1,4 @@
-# sdd-design: 技术设计
+﻿# sdd-design: 技术设计
 
 > 阶段: design
 > 状态转换: specified → designed
@@ -58,8 +58,6 @@ front-matter（Phase 2.4 多仓）：
 元信息 section（占位符替换）：
 - `{{change-id}}`：Change ID
 - `{{prd-source}}`：`<CHG>/prd.md`
-- `{{from-state}}`：specified
-- `{{to-state}}`：designed
 - `{{repos-involved}}`：metadata.repositories 数组拼接
 - `{{repo-impact-count}}`：metadata.repositories.length
 - `{{need-migration}}`：初始化 `no`（Agent 分析后改）

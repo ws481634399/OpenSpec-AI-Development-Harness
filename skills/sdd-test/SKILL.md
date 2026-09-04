@@ -1,4 +1,4 @@
-# sdd-test: 测试验证
+﻿# sdd-test: 测试验证
 
 > 阶段: test
 > 状态转换: developing → testing
@@ -111,8 +111,6 @@ test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 元信息 section（占位符替换）：
 - `{{change-id}}`：Change ID
 - `{{implementation-source}}`：`<CHG>/implementation.md`
-- `{{from-state}}`：developing
-- `{{to-state}}`：testing
 - `{{tested-at}}`：ISO8601 时间戳
 
 #### 4.1 报告内容方法论
