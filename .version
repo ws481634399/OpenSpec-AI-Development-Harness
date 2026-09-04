@@ -1,4 +1,4 @@
-0.3.0
+﻿0.4.0
 
 说明：
 
@@ -13,3 +13,4 @@ Major.Minor.Patch
 - 0.1.0  Phase 1.x 初版（MVP：Workspace / Skill / Gate / Workflow）
 - 0.2.0  Phase 2.x + 3.1（多仓交付 / Context 规则 / DU 绑定 / Version 管理 + Upgrade）
 - 0.3.0  Phase 4.1 + 4.2（Gate 轻量化三档 / 三级规格 Change-Story-DU / 多 Story 聚合工作流 / Stale 分层传播）
+- 0.4.0  文档体系对齐业界（备选方案对比 / 成功指标 / 测试环境 + 去机器腔）+ exploration 五问重构 + CHG 骨架去 README 锚点（metadata 旧名 rename）+ 交接链补强（context v0.4 / converge 全局 AC 对照）+ upgrade 清理遗留锚点 README
