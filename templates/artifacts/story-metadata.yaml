@@ -14,7 +14,7 @@ story-id: ""             # Story ID（对齐 product/feature-tree.yaml）
 title: ""                # Story 标题
 summary: ""              # Story 一句话摘要（可选）
 status: pending          # Story 生命周期：pending/specified/designed/tasked/developing/testing/completed
-evidence-tier: standard  # 继承 Change 级或覆盖：light/standard/strict
+evidence-tier: standard  # 继承 Change 级或覆盖：light/standard/strict（light 免仪式检查但 structural 检查仍执行）
 created-at: ""           # ISO8601，创建时填
 updated-at: ""           # ISO8601，每次变更更新
 
@@ -39,4 +39,5 @@ dus: []
 # Story 级 Gate Result（与 Change 级 artifacts 独立；GateRepository 分发写入）
 # 每个 artifact 节点结构同 Change metadata.artifacts.*：
 #   story-spec / story-design / tasks / implementation / test-report / review-report
+# Machine Gate 记录含 rules-hash（gate.yaml 规则指纹，规则变化触发 rules-mismatch stale）
 artifacts: {}

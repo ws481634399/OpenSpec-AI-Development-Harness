@@ -8,7 +8,7 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
-import { sha256 } from "./artifact-hash.js";
+import { sha256, rulesHash } from "./artifact-hash.js";
 import { readGateResult } from "./gate-repository.js";
 import { readMetadata } from "./change-model.js";
 import {
@@ -40,9 +40,10 @@ import { resolveSubmoduleHead } from "./git-submodule.js";
  *
  * machine-checks 条目两种格式（Phase 4.1 轻量化）：
  * - 字符串（v0.1 兼容）：'required-front-matter'，severity=blocking
- * - 对象：{ id, severity: blocking|advisory, skip-tier: [light,...] }
+ * - 对象：{ id, severity: blocking|advisory, skip-tier: [light,...], structural: true }
  *   advisory fail → 收集到 warnings，不阻断（Gate Result 留痕）
  *   skip-tier 含当前 Change 的 evidence-tier 时整条跳过（Evidence 分档）
+ *   structural=true 时忽略 skip-tier，全档位执行（追踪链/骨架/收口类检查不可跳过）
  *
  * Phase 4.2 三态分发（Gate 分层分发）：
  * - inline（缺省）：单 Story 平铺双语义，artifact/检查项与 v0.2 完全一致（100% 向后兼容）
@@ -55,9 +56,10 @@ import { resolveSubmoduleHead } from "./git-submodule.js";
  *
  * @param {string} changeDir CHG 目录绝对路径
  * @param {object} gateConfig gate.yaml 解析结果
- * @param {object} [opts] { metadata?, artifactPath?, storyId? } 可选注入（避免重复读）
- * @returns {Promise<{passed:boolean, issues:string[], warnings:string[], artifactHash:string}>}
+ * @param {object} [opts] { metadata?, artifactPath?, storyId?, gateYamlRaw? } 可选注入（避免重复读）
+ * @returns {Promise<{passed:boolean, issues:string[], warnings:string[], artifactHash:string, rulesHash:string}>}
  *   artifactHash 为空字符串表示 Artifact 文件不存在
+ *   rulesHash 为 gate.yaml 内容指纹，调用方未传时为空串（向前兼容旧记录）
  */
 export async function runMachineGate(changeDir, gateConfig, opts = {}) {
   const issues = [];
@@ -92,12 +94,14 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
         issues: [`Artifact not found: ${artifactName}`],
         warnings,
         artifactHash: "",
+        rulesHash: "",
       };
     }
     throw e;
   }
 
   const artifactHash = sha256(content);
+  const rulesHashValue = rulesHash(opts.gateYamlRaw); // gate.yaml 规则指纹，空输入返回空串（向前兼容）
   const baseChecks = gateConfig["machine-checks"] || [];
   const checks =
     storyMode && Array.isArray(tt["story-machine-checks"])
@@ -138,7 +142,9 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
       typeof entry === "object" && Array.isArray(entry["skip-tier"])
         ? entry["skip-tier"]
         : [];
-    if (skipTier.includes(tier)) continue; // Evidence 分档：低档位免重仪式检查
+    // structural=true 的检查（追踪链/骨架/收口）全档位执行，skip-tier 对其无效
+    const structural = typeof entry === "object" && entry.structural === true;
+    if (skipTier.includes(tier) && !structural) continue; // 仪式检查按档跳过；structural 全档执行
 
     const bucket = severity === "advisory" ? warnings : issues;
     switch (check) {
@@ -269,7 +275,7 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
     }
   }
 
-  return { passed: issues.length === 0, issues, warnings, artifactHash };
+  return { passed: issues.length === 0, issues, warnings, artifactHash, rulesHash: rulesHashValue };
 }
 
 // ---- 各 check 实现 ----

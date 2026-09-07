@@ -10,7 +10,7 @@ machine-checks:
   - no-placeholder
   - required-sections
   - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
-  - { id: du-coverage, skip-tier: [light] } # Phase 2.4：DU 覆盖对齐（单仓轻量档跳过）
+  - { id: du-coverage, skip-tier: [light] } # Phase 2.4：DU 覆盖对齐（单仓轻量档跳过；structural 强约束留给 S4 ac-coverage 等追踪链机检）
   - { id: du-guidance, skip-tier: [light] } # Phase 2.5：DU Implementation Guidance 完整性（单仓轻量档跳过）
 
 required-front-matter: []

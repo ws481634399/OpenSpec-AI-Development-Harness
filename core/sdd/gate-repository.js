@@ -28,6 +28,7 @@ function emptyMachineGate() {
     'checked-at': '',
     validator: '',
     'artifact-hash': '',
+    'rules-hash': '', // gate.yaml 规则指纹，与 artifact-hash 同构失效语义
     issues: [],
   };
 }
@@ -83,7 +84,7 @@ function flowToBlock(node) {
  * 写 Machine Gate Result 到 metadata.yaml。
  * @param {string} changeDir CHG 目录绝对路径
  * @param {string} artifactName Artifact 文件名
- * @param {{status:string, issues?:string[], warnings?:string[], artifactHash:string, validator?:string}} input
+ * @param {{status:string, issues?:string[], warnings?:string[], artifactHash:string, rulesHash?:string, validator?:string}} input
  */
 export async function writeMachineGate(changeDir, artifactName, input) {
   const file = join(changeDir, META_FILE);
@@ -96,6 +97,7 @@ export async function writeMachineGate(changeDir, artifactName, input) {
   doc.setIn(['artifacts', key, 'gates', 'machine', 'checked-at'], now);
   doc.setIn(['artifacts', key, 'gates', 'machine', 'validator'], input.validator || '');
   doc.setIn(['artifacts', key, 'gates', 'machine', 'artifact-hash'], input.artifactHash || '');
+  doc.setIn(['artifacts', key, 'gates', 'machine', 'rules-hash'], input.rulesHash || '');
   doc.setIn(['artifacts', key, 'gates', 'machine', 'issues'], input.issues || []);
   doc.setIn(['artifacts', key, 'gates', 'machine', 'warnings'], input.warnings || []);
   flowToBlock(doc.contents); // 缺陷 8：setIn 后统一转块式
@@ -197,7 +199,7 @@ export async function readGateResultForStory(changeDir, meta, storyId, artifactN
  * @param {object} meta
  * @param {string} storyId
  * @param {string} artifactName
- * @param {{status:string, issues?:string[], warnings?:string[], artifactHash:string, validator?:string}} input
+ * @param {{status:string, issues?:string[], warnings?:string[], artifactHash:string, rulesHash?:string, validator?:string}} input
  */
 export async function writeMachineGateForStory(changeDir, meta, storyId, artifactName, input) {
   const target = resolveStoryGateTarget(changeDir, meta, storyId);
@@ -211,6 +213,7 @@ export async function writeMachineGateForStory(changeDir, meta, storyId, artifac
   doc.setIn(['artifacts', key, 'gates', 'machine', 'checked-at'], now);
   doc.setIn(['artifacts', key, 'gates', 'machine', 'validator'], input.validator || '');
   doc.setIn(['artifacts', key, 'gates', 'machine', 'artifact-hash'], input.artifactHash || '');
+  doc.setIn(['artifacts', key, 'gates', 'machine', 'rules-hash'], input.rulesHash || '');
   doc.setIn(['artifacts', key, 'gates', 'machine', 'issues'], input.issues || []);
   doc.setIn(['artifacts', key, 'gates', 'machine', 'warnings'], input.warnings || []);
   flowToBlock(doc.contents);

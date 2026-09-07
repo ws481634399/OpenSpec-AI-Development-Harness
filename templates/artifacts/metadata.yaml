@@ -29,7 +29,8 @@ repositories: # 影响的仓库 id 列表（对应 .sdd/repositories.yaml，可�
 related-change: "" # 关联的历史 CHG-XXXX（需求复用 archived Change 时记录，可空）
 
 # Phase 4.1 轻量化：Evidence 分档（gate-validator 按档位跳过 skip-tier 命中的 machine-checks）
-# light    — 单仓、无接口变更的小改动：免 DU/多仓/逐 commit 映射等重仪式（openspec change tier <chg> light）
+# light    — 单仓、无接口变更的小改动：免除仪式性检查（多仓协调/物化跟踪/逐 commit 映射），
+#            但结构完整性检查（追踪链/骨架/收口，标 structural:true）仍全量执行
 # standard — 缺省档，完整 Evidence（不改此字段即 standard）
 # strict   — 跨仓/核心链路/安全变更：完整 Evidence + 全量机检
 evidence-tier: standard
@@ -71,5 +72,8 @@ repository-result: {}
 # Story 级产物（story-spec / story-design / tasks / implementation / ...）Gate 存储在
 # stories/<id>/story-metadata.yaml.artifacts（inline 模式仍存在此处，双语义合并）。
 # GateRepository 用 setIn 按需创建（不预填，避免模板臃肿）。
+# Machine Gate 记录字段：status / checked-at / validator / artifact-hash / rules-hash / issues / warnings
+#   artifact-hash：产物内容 SHA-256，产物变化 → hash 变化 → 旧 Gate 失效
+#   rules-hash：gate.yaml 规则内容 SHA-256，规则变化 → hash 变化 → detectStaleArtifacts 报 rules-mismatch
 artifacts: {}
 

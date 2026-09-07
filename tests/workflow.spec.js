@@ -475,3 +475,78 @@ test('WorkflowEngine: dev 阶段 --du 透传生效（DU 不存在 → 抛错）'
   );
   await rmrf(tmp);
 });
+
+// ---- Phase 4.3 rules-hash：gate.yaml 规则变化 → 旧 Gate 结果失效 ----
+
+test('runMachineGate: 传 gateYamlRaw 时返回 rulesHash（gate.yaml 内容指纹，与 artifactHash 同构）', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  const { loadGate, loadGateRaw } = await import('../core/sdd/gate-config-loader.js');
+  const { runMachineGate } = await import('../core/sdd/gate-validator.js');
+  const gateConfig = await loadGate('sdd-explore', harnessRoot);
+  const gateYamlRaw = await loadGateRaw('sdd-explore', harnessRoot);
+  const r = await runMachineGate(changeDir, gateConfig, { gateYamlRaw });
+  assert.equal(r.rulesHash, sha256(gateYamlRaw));
+  assert.ok(r.rulesHash.startsWith('sha256:'), 'rulesHash 应为 sha256: 前缀');
+  await rmrf(tmp);
+});
+
+test('runMachineGate: 不传 gateYamlRaw 时 rulesHash 为空串（向前兼容旧调用方）', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  const { loadGate } = await import('../core/sdd/gate-config-loader.js');
+  const { runMachineGate } = await import('../core/sdd/gate-validator.js');
+  const gateConfig = await loadGate('sdd-explore', harnessRoot);
+  const r = await runMachineGate(changeDir, gateConfig);
+  assert.equal(r.rulesHash, '', '未注入 gateYamlRaw 时 rulesHash 为空串');
+  await rmrf(tmp);
+});
+
+test('writeMachineGate: 持久化 rules-hash 字段到 metadata（与 artifact-hash 同段）', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  const fakeRulesHash = 'sha256:fake-rules-hash-1234';
+  await writeMachineGate(changeDir, 'exploration.md', {
+    status: 'passed',
+    artifactHash: sha256(FULL_EXPLORATION),
+    rulesHash: fakeRulesHash,
+    validator: 'sdd-explore',
+  });
+  const gr = await readGateResult(changeDir, 'exploration.md');
+  assert.equal(gr.gates.machine['rules-hash'], fakeRulesHash);
+  await rmrf(tmp);
+});
+
+test('detectStaleArtifacts: gate.yaml 规则变化（rules-hash 不一致）→ rules-mismatch', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  await writeMachineGate(changeDir, 'exploration.md', {
+    status: 'passed',
+    artifactHash: sha256(FULL_EXPLORATION), // 产物 hash 一致，避免 hash-mismatch 噪声
+    rulesHash: 'sha256:stale-rules-hash-0000', // 旧 rules-hash，与当前 gate.yaml 不一致
+    validator: 'sdd-explore',
+  });
+  // 注入 harnessRoot：detectStaleArtifacts 读当前 gate.yaml 计算 hash 与 metadata 中的对比
+  const stale = await detectStaleArtifacts(changeDir, null, { harnessRoot });
+  assert.equal(stale.length, 1, `应只报 rules-mismatch 一条: ${JSON.stringify(stale)}`);
+  assert.equal(stale[0].kind, 'rules-mismatch');
+  assert.equal(stale[0].artifact, 'exploration.md');
+  assert.equal(stale[0].layer, 'change');
+  assert.equal(stale[0].stage, 'sdd-explore', 'stage 字段应携带 skillId 便于溯源');
+  await rmrf(tmp);
+});
+
+test('detectStaleArtifacts: 不传 harnessRoot 时跳过 rules-mismatch 检测（向前兼容）', async () => {
+  const { tmp, changeDir } = await setupChange();
+  await writeFile(join(changeDir, 'exploration.md'), FULL_EXPLORATION, 'utf8');
+  await writeMachineGate(changeDir, 'exploration.md', {
+    status: 'passed',
+    artifactHash: sha256(FULL_EXPLORATION),
+    rulesHash: 'sha256:stale-rules-hash-0000',
+    validator: 'sdd-explore',
+  });
+  // 不传 harnessRoot → 旧调用方行为保持：不报 rules-mismatch
+  const stale = await detectStaleArtifacts(changeDir);
+  assert.deepEqual(stale, [], '不传 harnessRoot 时不应触发 rules-mismatch（向前兼容）');
+  await rmrf(tmp);
+});

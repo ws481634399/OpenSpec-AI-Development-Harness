@@ -14,7 +14,7 @@ import { loadSkill } from './skill-loader.js';
 import { assembleContext } from './context-assembler.js';
 import { buildInstruction } from './instruction-builder.js';
 import { resolvePrompts } from './prompt-loader.js';
-import { loadGate } from './gate-config-loader.js';
+import { loadGate, loadGateRaw } from './gate-config-loader.js';
 import { runMachineGate } from './gate-validator.js';
 import {
   writeMachineGate,
@@ -32,7 +32,7 @@ import {
   resolveStoryDirV3,
   isMultiStory,
 } from './artifact-path.js';
-import { sha256 } from './artifact-hash.js';
+import { sha256, rulesHash } from './artifact-hash.js';
 import { syncDuStatusFromRepos, syncDuCommits, readRepositories } from './delivery-unit.js';
 import { resolveSubmoduleHead } from './git-submodule.js';
 import {
@@ -128,7 +128,7 @@ export async function runWorkflow(workspaceRoot, changeId, opts = {}) {
     const meta0 = await readMetadata(changeDir0);
     const status0 = meta0.status || 'created';
     if (status0 !== 'completed' && status0 !== 'archived') {
-      stale = await detectStaleArtifacts(changeDir0, meta0);
+      stale = await detectStaleArtifacts(changeDir0, meta0, { harnessRoot: opts.harnessRoot });
     }
   } catch {
     stale = [];
@@ -238,6 +238,7 @@ async function runWorkflowCore(workspaceRoot, changeId, opts = {}) {
 
     // 加载 Gate 配置（提前：三态 artifact 解析需要 three-tier 声明）
     const gateConfig = await loadGate(stage.skill, harnessRoot);
+    const gateYamlRaw = await loadGateRaw(stage.skill, harnessRoot); // rules-hash 计算用
 
     // Phase 4.2 三态 artifact 解析：
     // - change3 模式（多 Story + three-tier.change-artifact）→ CHG 根 Change 级产物
@@ -279,6 +280,7 @@ async function runWorkflowCore(workspaceRoot, changeId, opts = {}) {
     const machineResult = await runMachineGate(changeDir, gateConfig, {
       metadata: meta,
       artifactPath, // Story 级 artifact 传解析后的实际路径
+      gateYamlRaw, // 传入 gate.yaml 原始内容用于 rules-hash 计算
     });
     // 持久化 Machine Gate Result（warnings = advisory 未过项，留痕不阻断）
     await writeMachineGate(changeDir, artifactName, {
@@ -286,6 +288,7 @@ async function runWorkflowCore(workspaceRoot, changeId, opts = {}) {
       issues: machineResult.issues,
       warnings: machineResult.warnings,
       artifactHash: machineResult.artifactHash,
+      rulesHash: machineResult.rulesHash, // gate 规则指纹持久化
       validator: stage.skill,
     });
 
@@ -367,6 +370,7 @@ async function processStoryStage(workspaceRoot, changeDir, changeId, meta, story
 
   const stage = { skill: flow.skill, gate: flow.gate };
   const gateConfig = await loadGate(flow.skill, harnessRoot);
+  const gateYamlRaw = await loadGateRaw(flow.skill, harnessRoot); // rules-hash 计算用
   const tt = gateConfig['three-tier'] || {};
   const artifactName = tt['story-artifact'] || gateConfig.artifact;
   const artifactPath = resolveArtifactPathV3(changeDir, artifactName, meta, story.id);
@@ -405,12 +409,14 @@ async function processStoryStage(workspaceRoot, changeDir, changeId, meta, story
     metadata: meta,
     storyId: story.id,
     artifactPath,
+    gateYamlRaw,
   });
   await writeMachineGateForStory(changeDir, meta, story.id, artifactName, {
     status: machineResult.passed ? 'passed' : 'failed',
     issues: machineResult.issues,
     warnings: machineResult.warnings,
     artifactHash: machineResult.artifactHash,
+    rulesHash: machineResult.rulesHash,
     validator: flow.skill,
   });
   if (!machineResult.passed) {
@@ -593,10 +599,11 @@ async function prepareSkillInvocation(workspaceRoot, changeDir, changeId, stage,
  *
  * @param {string} changeDir CHG 目录绝对路径
  * @param {object} [meta] 可选注入 metadata
- * @returns {Promise<Array<{artifact:string, kind:'hash-mismatch'|'missing'|'stale-propagated',
- *   layer:'change'|'story', story?:string, from?:string}>>}
+ * @param {object} [opts] { harnessRoot? } 可选注入 harnessRoot（rules-mismatch 检测用）
+ * @returns {Promise<Array<{artifact:string, kind:'hash-mismatch'|'missing'|'stale-propagated'|'rules-mismatch',
+ *   layer:'change'|'story', story?:string, from?:string, stage?:string}>>}
  */
-export async function detectStaleArtifacts(changeDir, meta = null) {
+export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
   const m = meta || (await readMetadata(changeDir));
   const raw = await readFile(join(changeDir, 'metadata.yaml'), 'utf8');
   const parsed = parse(raw);
@@ -624,6 +631,23 @@ export async function detectStaleArtifacts(changeDir, meta = null) {
     if (recordedHash && sha256(content) !== recordedHash) {
       stale.push({ artifact: a.path, kind: 'hash-mismatch', layer: 'change' });
       changeStaleNames.add(a.path.split('/').pop());
+    }
+    // rules-mismatch：gate.yaml 规则变了但 artifact 没变 → 旧 Gate 结果可能失效
+    const recordedRulesHash = a.gates?.machine?.['rules-hash'];
+    if (recordedRulesHash && opts.harnessRoot) {
+      const skillId = a.gates?.machine?.validator;
+      if (skillId) {
+        try {
+          const gateRaw = await loadGateRaw(skillId, opts.harnessRoot);
+          const currentRulesHash = rulesHash(gateRaw);
+          if (currentRulesHash !== recordedRulesHash) {
+            stale.push({ artifact: a.path, kind: 'rules-mismatch', layer: 'change', stage: skillId });
+            changeStaleNames.add(a.path.split('/').pop());
+          }
+        } catch {
+          // gate.yaml 读取失败 → 跳过（skill 可能已重构，非阻断）
+        }
+      }
     }
   }
 
@@ -670,6 +694,29 @@ export async function detectStaleArtifacts(changeDir, meta = null) {
             story: story.id,
           });
           storyStaleNames.add(a.path.split('/').pop());
+        }
+        // rules-mismatch：gate.yaml 规则变了但 artifact 没变 → 旧 Gate 结果可能失效
+        const recordedRulesHash = a.gates?.machine?.['rules-hash'];
+        if (recordedRulesHash && opts.harnessRoot) {
+          const skillId = a.gates?.machine?.validator;
+          if (skillId) {
+            try {
+              const gateRaw = await loadGateRaw(skillId, opts.harnessRoot);
+              const currentRulesHash = rulesHash(gateRaw);
+              if (currentRulesHash !== recordedRulesHash) {
+                stale.push({
+                  artifact: `stories/${story.id}/${a.path}`,
+                  kind: 'rules-mismatch',
+                  layer: 'story',
+                  story: story.id,
+                  stage: skillId,
+                });
+                storyStaleNames.add(a.path.split('/').pop());
+              }
+            } catch {
+              // gate.yaml 读取失败 → 跳过（skill 可能已重构，非阻断）
+            }
+          }
         }
       }
 

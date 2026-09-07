@@ -476,6 +476,34 @@ test('Stale 传播: 无变更时 stale 为空（多 Story 正常推进不被误�
   await rmrf(tmp);
 });
 
+test('Stale 传播: Story 级 rules-hash 不一致 → rules-mismatch（与 Change 级同构）', async () => {
+  const { tmp, changeId, changeDir } = await makeMultiStoryChange({ status: 'story-splitting' });
+  await patchStoryMetadata(join(changeDir, 'stories', S1), { status: 'specified' });
+  const spec1 = storySpecMd(S1, ['S1']);
+  await writeFile(join(changeDir, 'stories', S1, 'story-spec.md'), spec1, 'utf8');
+  const meta = await readMetadata(changeDir);
+  // 写入旧 rules-hash 模拟"gate 规则已变化"（artifactHash 与产物一致，避免 hash-mismatch 噪声）
+  await writeMachineGateForStory(changeDir, meta, S1, 'story-spec.md', {
+    status: 'passed',
+    artifactHash: sha256(spec1),
+    rulesHash: 'sha256:story-stale-rules-0000',
+    validator: 'sdd-prd',
+  });
+  const r = await runWorkflow(tmp, changeId, { harnessRoot });
+  assert.ok(
+    r.stale.some(
+      (s) =>
+        s.artifact === `stories/${S1}/story-spec.md` &&
+        s.kind === 'rules-mismatch' &&
+        s.layer === 'story' &&
+        s.story === S1 &&
+        s.stage === 'sdd-prd',
+    ),
+    `应报 story 级 rules-mismatch: ${JSON.stringify(r.stale)}`,
+  );
+  await rmrf(tmp);
+});
+
 // ---- Test Section D: 聚合规则边界（§5.3 与状态机协作）----
 
 test('聚合边界: 任一 Story developing → 聚合推 Change.developing（tryAggregatedTransition 经 runWorkflow 验证）', async () => {

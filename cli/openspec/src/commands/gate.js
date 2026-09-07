@@ -12,7 +12,7 @@ import { join } from 'node:path';
 import { resolveWorkspaceRoot } from '../lib/workspace-resolver.js';
 import { ok, warn, error } from '../lib/logger.js';
 import { changeExists } from '../../../../core/sdd/change-repository.js';
-import { loadGate } from '../../../../core/sdd/gate-config-loader.js';
+import { loadGate, loadGateRaw } from '../../../../core/sdd/gate-config-loader.js';
 import { runMachineGate } from '../../../../core/sdd/gate-validator.js';
 import {
   writeMachineGate,
@@ -98,12 +98,14 @@ export function registerGateCommand(program) {
           gateOpts.metadata = meta;
           gateOpts.storyId = opts.story;
         }
+        gateOpts.gateYamlRaw = await loadGateRaw(skillId, harnessRoot);
         const result = await runMachineGate(changeDir, gateConfig, gateOpts);
         await target.writeMachine({
           status: result.passed ? 'passed' : 'failed',
           issues: result.issues,
           warnings: result.warnings,
           artifactHash: result.artifactHash,
+          rulesHash: result.rulesHash,
           validator: skillId,
         });
 
@@ -120,6 +122,7 @@ export function registerGateCommand(program) {
                 issues: result.issues,
                 warnings: result.warnings,
                 artifactHash: result.artifactHash,
+                rulesHash: result.rulesHash,
               },
               null,
               2

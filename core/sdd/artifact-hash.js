@@ -3,6 +3,9 @@
 //
 // Artifact 内容变化 → Hash 变化 → 旧 Gate 失效
 // Machine Gate 和 Human Gate 的结果都绑定当前 Artifact 内容（artifact-hash）
+//
+// rules-hash：gate.yaml 规则内容指纹，与 artifact-hash 同构失效语义。
+// gate 规则变化 → rules-hash 变化 → detectStaleArtifacts 报 rules-mismatch
 
 import { createHash } from 'node:crypto';
 
@@ -26,4 +29,15 @@ export function sha256(content) {
 export function hashMatches(currentHash, gateHash) {
   if (!gateHash) return false;
   return currentHash === gateHash;
+}
+
+/**
+ * 计算 gate.yaml 规则内容的 SHA-256 指纹。
+ * 与 artifact-hash 同构：gate 规则变化 → rules-hash 变化 → 旧 Gate 结果 stale。
+ * @param {string} gateYamlRaw gate.yaml 原始文件内容（utf8）
+ * @returns {string} 形如 "sha256:abc123..."；输入为空时返回空串（向前兼容）
+ */
+export function rulesHash(gateYamlRaw) {
+  if (!gateYamlRaw) return '';
+  return sha256(gateYamlRaw);
 }
