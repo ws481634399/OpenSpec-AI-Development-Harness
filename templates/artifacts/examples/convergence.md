@@ -64,7 +64,7 @@ glossary-need-update: "no"
 ```
 
 - 理由: 本 Change 的 PRD 经人工评审，确立注册业务规则，作为后续认证类 Change 的产品依据
-- 来源: prd.md「业务规则」节
+- 来源: spec.md「业务规则」节
 - 关联 Feature: STORY-3
 
 ### Feature Tree 更新

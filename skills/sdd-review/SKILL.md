@@ -23,7 +23,7 @@ sdd-review 是 sdd-converge 前的**独立质量检查点**：
 ### 1. 读取输入
 
 依次读取：
-- `delivery/changes/<CHG>/prd.md` — AC 清单（需求一致性基准）
+- `delivery/changes/<CHG>/spec.md` — AC 清单（需求一致性基准）
 - `delivery/changes/<CHG>/design.md` — 接口/模块/规则声明 + **跨仓协作契约 §4**（设计一致性基准）
 - `delivery/changes/<CHG>/implementation.md` — 跨仓实施汇总（DU 状态总览）
 - STORY 级 `delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md` — DU 清单与 Acceptance
@@ -35,16 +35,16 @@ sdd-review 是 sdd-converge 前的**独立质量检查点**：
 
 #### 检查 1：需求一致性
 
-PRD AC 逐条对照 evidence.yaml：
+spec AC 逐条对照 evidence.yaml：
 
 | AC | test-run 证据（covers 字段） | 结论 |
 |----|------------------------------|------|
-| AC-1 | EV-002 | ✅ |
-| AC-2 | （无） | ❌ 缺口 |
+| AC-001 | EV-002 | ✅ |
+| AC-002 | （无） | ❌ 缺口 |
 
 - 每条 AC 必须有至少一个 `covers` 包含它的 test-run 条目
 - 有 test-report 但 evidence 无对应条目 → 视为缺口
-- 缺口 → 记 review-finding（target: `prd.md#AC-N`）
+- 缺口 → 记 review-finding（target: `spec.md#AC-NNN`）
 
 #### 检查 2：设计一致性（Design → DU → Implementation Traceability）
 
@@ -64,7 +64,7 @@ Acceptance Criteria 满足
 |------|------|---------|
 | a. DU ↔ Design | Sketch/契约引用是否与 design.md 一致；Pseudocode 是否违背 API / Data / Architecture Contract | 记 review-finding（target: `tasks.md#DU-XXX` 或 `design.md#<section>`） |
 | b. Implementation ↔ DU | 实际实现是否符合 DU spec；**偏离但 repo implementation.md `## Deviations` 有记录且合理 → 通过；偏离但未记录 → major** | 记 review-finding（target: `implementation.md#Deviations`） |
-| c. AC 满足 | 偏离后是否仍满足 DU Acceptance 与 PRD AC | 不满足 → blocker |
+| c. AC 满足 | 偏离后是否仍满足 DU Acceptance 与 spec AC | 不满足 → blocker |
 
 design.md 声明 ↔ code-change 条目对照：
 - 设计声明的接口/模块是否在 code-change 的 files/symbols 中出现
@@ -95,9 +95,9 @@ design.md 声明 ↔ code-change 条目对照：
 ```yaml
 - id: EV-003                  # 延续已有 EV-NNN 递增
   type: review-finding
-  target: prd.md#AC-2         # 问题定位
+  target: spec.md#AC-002         # 问题定位
   severity: major             # blocker / major / minor
-  finding: AC-2 缺少测试覆盖   # 问题描述
+  finding: AC-002 缺少测试覆盖   # 问题描述
   resolution: ""              # 先留空，闭环时回填
   recorded-at: "2026-08-28T12:00:00.000Z"
 ```
@@ -118,7 +118,7 @@ design.md 声明 ↔ code-change 条目对照：
 3. 回填原 review-finding 条目的 `resolution`（引用修复证据的 EV id）：
 
 ```yaml
-  resolution: 已补充 AC-2 测试，见 EV-004
+  resolution: 已补充 AC-002 测试，见 EV-004
 ```
 
 - blocker/major **必须闭环**（Machine Gate findings-closure 强制）
@@ -143,7 +143,7 @@ design.md 声明 ↔ code-change 条目对照：
 ### 6. 质量自检
 
 产出前自检：
-- [ ] PRD 每条 AC 是否都做了对照？
+- [ ] spec 每条 AC（AC-NNN）是否都做了对照？
 - [ ] design.md 关键声明是否都核对了实现证据？
 - [ ] 每个 DU 是否都有 code-change/test-run 证据（evidence-ref 可追溯到所属仓）？
 - [ ] design.md §4 跨仓协作契约是否被各仓证据共同满足？
@@ -173,16 +173,16 @@ openspec gate approve <CHG> --stage review
 
 ## 工作示例
 
-> 场景：user-registration 案例，review 发现 AC-2 缺测试覆盖
+> 场景：user-registration 案例，review 发现 AC-002 缺测试覆盖
 
 **evidence.yaml 追加条目：**
 
 ```yaml
 - id: EV-003
   type: review-finding
-  target: prd.md#AC-2
+  target: spec.md#AC-002
   severity: major
-  finding: AC-2（已注册邮箱返回 409）无 test-run 覆盖
+  finding: AC-002（已注册邮箱返回 409）无 test-run 覆盖
   resolution: 已补 duplicate_email 测试并跑通，见 EV-004
   recorded-at: "2026-08-28T12:00:00.000Z"
 - id: EV-004
@@ -191,7 +191,7 @@ openspec gate approve <CHG> --stage review
   result: passed
   summary: { total: 14, passed: 14, failed: 0, skipped: 0 }
   log: evidence/test-output.log
-  covers: [AC-2]
+  covers: [AC-002]
   recorded-at: "2026-08-28T12:30:00.000Z"
 ```
 
@@ -200,8 +200,8 @@ openspec gate approve <CHG> --stage review
 ```markdown
 | AC | test-run 证据 | 结论 |
 |----|---------------|------|
-| AC-1 | EV-002 | ✅ |
-| AC-2 | EV-004（评审后补充） | ✅ 已闭环（EV-003） |
+| AC-001 | EV-002 | ✅ |
+| AC-002 | EV-004（评审后补充） | ✅ 已闭环（EV-003） |
 ```
 
 ## 行为规则

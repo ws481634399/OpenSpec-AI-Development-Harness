@@ -54,12 +54,12 @@
 
 ## 4. 全局验收标准对照
 
-<!-- AI 补充（缺陷 10 收口）：对 change-prd.md §5 全局验收标准（inline 单 Story 模式为 prd.md §5 验收标准）逐条对照。
+<!-- AI 补充（缺陷 10 收口）：对 change-spec.md §5 全局验收标准（inline 单 Story 模式为 spec.md §5 验收标准）逐条对照。
      多 Story 模式：每条注明覆盖该验收点的 Story 及证据引用（story evidence/test-report.md / evidence-ref）；
      跨 Story 集成验收点必须给出集成证据，不得以"各 Story 验收已通过"替代（分层验收并集 ≠ 全局验收）。
      全部通过是 converge Human Gate（approved）的前置输入。 -->
 
-| #  | 验收点（摘自 Change PRD §5） | 覆盖 Story | 证据引用 | 结论               |
+| #  | 验收点（摘自 change-spec §5） | 覆盖 Story | 证据引用 | 结论               |
 | -- | --------------------------- | ---------- | -------- | ------------------ |
 | 1  |                             |            |          | 通过 / 未通过 / 不适用 |
 | 2  |                             |            |          | 通过 / 未通过 / 不适用 |

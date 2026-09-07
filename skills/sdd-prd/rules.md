@@ -10,7 +10,7 @@ sdd-prd 阶段必须遵守的硬约束（对应 change-lifecycle.md §7 与 back
 
 ## R2：Artifact 写入约束
 
-- 只写 `prd.md`，不得覆写 exploration.md 或 requirement.md
+- 只写 `spec.md`，不得覆写 exploration.md 或 requirement.md
 - 写入使用 ArtifactWriter，保留模板注释与 front-matter（如适用）
 - 结构化占位符缺失时以空串填充，不报错（由外部 AI 后续补全）
 

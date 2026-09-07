@@ -26,7 +26,7 @@ stages:
     gate: prd
     from-state: exploring
     to-state: specified
-    artifact: prd.md
+    artifact: spec.md
     human-gate: required
   - skill: sdd-design
     gate: design

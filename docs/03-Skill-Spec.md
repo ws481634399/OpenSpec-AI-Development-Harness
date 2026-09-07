@@ -411,7 +411,7 @@ DDD规则
 例如：
 
 ```
-prd.md
+spec.md
 design.md
 tasks.md
 ```
@@ -530,7 +530,7 @@ Feature
 输出：
 
 ```
-prd.md
+spec.md
 ```
 
 ---

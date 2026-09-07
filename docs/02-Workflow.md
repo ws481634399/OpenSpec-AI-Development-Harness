@@ -352,7 +352,7 @@ Requirement
 
 ```
 delivery/changes/CHG-ID/<L1名>/<L2名>/<L3名>/<STORY名>/
-prd.md
+spec.md
 ```
 
 > Phase 3.5 v0.3：绑定 feature-path 后所有产物落 STORY 目录（业务名四级链，README front-matter id 作锚点）；未绑定或 candidate 时暂存 CHG 根，绑定后由 skeleton 自动迁移。

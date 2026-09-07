@@ -6,9 +6,10 @@
 
 ## R2：代码修改与 Artifact 分离
 
-- 代码修改在 implementation/（Implementation World），由外部 Agent 实际执行
-- OpenSpec 本 Skill 只写 implementation.md 记录轨迹，**不直接写实现代码**
-- Commit 与 Task 的对应必须 1:1 或 n:1，不允许一个 Commit 跨多个 Task（可接受的反例：跨任务共享重构，但要在 §4 说明）
+- 代码修改在各仓 implementation/（Implementation World），由外部 Agent 实际执行；按 DU 逐个实施，不跨仓改码
+- OpenSpec 本 Skill 只写 implementation.md 记录轨迹（Workspace 聚合 + repo 侧分册），**不直接写实现代码**
+- Commit 与 DU 的对应必须 1:1 或 n:1，不允许一个 Commit 跨多个 DU（可接受的反例：跨 DU 共享重构，但要在 repo implementation.md `## Deviations` 说明）
+- 实现与 Sketch/Pseudocode/Design Contract 的偏离必须记入 `## Deviations`，禁止未记录偏离
 
 ## R3：工程规范
 
@@ -19,3 +20,4 @@
 
 - 不修改 tasks.md 以上阶段的 Artifact
 - patchStatus 前 validateTransition(tasked, developing)
+- DU 完成必须 `openspec du sync-status` 回传（含 result commit 与证据引用）；未回传不得推进

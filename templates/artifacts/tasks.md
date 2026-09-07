@@ -2,7 +2,7 @@
 
 > 阶段：sdd-task 产物（Phase 2.4 升级为 Delivery Decomposition Skill）
 > 位置：STORY 级 —— `<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`（由 metadata.feature-path 决定）
-> 输入：prd.md + design.md + .sdd/repositories.yaml + feature-path
+> 输入：spec.md + design.md + .sdd/repositories.yaml + feature-path
 > 产出状态：tasked
 
 本文档将设计拆解为 Delivery Unit（DU）——每个 DU 是本次 Change 在一个具体仓库中的实施交付单元（DU 1:1 Repository，跨仓交付必须拆多个 DU）。

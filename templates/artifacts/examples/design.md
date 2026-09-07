@@ -1,7 +1,7 @@
 ---
 change-id: "CHG-0001"
 title: "用户注册技术设计"
-prd-source: "CHG-0001/prd.md"
+spec-source: "CHG-0001/spec.md"
 from-state: "specified"
 to-state: "designed"
 repos-involved: "main"

@@ -286,7 +286,7 @@ export async function bindFeaturePath(changeDir, featurePath) {
   const patch = {
     "feature-path": fp,
     features: flattenFeatureIds(fp),
-    "schema-version": sv < 3 ? 3 : current["schema-version"], // 自动升 v3
+    "schema-version": sv < 4 ? 4 : current["schema-version"], // 自动升 v4（Phase 4.3：spec 命名 + stories[].domain）
     "updated-at": new Date().toISOString(),
   };
   if (currentStories.length === 0) {
@@ -304,6 +304,11 @@ export async function bindFeaturePath(changeDir, featurePath) {
         inline: true,
         status: CSTATUS[current.status] || "pending",
         path: "./",
+        // v4：inline 单 Story 领域归属自动继承 L3（story-domain-boundary 机检 Phase 4.3 S2 启用）
+        domain: {
+          id: (fp["level-3"] && fp["level-3"].id) || "",
+          name: (fp["level-3"] && fp["level-3"].name) || "",
+        },
       },
     ];
     if (current["evidence-tier"]) patch.stories[0]["evidence-tier"] = current["evidence-tier"];

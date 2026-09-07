@@ -17,7 +17,7 @@ required-front-matter: []
 
 required-replacements:
   - change-id
-  - prd-source
+  - spec-source
   - repos-involved
   - repo-impact-count
 
@@ -45,7 +45,7 @@ three-tier:
     - "## 5. Story 设计分派（Story Design Assignments）"
   change-required-replacements:
     - change-id
-    - prd-source
+    - spec-source
     - repos-involved
     - repo-impact-count
   story-artifact: story-design.md

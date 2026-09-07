@@ -7,7 +7,7 @@
 // - standards/ product/ delivery/ implementation/ 绝不触碰
 // 回滚依赖 Git：报告 touchedFiles 清单，git checkout -- <files> 即可回滚
 
-import { readFile, writeFile, readdir, mkdir, copyFile, stat, rm } from 'node:fs/promises';
+import { readFile, writeFile, readdir, mkdir, copyFile, stat, rm, rename } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { parse, parseDocument, stringify } from 'yaml';
 import { readHarnessVersion, readWorkspaceVersions, readTemplateVersions } from './version.js';
@@ -61,10 +61,13 @@ async function findMissingManagedFiles(harnessRoot, workspaceRoot) {
   return missing;
 }
 
-// ---- Phase 4.2：Change metadata v2→v3 迁移（delivery/changes + archive 递归扫 metadata.yaml）
+// ---- Phase 4.2/4.3：Change schema 迁移 v2→v4（delivery/changes + archive 递归扫 CHG 目录）
 // 设计：schema-migrations.js 受「不触碰 delivery/」限制，此处作为 WorkspaceUpgrade 的扩展步骤
-// 规则（幂等）：对每个 metadata.yaml：schema-version<3 且 feature-path.story.id 非空 →
-//   写 schema-version=3；创建 stories:[{id,title,inline:true,status,path:"./"}]；不移动文件（inline 保持）
+// v2→v3（幂等）：metadata.yaml schema-version<3 且 feature-path.story.id 非空 →
+//   创建 stories:[{id,title,inline:true,status,path:"./"}]；不移动文件（inline 保持）
+// v3→v4（幂等，Phase 4.3 S1）：prd.md→spec.md / change-prd.md→change-spec.md 产物改名；
+//   metadata.yaml + story-metadata.yaml 的 artifacts 段键名（prd→spec / change-prd→change-spec）与
+//   path 值重写；inline stories[].domain 自动继承 feature-path.level-3；schema-version 升 4
 
 function flowToBlock(node) {
   if (!node || typeof node !== 'object' || !Array.isArray(node.items)) return;
@@ -80,8 +83,20 @@ const CSTATUS_MAP = {
   archived: 'completed',
 };
 
-/** 递归扫目录下所有 metadata.yaml（深度最多 8 级，Module/Feature/Story/CHG4 层 + 子目录） */
-async function collectChangeMetadatas(root) {
+/** v4 产物改名映射（文件名 → 新名） */
+const V4_ARTIFACT_RENAMES = {
+  'prd.md': 'spec.md',
+  'change-prd.md': 'change-spec.md',
+};
+
+/** artifacts 段键名重写映射（旧键 → { newKey, path }） */
+const V4_ARTIFACT_KEYS = [
+  { oldKey: 'change-prd', newKey: 'change-spec', newPath: 'change-spec.md' },
+  { oldKey: 'prd', newKey: 'spec', newPath: 'spec.md' },
+];
+
+/** 递归收集目录下全部文件绝对路径（深度最多 8 级） */
+async function collectTreeFiles(root) {
   const results = [];
   async function walk(dir, depth) {
     if (depth > 8) return;
@@ -90,15 +105,21 @@ async function collectChangeMetadatas(root) {
     for (const e of entries) {
       const full = join(dir, e.name);
       if (e.isDirectory()) { await walk(full, depth + 1); continue; }
-      if (e.isFile() && e.name === 'metadata.yaml') results.push(full);
+      if (e.isFile()) results.push(full);
     }
   }
   await walk(root, 0);
   return results;
 }
 
+/** 递归扫目录下所有 metadata.yaml（深度最多 8 级，Module/Feature/Story/CHG4 层 + 子目录） */
+async function collectChangeMetadatas(root) {
+  const files = await collectTreeFiles(root);
+  return files.filter((f) => f.endsWith('metadata.yaml'));
+}
+
 /**
- * Guard：检测是否需要 Change schema 迁移（有任何 metadata.yaml 未达 v3）。
+ * Guard：检测是否需要 Change schema 迁移（有任何 metadata.yaml 未达 v4）。
  * @param {string} workspaceRoot
  * @returns {Promise<boolean>}
  */
@@ -113,7 +134,7 @@ export async function needsChangeSchemaMigration(workspaceRoot) {
       try {
         const raw = await readFile(f, 'utf8');
         const meta = parse(raw) || {};
-        if ((meta['schema-version'] || 1) < 3 && meta['feature-path'] && meta['feature-path'].story) return true;
+        if ((meta['schema-version'] || 1) < 4) return true;
       } catch { /* ignore corrupted */ }
     }
   }
@@ -121,56 +142,133 @@ export async function needsChangeSchemaMigration(workspaceRoot) {
 }
 
 /**
- * 执行 Change metadata v2→v3 迁移。
+ * 执行 Change schema v2→v4 迁移（幂等）。
+ * 逐 CHG 目录处理（changes + archive 两个 scope）：
+ * 1. 树内遗留 prd.md / change-prd.md 产物改名（rename）
+ * 2. metadata.yaml + story-metadata.yaml 的 artifacts 段键名与 path 重写
+ * 3. metadata.yaml：v2→v3 stories 推导 + v4 inline stories[].domain 继承 + schema-version=4
  * @param {string} workspaceRoot
- * @returns {Promise<{files:string[], migrated:number, skipped:number}>}
+ * @returns {Promise<{files:string[], migrated:number, skipped:number, renamed:{from:string,to:string}[]}>}
  */
-export async function migrateChangeSchemaV2toV3(workspaceRoot) {
-  const dirs = [
+export async function migrateChangeSchema(workspaceRoot) {
+  const changed = [];
+  const renamed = [];
+  let migrated = 0, skipped = 0;
+  const toRel = (abs) =>
+    abs.startsWith(workspaceRoot) ? abs.slice(workspaceRoot.length + 1).replace(/\\/g, '/') : abs;
+
+  const bases = [
     join(workspaceRoot, 'delivery', 'changes'),
     join(workspaceRoot, 'delivery', 'archive'),
   ];
-  const changed = [];
-  let migrated = 0, skipped = 0;
-  for (const d of dirs) {
-    const files = await collectChangeMetadatas(d);
-    for (const f of files) {
-      let raw;
-      try { raw = await readFile(f, 'utf8'); } catch { skipped++; continue; }
-      let meta;
-      try { meta = parse(raw) || {}; } catch { skipped++; continue; }
-      const sv = meta['schema-version'] || 1;
-      if (sv >= 3) { skipped++; continue; }
-      const fp = meta['feature-path'];
-      if (!fp || !fp.story || !fp.story.id) {
-        // 无 Story 绑定：仍升 schema-version=3（写默认空 stories:[]），便于统一
+  for (const base of bases) {
+    let entries;
+    try { entries = await readdir(base, { withFileTypes: true }); } catch { continue; }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const changeDir = join(base, e.name);
+      const files = await collectTreeFiles(changeDir);
+
+      // 1. 产物改名（幂等：旧名不存在即跳过）
+      for (const f of files) {
+        const name = f.split('\\').pop().split('/').pop();
+        if (!V4_ARTIFACT_RENAMES[name]) continue;
+        const to = join(dirname(f), V4_ARTIFACT_RENAMES[name]);
+        try {
+          await rename(f, to);
+          renamed.push({ from: toRel(f), to: toRel(to) });
+        } catch (e) {
+          if (e && (e.code === 'ENOENT')) { skipped++; continue; } // 旧文件已不在（竞态），跳过
+          throw e; // 其余失败（如目标已存在）直接上抛，避免静默产出错误迁移结果
+        }
       }
-      const doc = parseDocument(raw);
-      doc.setIn(['schema-version'], 3);
-      const currStories = Array.isArray(meta.stories) ? meta.stories : [];
-      // 仅 stories 为空 + 有 feature-path 时补 inline
-      if (currStories.length === 0 && fp && fp.story && fp.story.id) {
-        const status = CSTATUS_MAP[meta.status] || 'pending';
-        const entry = {
-          id: fp.story.id,
-          title: fp.story.name || meta.title || '',
-          inline: true,
-          status,
-          path: './',
-        };
-        if (meta['evidence-tier']) entry['evidence-tier'] = meta['evidence-tier'];
-        doc.setIn(['stories'], [entry]);
-      } else if (currStories.length === 0) {
-        doc.setIn(['stories'], []);
+
+      // 2+3. yaml 重写（metadata.yaml 走 schema 升级；story-metadata.yaml 仅重写 artifacts 键）
+      for (const f of files) {
+        const name = f.split('\\').pop().split('/').pop();
+        const isChangeMeta = name === 'metadata.yaml';
+        const isStoryMeta = name === 'story-metadata.yaml';
+        if (!isChangeMeta && !isStoryMeta) continue;
+        let raw;
+        try { raw = await readFile(f, 'utf8'); } catch { skipped++; continue; }
+        let meta;
+        try { meta = parse(raw) || {}; } catch { skipped++; continue; }
+        const sv = meta['schema-version'] || 1;
+        if (isChangeMeta && sv >= 4) {
+          // 已 v4：artifacts 键重写已在既往升级完成（键重写与 v4 绑定），无需再动
+          continue;
+        }
+
+        const doc = parseDocument(raw);
+        let dirty = false;
+        // v2→v3：stories 推导（仅 Change metadata）
+        if (isChangeMeta && sv < 3) {
+          const fp = meta['feature-path'];
+          const currStories = Array.isArray(meta.stories) ? meta.stories : [];
+          if (currStories.length === 0 && fp && fp.story && fp.story.id) {
+            const status = CSTATUS_MAP[meta.status] || 'pending';
+            const entry = {
+              id: fp.story.id,
+              title: fp.story.name || meta.title || '',
+              inline: true,
+              status,
+              path: './',
+            };
+            if (meta['evidence-tier']) entry['evidence-tier'] = meta['evidence-tier'];
+            // v4：推导的 inline story 直接继承 L3 domain（doc.setIn 的新列表不在旧 meta.stories 里）
+            if (fp['level-3']) {
+              entry.domain = {
+                id: (fp['level-3'] && fp['level-3'].id) || '',
+                name: (fp['level-3'] && fp['level-3'].name) || '',
+              };
+            }
+            doc.setIn(['stories'], [entry]);
+            dirty = true;
+          } else if (currStories.length === 0) {
+            doc.setIn(['stories'], []);
+            dirty = true;
+          }
+        }
+
+        // v4：artifacts 段键名与 path 重写（story-metadata.yaml 同样处理；无旧键则不写文件）
+        for (const { oldKey, newKey, newPath } of V4_ARTIFACT_KEYS) {
+          const node = doc.getIn(['artifacts', oldKey]);
+          if (!node) continue;
+          doc.setIn(['artifacts', newKey], node);
+          doc.deleteIn(['artifacts', oldKey]);
+          doc.setIn(['artifacts', newKey, 'path'], newPath);
+          dirty = true;
+        }
+
+        // v4：inline stories[].domain 继承 L3（仅 Change metadata）
+        if (isChangeMeta) {
+          if (sv !== 4) {
+            doc.setIn(['schema-version'], 4);
+            dirty = true;
+          }
+          const storiesArr = Array.isArray(meta.stories) ? meta.stories : [];
+          const fp = meta['feature-path'];
+          storiesArr.forEach((s, idx) => {
+            if (s && s.inline === true && !s.domain && fp && fp['level-3']) {
+              doc.setIn(['stories', idx, 'domain'], {
+                id: (fp['level-3'] && fp['level-3'].id) || '',
+                name: (fp['level-3'] && fp['level-3'].name) || '',
+              });
+              dirty = true;
+            }
+          });
+        }
+
+        if (!dirty) continue; // 幂等：无可变更内容不写文件
+
+        flowToBlock(doc.contents);
+        await writeFile(f, doc.toString(), 'utf8');
+        changed.push(f);
+        migrated++;
       }
-      doc.setIn(['updated-at'], meta['updated-at'] || new Date().toISOString());
-      flowToBlock(doc.contents);
-      await writeFile(f, doc.toString(), 'utf8');
-      changed.push(f);
-      migrated++;
     }
   }
-  return { files: changed, migrated, skipped };
+  return { files: changed, migrated, skipped, renamed };
 }
 
 // ---- v0.4：CHG 骨架遗留锚点 README 清理（去锚点后四级骨架内不应再有 README.md） ----
@@ -303,7 +401,7 @@ export async function planUpgrade(workspaceRoot, harnessRoot) {
     addedFiles: missingFiles,
     migrations: { executed: migrations.executed, skipped: migrations.skipped },
     changeSchema: changeSchemaNeeded
-      ? { needsMigration: true, step: 'delivery/changes + archive metadata.yaml v2→v3 (inline story 推导)' }
+      ? { needsMigration: true, step: 'delivery/changes + archive v2→v4（prd→spec 产物改名 + artifacts 键重写 + inline story 推导 + domain 继承）' }
       : { needsMigration: false },
     anchorReadme: legacyReadmes.length
       ? {
@@ -363,14 +461,20 @@ export async function applyUpgrade(workspaceRoot, harnessRoot) {
     touched.push(...(m.files || []));
   }
 
-  // c2. Phase 4.2：Change metadata v2→v3 迁移（delivery 下 metadata.yaml schema+stories 补齐）
-  let changeSchemaReport = { files: [], migrated: 0, skipped: 0 };
+  // c2. Phase 4.2/4.3：Change schema v2→v4 迁移（产物改名 + artifacts 键重写 + stories/domain 补齐）
+  let changeSchemaReport = { files: [], migrated: 0, skipped: 0, renamed: [] };
   if (plan.changeSchema && plan.changeSchema.needsMigration) {
-    changeSchemaReport = await migrateChangeSchemaV2toV3(workspaceRoot);
+    changeSchemaReport = await migrateChangeSchema(workspaceRoot);
     for (const f of changeSchemaReport.files) {
       const rel = f.startsWith(workspaceRoot) ? f.slice(workspaceRoot.length + 1).replace(/\\/g, '/') : f;
       gitRevertFiles.push(rel);
       touched.push(rel);
+    }
+    // 产物改名：旧路径 git checkout 恢复，新路径按升级新增文件删除
+    for (const r of changeSchemaReport.renamed || []) {
+      gitRevertFiles.push(r.from);
+      gitNewFiles.push(r.to);
+      touched.push(r.from, r.to);
     }
   }
 

@@ -36,13 +36,13 @@ tested-at: "2026-01-15T16:30:00Z"
 
 | AC | 测试用例 | 类型 | 状态 |
 |----|---------|------|------|
-| AC-1 | valid_email_register | 单元+集成 | ✅ |
-| AC-2 | valid_phone_register | 集成 | ✅ |
-| AC-3 | duplicate_email | 单元 | ✅ |
-| AC-4 | invalid_email_format | 单元 | ✅ |
-| AC-5 | weak_password | 单元 | ✅ |
-| AC-6 | missing_contact | 单元 | ✅ |
-| AC-7 | password_with_special_chars | 单元 | ✅ |
+| AC-001 | valid_email_register | 单元+集成 | ✅ |
+| AC-002 | valid_phone_register | 集成 | ✅ |
+| AC-003 | duplicate_email | 单元 | ✅ |
+| AC-004 | invalid_email_format | 单元 | ✅ |
+| AC-005 | weak_password | 单元 | ✅ |
+| AC-006 | missing_contact | 单元 | ✅ |
+| AC-007 | password_with_special_chars | 单元 | ✅ |
 
 ### 边界 case 覆盖
 

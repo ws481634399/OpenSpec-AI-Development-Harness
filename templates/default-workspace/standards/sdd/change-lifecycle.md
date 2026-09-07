@@ -95,7 +95,7 @@ delivery/
 
     ├── exploration.md
 
-    ├── prd.md
+    ├── spec.md
 
     ├── design.md
 
@@ -220,7 +220,7 @@ AI 禁止：
 
 ```
 
-prd.md
+spec.md
 
 ```
 

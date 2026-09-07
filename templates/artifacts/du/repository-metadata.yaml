@@ -15,7 +15,7 @@ parent:
 feature-path: {} # 完整四级链（至少含各层 id）
 workspace-source: # workspace 相对引用（不复制正文）
   requirement: "" # delivery/changes/CHG-XXXX/requirement.md
-  prd: "" # delivery/changes/CHG-XXXX/prd.md
+  prd: "" # delivery/changes/CHG-XXXX/spec.md
   design: "" # delivery/changes/CHG-XXXX/design.md
   tasks: "" # delivery/changes/CHG-XXXX/<L1>/<L2>/<L3>/<STORY>/tasks.md
 scope: [] # 本 DU 交付范围

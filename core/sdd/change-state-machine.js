@@ -8,7 +8,7 @@
 export const CHANGE_STATUSES = [
   'created', // CHG 已创建（sdd-explore 入口，exploration 未完成）
   'exploring', // sdd-explore 执行中/完成（exploration.md 已产出）
-  'specified', // sdd-prd 完成（change-prd.md 已产出）
+  'specified', // sdd-prd 完成（change-spec.md 已产出）
   'designed', // sdd-design 完成（change-design.md 已产出）
   'story-splitting', // Phase 4.2：Change Design → 拆 Story；inline 单 Story 可跳过
   'tasked', // sdd-task 完成（所有 Story tasks.md 已产出）

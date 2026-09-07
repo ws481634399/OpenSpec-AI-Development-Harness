@@ -287,7 +287,7 @@ delivery/
 
 ```
 request.md
-prd.md
+spec.md
 design.md
 tasks.md
 evidence/

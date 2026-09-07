@@ -583,7 +583,7 @@ async function prepareSkillInvocation(workspaceRoot, changeDir, changeId, stage,
  * - Layer change：Change metadata.artifacts（现有逻辑）
  * - Layer story：3-tier 多 Story 时逐 Story story-metadata.yaml artifacts 段
  * - 传播（kind: 'stale-propagated'，只提示不失效）：
- *     · Change 级 change-prd.md 变更 → 所有未 completed Story 的 story-spec.md
+ *     · Change 级 change-spec.md 变更 → 所有未 completed Story 的 story-spec.md
  *     · Change 级 change-design.md 变更 → 所有未 completed Story 的 story-design.md
  *     · Story 级 story-design.md 变更 → 该 Story 的 tasks.md
  *
@@ -675,13 +675,13 @@ export async function detectStaleArtifacts(changeDir, meta = null) {
 
       // §5.3 传播：Change 级产物变更 → 未 completed Story 的下游产物
       if (story.status !== 'completed') {
-        if (changeStaleNames.has('change-prd.md')) {
+        if (changeStaleNames.has('change-spec.md')) {
           stale.push({
             artifact: `stories/${story.id}/story-spec.md`,
             kind: 'stale-propagated',
             layer: 'story',
             story: story.id,
-            from: 'change-prd.md',
+            from: 'change-spec.md',
           });
         }
         if (changeStaleNames.has('change-design.md')) {

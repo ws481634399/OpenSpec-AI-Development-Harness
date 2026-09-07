@@ -68,13 +68,13 @@ const EVIDENCE_TEMPLATE = `# OpenSpec Evidence Model（Phase 2.1）
 #     failed: 0
 #     skipped: 0
 #   log: evidence/test-output.log   # 必填，相对 CHG 目录路径
-#   covers: [AC-1, AC-2]       # 必填（可为空数组），覆盖的 PRD 验收标准
+#   covers: [AC-001, AC-002]       # 必填（可为空数组），覆盖的 PRD 验收标准
 #   recorded-at: ""
 #
 # ---- type: review-finding（Phase 2.2 sdd-review 启用） ----
 # - id: EV-003
 #   type: review-finding
-#   target: prd.md#AC-3        # 必填，指向被检查对象
+#   target: spec.md#AC-003        # 必填，指向被检查对象
 #   severity: major            # 必填，blocker / major / minor
 #   finding: 设计与实现不一致   # 必填
 #   resolution: ""             # 可选，处理结论

@@ -4,11 +4,11 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-design
-version: 0.2.2
+version: 0.2.3
 stage: design
 description: 技术设计阶段 Skill——制定技术方案，分析架构影响与风险
 input:
-  - prd.md
+  - spec.md
   - standards/engineering/
   - implementation/
 output:

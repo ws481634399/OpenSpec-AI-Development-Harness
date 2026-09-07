@@ -8,7 +8,7 @@
 ## 前置条件
 
 - Change 处于 `testing` 状态
-- 全部前序 Artifact 已完成（requirement → exploration → prd → design → STORY 级 tasks → implementation → test-report）
+- 全部前序 Artifact 已完成（requirement → exploration → spec → design → STORY 级 tasks → implementation → test-report）
 - review-report.md 已 accepted（Phase 2.2 评审检查点：blocker/major findings 全部闭环，双门禁通过）
 - Phase 2.4：全部 DU 已 completed（du-fan-in-complete），result commit 与各仓 HEAD 对齐（submodule-pointer-aligned）
 
@@ -20,7 +20,7 @@
 
 - `delivery/changes/<CHG>/requirement.md`
 - `delivery/changes/<CHG>/exploration.md`
-- `delivery/changes/<CHG>/prd.md`
+- `delivery/changes/<CHG>/spec.md`
 - `delivery/changes/<CHG>/design.md`
 - STORY 级 `delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`
 - `delivery/changes/<CHG>/implementation.md`（跨仓汇总；各仓 DU 正文按引用追溯）
@@ -36,7 +36,7 @@
 | -------------------- | ------------------------------------------ | ---------------------------------------------- |
 | requirement.md       | 用户需求来源                               | product（业务能力）                            |
 | exploration.md       | Feature 归属、影响分析                     | product（Feature 路径）                        |
-| prd.md               | 业务规则、验收标准                         | product（业务规则）、standards（验收标准模板） |
+| spec.md              | 业务规则、验收标准                         | product（业务规则）、standards（验收标准模板） |
 | design.md            | 架构决策、接口设计、技术选型、跨仓协作契约 | standards（架构约定）、product（集成边界）     |
 | tasks.md（STORY 级） | DU 分解策略（仓库映射/依赖排序）           | standards（任务粒度约定）                      |
 | implementation.md    | 各仓代码模式、错误处理、安全实践           | standards（编码规范）                          |
@@ -84,9 +84,9 @@
 **Spec 晋升**（写入 `product/specs/`，需人工评审）：
 
 - 需求过程中确认的产品业务规则（如「订单取消必须填写取消原因」「优惠券不可叠加」）
-- 验收标准的长期化（PRD 中经验证成立的验收条款）
+- 验收标准的长期化（spec 中经验证成立的验收条款）
 - 判断标准：**产品行为约束**（做什么），而非技术实现（怎么做）
-- 机制：① Agent 将 SPEC 草稿写入本 Artifact 的「Spec 晋升候选」节（按 `templates/artifacts/spec.md` 格式）；② 人工评审通过后落入 `product/specs/<feature-domain>.md`。Agent 不得绕过评审直接写入 specs/
+- 机制：① Agent 将 SPEC 草稿写入本 Artifact 的「Spec 晋升候选」节（按 `templates/artifacts/product-spec.md` 格式）；② 人工评审通过后落入 `product/specs/<feature-domain>.md`。Agent 不得绕过评审直接写入 specs/
 
 **Feature Tree 更新**（走命令，不手写 yaml）：
 
@@ -123,8 +123,8 @@
 - 文件: product/specs/订单能力.md（评审通过后创建）
 - 操作: 新增
 - 内容: 订单取消必须填写取消原因；取消原因枚举：不想要了/信息填错/重复下单/其他
-- 理由: 本 Change 的 PRD 经人工确认确立了取消规则，作为后续订单类 Change 的产品依据
-- 来源: prd.md「业务规则」节
+- 理由: 本 Change 的 spec 经人工确认确立了取消规则，作为后续订单类 Change 的产品依据
+- 来源: spec.md「业务规则」节
 
 ### Feature Tree 更新
 
@@ -190,7 +190,7 @@
 
 **Product 写入（三个合法位置，禁止 product 根下新建 .md）：**
 
-- 业务规则 → Spec 晋升候选（写入本 Artifact，按 `templates/artifacts/spec.md` 格式；人工评审通过后才落 `product/specs/<feature-domain>.md`，Agent 不得直接写入）
+- 业务规则 → Spec 晋升候选（写入本 Artifact，按 `templates/artifacts/product-spec.md` 格式；人工评审通过后才落 `product/specs/<feature-domain>.md`，Agent 不得直接写入）
 - 能力/状态变更 → `openspec feature` 命令更新 feature-tree.yaml（不手写 yaml）
 - 术语 → `product/glossary/terms.md`（已有则合并条目，没有则新建，front-matter 含 title/tags/related-changes）
 
@@ -294,7 +294,7 @@ commit 指针的引用；各仓 DU 交付记录已在该仓 Git 中独立提交�
 
 - design.md 中 bcrypt 密码哈希 → standards 候选（安全实践）
 - design.md 中 error-handling 模式 → standards 候选（错误处理）
-- prd.md 中"邮箱/手机号双入口" → product 候选（业务能力）
+- spec.md 中"邮箱/手机号双入口" → product 候选（业务能力）
 - implementation.md 中 API 响应格式 → no-update（实现细节）
 - test-report.md 中边界 case 策略 → standards 候选（测试约定）
 
@@ -318,8 +318,8 @@ commit 指针的引用；各仓 DU 交付记录已在该仓 Git 中独立提交�
 - 文件: product/specs/账户能力.md（评审通过后创建）
 - 操作: 新增
 - 内容: 注册入口支持邮箱/手机号双入口；密码要求 ≥8 位含大小写与数字
-- 理由: PRD 业务规则经人工评审确认，作为后续认证类 Change 的产品依据
-- 来源: prd.md「业务规则」节
+- 理由: spec 业务规则经人工评审确认，作为后续认证类 Change 的产品依据
+- 来源: spec.md「业务规则」节
 
 ### Feature Tree 更新
 

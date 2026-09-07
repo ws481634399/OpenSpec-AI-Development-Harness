@@ -5,7 +5,7 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 # Design
 
 > 阶段：sdd-design 产物
-> 输入：prd.md
+> 输入：spec.md
 > 产出状态：designed
 
 本文档制定技术方案。
@@ -19,7 +19,7 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 ## 0. 元信息
 
 - Change ID: {{change-id}}
-- PRD 来源: {{prd-source}}
+- spec 来源: {{spec-source}}
 - 状态流转: {{from-state}} → {{to-state}}
 
 ## 1. 当前状态

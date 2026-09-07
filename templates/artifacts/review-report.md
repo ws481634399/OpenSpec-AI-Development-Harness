@@ -2,7 +2,7 @@
 
 > 阶段：sdd-review 产物（Phase 2.2 同态检查点；Phase 2.4 扩展跨仓审查）
 > 位置：<CHG>/review-report.md
-> 输入：prd.md + design.md + implementation.md + evidence/test-report.md + evidence/evidence.yaml + standards/ + DU 状态（跨仓）
+> 输入：spec.md + design.md + implementation.md + evidence/test-report.md + evidence/evidence.yaml + standards/ + DU 状态（跨仓）
 > 产出状态：testing（检查点，不推进 Change 状态）
 
 本文档记录 converge 前的四项独立检查结论与发现清单。
@@ -24,7 +24,7 @@
 
 ### 1.1 需求一致性
 
-<!-- PRD AC 逐条对照表：AC / test-run 证据（evidence.yaml covers）/ 结论 -->
+<!-- spec AC 逐条对照表：AC / test-run 证据（evidence.yaml covers）/ 结论 -->
 
 ### 1.2 设计一致性
 

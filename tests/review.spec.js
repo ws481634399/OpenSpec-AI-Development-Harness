@@ -114,7 +114,7 @@ async function writeEvidence(changeDir, changeId, items) {
 const finding = (over = {}) => ({
   id: 'EV-001',
   type: 'review-finding',
-  target: 'prd.md#AC-1',
+  target: 'spec.md#AC-1',
   severity: 'major',
   finding: 'AC-1 缺少测试覆盖',
   'recorded-at': '2026-08-28T12:00:00.000Z',

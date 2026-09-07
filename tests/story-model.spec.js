@@ -1,11 +1,11 @@
-// Story 1 专用测试：Story 模型读写 + v3 schema + split-story + upgrade 迁移
-// 纯函数模块：测试 story-model.js / change-model.bindFeaturePath(v3) /
-// workspace-upgrader.migrateChangeSchemaV2toV3
+// Story 1 专用测试：Story 模型读写 + v3/v4 schema + split-story + upgrade 迁移
+// 纯函数模块：测试 story-model.js / change-model.bindFeaturePath(v3/v4) /
+// workspace-upgrader.migrateChangeSchema（v2→v4）
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { join, sep } from 'node:path';
-import { parse, parseDocument } from 'yaml';
+import { parse, parseDocument, stringify } from 'yaml';
 
 import {
   STORY_STATUSES,
@@ -19,7 +19,7 @@ import {
   resolveStoryDir,
 } from '../core/sdd/story-model.js';
 import { bindFeaturePath, runChangeCreate, readMetadata, patchMetadata } from '../core/sdd/change-model.js';
-import { migrateChangeSchemaV2toV3, needsChangeSchemaMigration } from '../core/workspace/workspace-upgrader.js';
+import { migrateChangeSchema, needsChangeSchemaMigration } from '../core/workspace/workspace-upgrader.js';
 import { getHarnessRoot } from '../core/workspace/harness-root.js';
 
 // ---- 工具：临时目录生命周期 ----
@@ -102,7 +102,7 @@ test('StoryModel: createStory → story-metadata.yaml 结构正确 + feature-pat
       summary: '单句摘要',
       featurePath: chain,
       evidenceTier: 'light',
-      changePrdRef: 'change-prd.md#31-story-1',
+      changePrdRef: 'change-spec.md#31-story-1',
       changeDesignRef: 'change-design.md#41-story-1',
     }, harness);
     assert.equal(r.storyId, 'STORY-001-02-03-01');
@@ -115,7 +115,7 @@ test('StoryModel: createStory → story-metadata.yaml 结构正确 + feature-pat
     assert.equal(m.title, 'Story 标题测试');
     assert.equal(m.status, 'pending');
     assert.equal(m['evidence-tier'], 'light');
-    assert.equal(m['change-prd-ref'], 'change-prd.md#31-story-1');
+    assert.equal(m['change-spec-ref'], 'change-spec.md#31-story-1');
     assert.equal(m['change-design-ref'], 'change-design.md#41-story-1');
     assert.deepEqual(m['feature-path']['level-1'], chain['level-1']);
     assert.deepEqual(m['feature-path'].story, chain.story);
@@ -159,8 +159,8 @@ test('StoryModel: patchStoryMetadata 支持点路径 + 保留 yaml v2 块式输�
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-// ---- Test Section C: Change bindFeaturePath v3 自动补 inline story ----
-test('Change v3: bindFeaturePath 自动 schema=3 + stories:[{inline:true}]', async () => {
+// ---- Test Section C: Change bindFeaturePath v4 自动补 inline story（含 domain 继承）----
+test('Change v4: bindFeaturePath 自动 schema=4 + stories:[{inline:true, domain}]', async () => {
   const root = await mkChangeWorkspace();
   try {
     const changeDir = join(root, 'delivery', 'changes', 'FEAT-001', 'FEAT-001-02', 'FEAT-001-02-03', 'CHG-9999');
@@ -178,7 +178,7 @@ test('Change v3: bindFeaturePath 自动 schema=3 + stories:[{inline:true}]', asy
     };
     await bindFeaturePath(changeDir, fp);
     const post = await readMetadata(changeDir);
-    assert.equal(post['schema-version'], 3, 'bind 后自动升 v3');
+    assert.equal(post['schema-version'], 4, 'bind 后自动升 v4');
     assert.deepEqual(post['feature-path']['level-1'], fp['level-1']);
     assert.ok(Array.isArray(post.stories));
     assert.equal(post.stories.length, 1);
@@ -187,11 +187,12 @@ test('Change v3: bindFeaturePath 自动 schema=3 + stories:[{inline:true}]', asy
     assert.equal(post.stories[0].inline, true);
     assert.equal(post.stories[0].path, './');
     assert.equal(post.stories[0].status, 'pending', 'Change.created → Story.pending');
+    assert.deepEqual(post.stories[0].domain, { id: 'FEAT-001-02-03', name: 'C' }, 'inline Story domain 继承 L3');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 // ---- Test Section D: splitInlineStory（核心转换）----
-test('splitInlineStory: v2→v3 升级单 inline → stories/<id>/', async () => {
+test('splitInlineStory: 旧 schema 升级单 inline → stories/<id>/（schema 升 4）', async () => {
   const root = await mkChangeWorkspace();
   try {
     const changeDir = join(root, 'delivery', 'changes', 'FEAT-001', 'FEAT-001-02', 'FEAT-001-02-03', 'CHG-9999');
@@ -231,7 +232,7 @@ test('splitInlineStory: v2→v3 升级单 inline → stories/<id>/', async () =>
 
     // Change metadata 已更新
     const chgMeta = await readMetadata(changeDir);
-    assert.equal(chgMeta['schema-version'], 3);
+    assert.equal(chgMeta['schema-version'], 4, '拆分后 schema 升 v4');
     assert.equal(chgMeta['feature-path'], undefined, '拆分后 Change 级 feature-path 清空，Story 级权威');
     assert.ok(Array.isArray(chgMeta.stories));
     assert.equal(chgMeta.stories.length, 1);
@@ -309,13 +310,23 @@ test('readStories: 多 Story 三级形态 → 逐 stories/ 读 story-metadata.ya
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 
-// ---- Test Section F: upgrade Change schema v2→v3 ----
-test('Upgrade: migrateChangeSchemaV2toV3 批量扫 changes + archive 并补 stories 列表（幂等）', async () => {
+// ---- Test Section F: upgrade Change schema v2→v4 ----
+test('Upgrade: migrateChangeSchema v2→v4 产物改名 + artifacts 键重写 + stories/domain 推导（幂等）', async () => {
   const root = await mkChangeWorkspace();
   try {
     const chg1 = join(root, 'delivery', 'changes', 'FEAT-001', 'FEAT-001-02', 'FEAT-001-02-03', 'CHG-9999');
     await writeV2Metadata(chg1, { status: 'specified' });
-    // archive 目录另一个 CHG
+    // v2 CHG 带旧产物文件 + 旧 artifacts 键
+    await writeFile(join(chg1, 'prd.md'), '# PRD\n', 'utf8');
+    await writeFile(join(chg1, 'change-prd.md'), '# Change PRD\n', 'utf8');
+    const oldMeta = parse(await readFile(join(chg1, 'metadata.yaml'), 'utf8'));
+    oldMeta.artifacts = {
+      'change-prd': { path: 'change-prd.md', status: 'missing' },
+      prd: { path: 'prd.md', status: 'missing' },
+    };
+    await writeFile(join(chg1, 'metadata.yaml'), stringify(oldMeta), 'utf8');
+
+    // archive 目录另一个 CHG（v2，带 prd.md）
     const archDir = join(root, 'delivery', 'archive', 'CHG-0001');
     await mkdir(archDir, { recursive: true });
     const archFp = {
@@ -338,42 +349,62 @@ test('Upgrade: migrateChangeSchemaV2toV3 批量扫 changes + archive 并补 stor
       'repositories: []',
       'repository-baseline: {}',
       'repository-result: {}',
-      'artifacts: {}',
+      'artifacts:',
+      '  prd: { path: prd.md, status: accepted }',
       '',
     ].join('\n');
     await writeFile(join(archDir, 'metadata.yaml'), archTmpl, 'utf8');
-    // 第三个：已经 v3 + stories 已填 → 跳过
+    await writeFile(join(archDir, 'prd.md'), '# old\n', 'utf8');
+
+    // 第三个：已经 v3 + stories 已填（无 domain）→ 仍升 v4 并补 domain（fp 缺失则跳过）
     const chg3 = join(root, 'delivery', 'changes', 'FEAT-001', 'FEAT-001-02', 'FEAT-001-02-03', 'CHG-3333');
     await mkdir(chg3, { recursive: true });
-    await writeFile(join(chg3, 'metadata.yaml'), 'schema-version: 3\nid: CHG-3333\ntitle: v3 已有\nstatus: created\nevidences: []\nstories:\n  - { id: X, inline: true, status: pending, path: "./" }\nartifacts: {}\n', 'utf8');
+    await writeFile(join(chg3, 'metadata.yaml'), 'schema-version: 3\nid: CHG-3333\ntitle: v3 已有\nstatus: created\nevidences: []\nstories:\n  - { id: X, inline: true, status: pending, path: "./" }\nartifacts:\n  prd: { path: prd.md, status: missing }\n', 'utf8');
 
     const need = await needsChangeSchemaMigration(root);
-    assert.equal(need, true, 'guard 命中 v2 + feature-path.story');
+    assert.equal(need, true, 'guard 命中 <v4 metadata');
 
-    const r1 = await migrateChangeSchemaV2toV3(root);
-    assert.equal(r1.migrated, 2, 'chg1 + archived 各 1 个迁移');
-    assert.equal(r1.files.length, 2);
-    // 幂等：再执行一次 migrated=0
-    const r2 = await migrateChangeSchemaV2toV3(root);
+    const r1 = await migrateChangeSchema(root);
+    assert.equal(r1.migrated, 3, '三个 metadata 全部迁移');
+    assert.equal(r1.files.length, 3);
+    assert.equal(r1.renamed.length, 3, 'chg1 两个产物 + archive 一个 prd.md');
+    // 幂等：再执行一次 migrated=0 / renamed=0
+    const r2 = await migrateChangeSchema(root);
     assert.equal(r2.migrated, 0, '第二次运行幂等，无迁移');
+    assert.equal(r2.renamed.length, 0, '第二次运行无改名');
 
-    // CHG-9999 检查：升 3 + stories 单 inline + status == specified→specified
+    // CHG-9999 检查：升 4 + stories 单 inline（带 domain 继承 L3）+ 产物改名 + artifacts 键重写
     const a = await readMetadata(chg1);
-    assert.equal(a['schema-version'], 3);
-    assert.deepEqual(a.stories, [{
-      id: 'STORY-001-02-03-01',
-      title: '单 Story 平铺测试',
-      inline: true,
-      status: 'specified',
-      path: './',
-      'evidence-tier': 'standard',
-    }]);
-    // Archived 检查：light tier 被继承
+    assert.equal(a['schema-version'], 4);
+    assert.equal(a.stories.length, 1);
+    assert.equal(a.stories[0].id, 'STORY-001-02-03-01');
+    assert.equal(a.stories[0].inline, true);
+    assert.equal(a.stories[0].status, 'specified');
+    assert.equal(a.stories[0]['evidence-tier'], 'standard');
+    assert.deepEqual(a.stories[0].domain, { id: 'FEAT-001-02-03', name: '规格分层' });
+    assert.ok(!a.artifacts.prd && !a.artifacts['change-prd'], '旧 artifacts 键已删除');
+    assert.equal(a.artifacts.spec.path, 'spec.md');
+    assert.equal(a.artifacts['change-spec'].path, 'change-spec.md');
+    const specExists = await readFile(join(chg1, 'spec.md'), 'utf8');
+    const changeSpecExists = await readFile(join(chg1, 'change-spec.md'), 'utf8');
+    assert.match(specExists, /# PRD/);
+    assert.match(changeSpecExists, /# Change PRD/);
+
+    // Archived 检查：light tier 继承 + status archived→completed + prd.md 改名 + artifacts 键重写
     const b = await readMetadata(archDir);
-    assert.equal(b['schema-version'], 3);
+    assert.equal(b['schema-version'], 4);
     assert.equal(b.stories[0].id, 'STORY-OLD-01-01-01');
     assert.equal(b.stories[0].status, 'completed', 'Change.archived → Story.completed');
     assert.equal(b.stories[0]['evidence-tier'], 'light');
+    assert.deepEqual(b.stories[0].domain, { id: 'FEAT-OLD-01-01', name: '老11' });
+    assert.equal(b.artifacts.spec.path, 'spec.md');
+    await readFile(join(archDir, 'spec.md'), 'utf8'); // 改名成功
+
+    // CHG-3333 检查：v3 → v4（artifacts 键重写；domain 因无 feature-path 跳过）
+    const c = await readMetadata(chg3);
+    assert.equal(c['schema-version'], 4);
+    assert.equal(c.artifacts.spec.path, 'spec.md');
+    assert.equal(c.stories[0].domain, undefined, '无 feature-path 不补 domain');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

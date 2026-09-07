@@ -158,7 +158,7 @@ test('change-artifacts：存在注入正文（source=change-artifact），缺失
       '    read: []',
       '    change-artifacts:',
       '      - requirement.md',
-      '      - prd.md',
+      '      - spec.md',
     ].join('\n')
   );
   const changeDir = join(tmp, 'delivery', 'changes', 'CHG-0001');
@@ -169,7 +169,7 @@ test('change-artifacts：存在注入正文（source=change-artifact），缺失
   assert.equal(req.content, 'REQ-MARKER');
   assert.equal(req.source, 'change-artifact');
   assert.equal(req.category, 'artifact');
-  assert.ok(ctx.missingArtifacts.includes('prd.md (not found)'), `missing 应含 prd.md: ${ctx.missingArtifacts.join(';')}`);
+  assert.ok(ctx.missingArtifacts.includes('spec.md (not found)'), `missing 应含 spec.md: ${ctx.missingArtifacts.join(';')}`);
   await rmrf(tmp);
 });
 
@@ -498,7 +498,7 @@ test('模板规则 v0.4：prd/design 注入 exploration.md（缺口 1：探索�
   await writeTemplateRules(tmp);
   await writeDeep(tmp, 'delivery/changes/CHG-0001/requirement.md', 'REQ-MARKER');
   await writeDeep(tmp, 'delivery/changes/CHG-0001/exploration.md', 'EXPLORATION-MARKER');
-  await writeDeep(tmp, 'delivery/changes/CHG-0001/prd.md', 'PRD-MARKER');
+  await writeDeep(tmp, 'delivery/changes/CHG-0001/spec.md', 'PRD-MARKER');
   const ctx = await assembleContext(tmp, 'design', { changeDir: changeDirOf(tmp) });
   assert.equal(ctx.rulesVersion, '0.4');
   const expl = ctx.files.find((f) => f.path === 'delivery/changes/CHG-0001/exploration.md');
@@ -514,13 +514,13 @@ test('模板规则 v0.4：converge 注入全链产物（缺口 2：人审全链�
   await writeTemplateRules(tmp);
   const base = 'delivery/changes/CHG-0001';
   await writeDeep(tmp, `${base}/design.md`, 'DESIGN-MARKER');
-  await writeDeep(tmp, `${base}/prd.md`, 'PRD-MARKER');
+  await writeDeep(tmp, `${base}/spec.md`, 'PRD-MARKER');
   await writeDeep(tmp, `${base}/implementation.md`, 'IMPL-MARKER');
   await writeDeep(tmp, `${base}/evidence/test-report.md`, 'TEST-MARKER');
   await writeDeep(tmp, `${base}/review-report.md`, 'REVIEW-MARKER');
   const ctx = await assembleContext(tmp, 'converge', { changeDir: changeDirOf(tmp) });
   assert.equal(ctx.rulesVersion, '0.4');
-  for (const rel of ['design.md', 'prd.md', 'implementation.md', 'evidence/test-report.md', 'review-report.md']) {
+  for (const rel of ['design.md', 'spec.md', 'implementation.md', 'evidence/test-report.md', 'review-report.md']) {
     const f = ctx.files.find((x) => x.path === `delivery/changes/CHG-0001/${rel}`);
     assert.ok(f, `${rel} 应注入 converge 上下文`);
     assert.equal(f.source, 'change-artifact');

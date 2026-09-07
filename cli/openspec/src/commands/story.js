@@ -71,7 +71,7 @@ export function registerStoryCommand(program) {
             status: meta.status,
             evidenceTier: meta['evidence-tier'],
             featurePath: meta['feature-path'] || null,
-            changePrdRef: meta['change-prd-ref'] || '',
+            changePrdRef: meta['change-spec-ref'] || '',
             changeDesignRef: meta['change-design-ref'] || '',
             dus: meta.dus || [],
             artifacts: Object.keys(meta.artifacts || {}),
@@ -88,7 +88,7 @@ export function registerStoryCommand(program) {
         sections.push(`  Tier        : ${meta['evidence-tier'] || 'standard'}`);
         sections.push(`  Created     : ${meta['created-at'] || '-'}`);
         sections.push(`  Updated     : ${meta['updated-at'] || '-'}`);
-        if (meta['change-prd-ref'])    sections.push(`  PRD Ref     : ${meta['change-prd-ref']}`);
+        if (meta['change-spec-ref'])    sections.push(`  PRD Ref     : ${meta['change-spec-ref']}`);
         if (meta['change-design-ref']) sections.push(`  Design Ref  : ${meta['change-design-ref']}`);
         if (meta['feature-path']) {
           const fp = meta['feature-path'];

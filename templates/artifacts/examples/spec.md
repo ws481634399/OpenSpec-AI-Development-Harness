@@ -1,13 +1,13 @@
 ---
 change-id: "CHG-0001"
-title: "用户注册 PRD"
+title: "用户注册 Spec"
 requirement: "REQ-001"
 feature-id: "STORY-3"
 from-state: "exploring"
 to-state: "specified"
 ---
 
-# PRD：用户注册
+# Spec：用户注册
 
 ## §1 背景
 
@@ -15,9 +15,9 @@ to-state: "specified"
 
 验证码和第三方登录不在本期范围，后续独立 Change 实现。
 
-## §2 目标用户
+## §2 用户价值
 
-### 用户画像
+### 目标用户
 
 **角色：** 未注册访客
 
@@ -29,25 +29,25 @@ I want to 通过邮箱或手机号自助注册账号，
 So that 我可以拥有个人空间并使用平台全部功能。
 ```
 
-### 核心需求
+**核心需求：**
 
 - 快速完成注册（< 30 秒）
 - 不需要等待管理员审批
 - 选择自己喜欢的联系方式（邮箱或手机号）
 
-## §3 用户价值
+### 价值分析
 
-### 直接价值
+**直接价值：**
 
 - 用户可自助完成注册，不依赖管理员
 - 提供邮箱/手机号双入口，降低接入门槛
 
-### 业务价值
+**业务价值：**
 
 - 用户增长从人工驱动变为产品驱动
 - 收集用户联系方式（邮箱/手机），为后续通知营销打基础
 
-## §4 功能范围
+## §3 范围
 
 ### Scope In（本期实现）
 
@@ -65,7 +65,7 @@ So that 我可以拥有个人空间并使用平台全部功能。
 - 用户资料完善（头像、昵称） → 注册后引导，独立 Story
 - 密码找回 → 独立 Story
 
-## §5 业务规则
+## §4 业务规则
 
 ### 数据约束
 
@@ -100,63 +100,28 @@ So that 我可以拥有个人空间并使用平台全部功能。
 | 密码强度不足 | 400 + "密码需至少 8 位，含大小写字母和数字" |
 | 网络超时 | 500 + "注册失败，请重试" |
 
-## §6 验收标准
+## §5 验收标准
 
-### AC-1: 有效邮箱注册 → 成功
+> AC-NNN 表格化（追踪链 ID 规范，见 standards/sdd/traceability-ids.md）；
+> 编号稳定不复用，design covers / TC verified-by 按编号引用。
 
-```
-输入: { email: "test@example.com", password: "Password123" }
-操作: POST /api/auth/register
-预期: 201 + { userId, token }
-```
+| ID     | 验收标准（可测试）                                                                              | 备注         |
+| ------ | ----------------------------------------------------------------------------------------------- | ------------ |
+| AC-001 | 给定 email=`test@example.com` + password=`Password123`，当 `POST /api/auth/register`，则 201 + `{ userId, token }` |              |
+| AC-002 | 给定 phone=`+8613800138000` + password=`Password123`，当 `POST /api/auth/register`，则 201 + `{ userId, token }`   |              |
+| AC-003 | 给定已注册邮箱 `existing@example.com`，当注册请求，则 409 + `{ error: "邮箱已注册" }`             |              |
+| AC-004 | 给定 email=`not-an-email`，当注册请求，则 400 + `{ error: "邮箱格式不正确" }`                     |              |
+| AC-005 | 给定 password=`123`（强度不足），当注册请求，则 400 + `{ error: "密码需至少 8 位，含大小写字母和数字" }` |              |
+| AC-006 | 给定 email/phone 均为空，当注册请求，则 400 + `{ error: "邮箱或手机号至少提供一项" }`             |              |
+| AC-007 | 给定 password=`Password123!`（含特殊字符），当注册请求，则 201 + `{ userId, token }`              | 特殊字符允许 |
 
-### AC-2: 有效手机号注册 → 成功
+## §6 成功指标
 
-```
-输入: { phone: "+8613800138000", password: "Password123" }
-操作: POST /api/auth/register
-预期: 201 + { userId, token }
-```
-
-### AC-3: 已注册邮箱 → 409
-
-```
-输入: { email: "existing@example.com", password: "Password123" }
-操作: POST /api/auth/register
-预期: 409 + { error: "邮箱已注册" }
-```
-
-### AC-4: 无效邮箱格式 → 400
-
-```
-输入: { email: "not-an-email", password: "Password123" }
-操作: POST /api/auth/register
-预期: 400 + { error: "邮箱格式不正确" }
-```
-
-### AC-5: 密码强度不足 → 400
-
-```
-输入: { email: "test@example.com", password: "123" }
-操作: POST /api/auth/register
-预期: 400 + { error: "密码需至少 8 位，含大小写字母和数字" }
-```
-
-### AC-6: 邮箱和手机号都为空 → 400
-
-```
-输入: { password: "Password123" }
-操作: POST /api/auth/register
-预期: 400 + { error: "邮箱或手机号至少提供一项" }
-```
-
-### AC-7: 密码含特殊字符 → 成功
-
-```
-输入: { email: "test@example.com", password: "Password123!" }
-操作: POST /api/auth/register
-预期: 201 + { userId, token }
-```
+| 指标 | 基线 | 目标 | 度量方式 |
+|------|------|------|----------|
+| 注册完成率（进入注册页 → 提交成功） | 人工开号无自助数据 | ≥ 80% | 前端埋点漏斗 |
+| 注册平均耗时 | 人工开号 > 1 工作日 | < 30 秒 | 后端请求耗时 P95 |
+| 注册接口错误率（4xx 中可避免的校验类） | — | < 5% | 接口日志统计 |
 
 ## 遗留问题（待设计阶段确认）
 

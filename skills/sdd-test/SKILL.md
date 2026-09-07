@@ -1,4 +1,4 @@
-﻿# sdd-test: 测试验证
+# sdd-test: 测试验证
 
 > 阶段: test
 > 状态转换: developing → testing
@@ -17,7 +17,7 @@ test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 
 ### 1. 读取前序 Artifact
 
-读取 `delivery/changes/<CHG>/prd.md`：
+读取 `delivery/changes/<CHG>/spec.md`：
 - 验收标准（AC-NNN）→ 测试用例的来源（DU Acceptance 按编号引用）
 
 读取 `delivery/changes/<CHG>/design.md`：
@@ -50,7 +50,7 @@ test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 |------|------|------|---------|
 | 单元 | 函数/方法逻辑 | 项目测试框架 | 100% 函数覆盖 |
 | 集成 | 模块间接口 | 测试框架 + mock | 关键路径通过 |
-| E2E | 用户流程 | 手动/自动化 | PRD AC 全部通过 |
+| E2E | 用户流程 | 手动/自动化 | spec AC 全部通过 |
 
 **测试运行命令（按技术栈）：**
 - Node.js: `npm test` / `node --test`
@@ -78,17 +78,17 @@ test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 - [ ] 网络超时/错误
 - [ ] 数据库连接失败
 
-**PRD 验收标准映射：**
-每条 AC-NNN 必须有至少一个测试用例覆盖：
+**spec 验收标准映射：**
+每条 AC-NNN 必须有至少一个测试用例覆盖（TC，Phase 4.3 起追踪链机检 tc-coverage）：
 
 ```markdown
-| AC | 测试用例 | 类型 | 状态 |
-|----|---------|------|------|
-| AC-1 | 有效邮箱+密码注册 → 成功 | 单元+集成 | ✅ |
-| AC-2 | 已注册邮箱 → 409 | 单元 | ✅ |
-| AC-3 | 无效邮箱格式 → 400 | 单元 | ✅ |
-| AC-4 | 有效手机号+密码 → 成功 | 集成 | ✅ |
-| AC-5 | 密码强度不足 → 400 | 单元 | ✅ |
+| AC      | 测试用例                 | 类型       | 状态 |
+|---------|--------------------------|------------|------|
+| AC-001  | 有效邮箱+密码注册 → 成功 | 单元+集成  | ✅   |
+| AC-002  | 已注册邮箱 → 409         | 单元       | ✅   |
+| AC-003  | 无效邮箱格式 → 400       | 单元       | ✅   |
+| AC-004  | 有效手机号+密码 → 成功   | 集成       | ✅   |
+| AC-005  | 密码强度不足 → 400       | 单元       | ✅   |
 ```
 
 ### 3. 记录测试结果（DU 级 + Workspace 聚合）
@@ -136,13 +136,13 @@ test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 **§3 AC 覆盖矩阵：**
 
 ```markdown
-| AC | 测试用例 | 类型 | 状态 |
-|----|---------|------|------|
-| AC-1 | valid_email_register | 单元+集成 | ✅ |
-| AC-2 | duplicate_email | 单元 | ✅ |
-| AC-3 | invalid_email_format | 单元 | ✅ |
-| AC-4 | valid_phone_register | 集成 | ✅ |
-| AC-5 | weak_password | 单元 | ✅ |
+| AC      | 测试用例              | 类型       | 状态 |
+|---------|-----------------------|------------|------|
+| AC-001  | valid_email_register  | 单元+集成  | ✅   |
+| AC-002  | duplicate_email       | 单元       | ✅   |
+| AC-003  | invalid_email_format  | 单元       | ✅   |
+| AC-004  | valid_phone_register  | 集成       | ✅   |
+| AC-005  | weak_password         | 单元       | ✅   |
 ```
 
 **§4 证据清单：**
@@ -164,7 +164,7 @@ test-report.md 按仓聚合（每个受影响仓库一个分仓小节）。
 
 产出前自检：
 - [ ] tasks.md 中每个 DU 是否都有测试覆盖（du-fan-in-testing）？
-- [ ] PRD 每条验收标准是否有对应测试用例？
+- [ ] spec 每条验收标准（AC-NNN）是否有对应测试用例？
 - [ ] design.md §4 跨仓协作契约是否有集成测试覆盖？
 - [ ] 正常路径和异常路径是否都覆盖？
 - [ ] 边界值是否有测试（空值/最小/最大/超长）？
@@ -211,7 +211,7 @@ import test from 'node:test';
 import assert from 'node:assert';
 import { registerUser } from '../../services/auth/register.js';
 
-test('AC-1: 有效邮箱+密码 → 注册成功', async () => {
+test('AC-001: 有效邮箱+密码 → 注册成功', async () => {
   const result = await registerUser({
     email: 'test@example.com',
     password: 'Password123'
@@ -220,21 +220,21 @@ test('AC-1: 有效邮箱+密码 → 注册成功', async () => {
   assert.ok(result.token);
 });
 
-test('AC-2: 已注册邮箱 → 返回 409', async () => {
+test('AC-002: 已注册邮箱 → 返回 409', async () => {
   await assert.rejects(
     () => registerUser({ email: 'existing@example.com', password: 'Password123' }),
     { code: 'DUPLICATE' }
   );
 });
 
-test('AC-3: 无效邮箱格式 → 返回 400', async () => {
+test('AC-003: 无效邮箱格式 → 返回 400', async () => {
   await assert.rejects(
     () => registerUser({ email: 'not-an-email', password: 'Password123' }),
     { code: 'INVALID_EMAIL' }
   );
 });
 
-test('AC-5: 密码强度不足 → 返回 400', async () => {
+test('AC-005: 密码强度不足 → 返回 400', async () => {
   await assert.rejects(
     () => registerUser({ email: 'test@example.com', password: '123' }),
     { code: 'WEAK_PASSWORD' }
@@ -253,8 +253,8 @@ test('AC-5: 密码强度不足 → 返回 400', async () => {
 
 ## 行为规则
 
-- 不修改 implementation.md / tasks.md / design.md / prd.md
-- 每个 DU 至少一个验收测试（对应 DU Acceptance），每条 PRD 验收标准必须有至少一个测试用例
+- 不修改 implementation.md / tasks.md / design.md / spec.md
+- 每个 DU 至少一个验收测试（对应 DU Acceptance），每条 spec 验收标准（AC-NNN）必须有至少一个测试用例
 - 多仓测试在各仓内执行，Workspace 聚合侧只做 evidence-ref 引用，不复制正文
 - 失败项必须有分析和处理建议
 - 测试日志必须完整保存到所属仓 DU evidence/

@@ -59,7 +59,7 @@ task-count: 7
 - 目标仓库: main
 - 目标模块: controllers/auth/
 - 预期变更: 新增 register-controller.js + 修改 router.js
-- 验证方法: 集成测试（POST /api/auth/register，覆盖 AC-1 ~ AC-7）
+- 验证方法: 集成测试（POST /api/auth/register，覆盖 AC-001 ~ AC-007）
 - 依赖: TASK-004
 - 预估变更: ~50 行
 
@@ -76,7 +76,7 @@ task-count: 7
 
 - 目标仓库: main
 - 目标模块: tests/auth/
-- 预期变更: 新增 register.spec.js（覆盖 AC-1 ~ AC-7 + 边界 case）
+- 预期变更: 新增 register.spec.js（覆盖 AC-001 ~ AC-007 + 边界 case）
 - 验证方法: npm test 全绿
 - 依赖: TASK-005
 - 预估变更: ~120 行
@@ -113,13 +113,13 @@ TASK-003 (Password Utils)
 
 | AC | 测试 Task | 测试用例 |
 |----|----------|---------|
-| AC-1: 有效邮箱注册 | TASK-007 | valid_email_register |
-| AC-2: 有效手机号注册 | TASK-007 | valid_phone_register |
-| AC-3: 已注册邮箱 | TASK-007 | duplicate_email |
-| AC-4: 无效邮箱格式 | TASK-007 | invalid_email_format |
-| AC-5: 密码强度不足 | TASK-007 | weak_password |
-| AC-6: 邮箱手机都空 | TASK-007 | missing_contact |
-| AC-7: 密码含特殊字符 | TASK-007 | password_with_special_chars |
+| AC-001: 有效邮箱注册 | TASK-007 | valid_email_register |
+| AC-002: 有效手机号注册 | TASK-007 | valid_phone_register |
+| AC-003: 已注册邮箱 | TASK-007 | duplicate_email |
+| AC-004: 无效邮箱格式 | TASK-007 | invalid_email_format |
+| AC-005: 密码强度不足 | TASK-007 | weak_password |
+| AC-006: 邮箱手机都空 | TASK-007 | missing_contact |
+| AC-007: 密码含特殊字符 | TASK-007 | password_with_special_chars |
 
 ### 风险缓解覆盖
 

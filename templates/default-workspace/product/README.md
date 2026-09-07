@@ -309,7 +309,7 @@ specs/
 ```
 
 
-按 L2 Feature 域一个文件，文件格式见 `templates/artifacts/spec.md`（front-matter 含 source-chg / promoted-at / status: approved）。
+按 L2 Feature 域一个文件，文件格式见 `templates/artifacts/product-spec.md`（front-matter 含 source-chg / promoted-at / status: approved）。
 
 晋升机制：
 

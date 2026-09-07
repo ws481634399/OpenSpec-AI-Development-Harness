@@ -160,7 +160,7 @@ Artifact Draft → Machine Gate（确定性校验）→ Human Gate（人工审�
 
 ```
 delivery/changes/CHG-0002/平台基座/用户管理/账户能力/用户登录/   ← CHG 内四级骨架
-    ├── requirement.md / prd.md / tasks.md / evidence/ …        ← 全部产物落 STORY 目录
+    ├── requirement.md / spec.md / tasks.md / evidence/ …        ← 全部产物落 STORY 目录
     └── README.md                                               ← CHG 内部锚点
 product/features/平台基座/用户管理/账户能力/用户登录/README.md   ← 产品世界派生缓存（仅 Story 级有人读内容，L1-L3 空目录）
 ```
@@ -192,7 +192,7 @@ product/features/平台基座/用户管理/账户能力/用户登录/README.md  
 | --- | ---------- | ------------ | --------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | 1   | 创建       | （CLI）      | created         | metadata.yaml                                                             | 仅 `delivery/changes/CHG-0003/metadata.yaml`                                           | 不动                                                |
 | 2   | 需求探索   | sdd-explore  | exploring       | requirement.md + exploration.md                                           | **bind-feature-path 触发骨架物化 + 产物迁入 STORY**；feature-tree.yaml 加 STORY-3 节点 | 不动（除非手动跑 feature materialize）              |
-| 3   | PRD        | sdd-prd      | specified       | prd.md                                                                    | 写到 STORY 目录                                                                        | 不动                                                |
+| 3   | PRD        | sdd-prd      | specified       | spec.md                                                                    | 写到 STORY 目录                                                                        | 不动                                                |
 | 4   | 设计       | sdd-design   | designed        | design.md                                                                 | 写到 STORY 目录                                                                        | 不动                                                |
 | 5   | 任务分解   | sdd-task     | tasked          | tasks.md + DU metadata                                                    | STORY 下新增 `DU-BE-001/metadata.yaml`、`DU-FE-001/metadata.yaml`                      | 不动                                                |
 | 6   | DU 物化    | （CLI）      | tasked          | repo 侧 task.md / implementation.md / evidence/ 骨架                      | **`implementation/<repo>/delivery/CHG-0003/…/DU-*/` 落地**                             | 不动                                                |
@@ -226,7 +226,7 @@ delivery/changes/CHG-0003/
 └── 工程基础/Maven 工程与版本治理/工程结构与公共模块/用户登录（多因子）/
     ├── requirement.md
     ├── exploration.md
-    ├── prd.md                                       # 阶段 3
+    ├── spec.md                                       # 阶段 3
     ├── design.md                                    # 阶段 4
     ├── tasks.md                                     # 阶段 5：Delivery Decomposition Plan
     ├── DU-BE-001/
@@ -292,7 +292,7 @@ delivery/archive/CHG-0003/                            # CHG 平铺一层（保�
     ├── README.md                                    # bound-chg 仍为 CHG-0003（不变）
     ├── requirement.md
     ├── exploration.md
-    ├── prd.md / design.md / tasks.md
+    ├── spec.md / design.md / tasks.md
     ├── review-report.md
     ├── convergence.md
     ├── DU-BE-001/metadata.yaml
@@ -444,7 +444,7 @@ Agent 自动执行：
 请执行 skills/sdd-prd/SKILL.md，为 CHG-0001 生成 PRD 草稿。
 ```
 
-Agent 读 exploration.md → 用 JTBD 框架分析 → 写 prd.md（含 SMART 验收标准）→ 确认 → Gate + 推进。
+Agent 读 exploration.md → 用 JTBD 框架分析 → 写 spec.md（含 SMART 验收标准）→ 确认 → Gate + 推进。
 
 ### 4.4 技术设计（sdd-design）
 
@@ -452,7 +452,7 @@ Agent 读 exploration.md → 用 JTBD 框架分析 → 写 prd.md（含 SMART �
 请执行 skills/sdd-design/SKILL.md，为 CHG-0001 生成技术设计。
 ```
 
-Agent 读 prd.md → 分析架构 → 写 design.md（含接口定义/数据模型/Migration/风险评估）→ 确认 → Gate + 推进。
+Agent 读 spec.md → 分析架构 → 写 design.md（含接口定义/数据模型/Migration/风险评估）→ 确认 → Gate + 推进。
 
 Phase 2.4 多仓要求：
 
@@ -555,7 +555,7 @@ Change 移到 delivery/archive/，生命周期完成。
  │                         │                              │
  ├── "生成 PRD" ──────────►│ sdd-prd                      │
  │                         ├── 读 exploration.md          │
- │                         ├── 写 prd.md                  │
+ │                         ├── 写 spec.md                  │
  │◄── 展示草稿 ────────────┤                              │
  ├── 确认 ───────────────►├──────────────────────────────►│ gate + status
  │                         │                              │
@@ -668,9 +668,9 @@ delivery/changes/CHG-0001/
 
 #### sdd-prd（exploring → specified）
 
-- **产出**：prd.md
+- **产出**：spec.md
 - **方法论**：JTBD 框架 + SMART 验收标准 + Scope 管理（In/Out）+ 异常处理矩阵
-- **完整示例**：`templates/artifacts/examples/prd.md`
+- **完整示例**：`templates/artifacts/examples/spec.md`
 
 #### sdd-design（specified → designed）
 
@@ -879,7 +879,7 @@ product/features/
 | ---------------------------------- | ---------------------------------------------------------------------------------------- |
 | product/feature-tree.yaml          | 特性树 SSOT（唯一权威源），能力变更走 `openspec feature` 命令                             |
 | product/features/                  | SSOT 派生缓存，只读；`feature materialize` 清空重建，仅 Story 级 README                   |
-| product/specs/                     | 已确认产品规则；按 L2 Feature 域一个文件（格式见 `templates/artifacts/spec.md`）；**晋升需人工评审，Agent 不得直接写入** |
+| product/specs/                     | 已确认产品规则；按 L2 Feature 域一个文件（格式见 `templates/artifacts/product-spec.md`）；**晋升需人工评审，Agent 不得直接写入** |
 | product/glossary/terms.md          | 业务术语表（单文件表格式）                                                                |
 
 **Spec 晋升机制**：Agent 在 converge 阶段将 SPEC 草稿写入 convergence.md 的「Spec 晋升候选」节 → 人工评审通过 → 落盘 `product/specs/<feature-domain>.md`。
@@ -904,7 +904,7 @@ product/features/
 | ----------------- | ------------ |
 | requirement.md    | sdd-explore  |
 | exploration.md    | sdd-explore  |
-| prd.md            | sdd-prd      |
+| spec.md            | sdd-prd      |
 | design.md         | sdd-design   |
 | tasks.md          | sdd-task     |
 | implementation.md | sdd-dev      |
@@ -970,7 +970,7 @@ stages:
         max-bytes: 65536
     change-artifacts: # 本 CHG 前序产物（相对 CHG 目录），正文注入 Instruction
       - requirement.md
-      - prd.md
+      - spec.md
 ```
 
 - **v0.1 兼容**：字符串条目（如 `- standards/`）等价于 `{ path, mode: inline }`
@@ -1275,7 +1275,7 @@ my-project/
 │   │                       ├── README.md       # front-matter id 作锚点 + bound-chg
 │   │                       ├── requirement.md
 │   │                       ├── exploration.md
-│   │                       ├── prd.md
+│   │                       ├── spec.md
 │   │                       ├── design.md
 │   │                       ├── tasks.md        # STORY 级 Delivery Decomposition Plan
 │   │                       ├── implementation.md   # 跨仓实施汇总（引用各仓 DU 正文）

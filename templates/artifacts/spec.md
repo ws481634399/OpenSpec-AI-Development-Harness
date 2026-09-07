@@ -1,42 +1,64 @@
-# Spec：<规则域标题>
+# Spec（产品规格）
 
-> 用途：product/specs/ 的正式文件格式（已确认产品规则）。
-> 晋升机制：① Agent 在 converge 阶段将 SPEC 草稿写入 convergence.md 的「Spec 晋升候选」节；② 人工评审通过后，按本模板落盘到 `product/specs/<feature-domain>.md`。Agent 不得绕过评审直接写入 specs/。
-> 组织约定：按 L2 Feature 域一个文件（如 `订单能力.md`、`账户能力.md`），同类规则追加进同一文件。
+> 阶段：sdd-prd 产物（inline 单 Story 模式，Change+Story 双语义合并）
+> 业界锚点：PRD（Problem → Goals/Metrics → Scope → Requirements → AC）
+> 输入：CHG Context（exploration.md + requirement.md）
+> 产出状态：specified
 
----
-title: <规则域标题，如：订单能力规则>
-source-chg: CHG-XXXX
-promoted-at: <ISO8601 人工评审通过时间>
-status: approved
-feature: <L2 Feature ID 或业务域名>
-tags: [<业务域标签>]
----
+本文档将需求转化为产品规格。
 
-# <规则域标题>
+<!-- 结构化字段（{{placeholder}}）由 sdd-prd 通过 ArtifactWriter 填充；
+     非结构化段落由外部 Agent 按 Instruction 补充。 -->
 
-## 规则清单
+## 0. 元信息
 
-<!-- 每条规则一行，可执行、可验证，避免描述实现 -->
+- Change ID: {{change-id}}
+- Requirement: {{requirement}}
+- Feature ID: {{feature-id}}
 
-- R1: 订单取消必须填写取消原因
-- R2: 取消原因枚举：不想要了 / 信息填错 / 重复下单 / 其他
+## 1. 背景
 
-## 背景与来源
+<!-- AI 补充：为什么做这个需求，业务上下文 -->
 
-<!-- 为什么有这些规则、来自哪个 Change 的哪个 Artifact -->
+## 2. 用户价值
 
-- 来源：CHG-XXXX prd.md「业务规则」节，人工评审通过
-- 背景：<简要说明业务背景>
+<!-- AI 补充：目标用户、解决的痛点、预期价值 -->
 
-## 适用范围
+- 目标用户: {{target-user}}
+- 痛点摘要: {{pain-points}}
+- 预期价值: {{expected-value}}
 
-<!-- 这些规则约束哪些能力/场景 -->
+## 3. 范围
 
-- 适用于：订单取消、订单状态查询相关能力
+### 3.1 包含
 
-## 变更记录
+<!-- AI 补充：本 Change 范围内的功能 -->
 
-| 日期 | Change | 变更 |
-| ---- | ------ | ---- |
-| <date> | CHG-XXXX | 初次晋升 R1-R2 |
+- 包含范围摘要: {{scope-in}}
+
+### 3.2 不包含
+
+<!-- AI 补充：明确排除的内容 -->
+
+- 不包含范围摘要: {{scope-out}}
+
+## 4. 业务规则
+
+<!-- AI 补充：业务约束、规则、流程 -->
+
+## 5. 验收标准
+
+<!-- AI 补充：能不能用的验收线（可测试）。AC-NNN 表格化（追踪链锚点，Story 级；
+     inline 模式本文即 Story 级规格）：AC-001 起三位递增，编号稳定不复用，
+     design 决策 covers、测试用例 verified-by 均按编号引用 -->
+
+| ID     | 验收标准（可测试） | 备注 |
+| ------ | ------------------ | ---- |
+| AC-001 | （给定…当…则…）    |      |
+| AC-002 | （给定…当…则…）    |      |
+
+## 6. 成功指标
+
+<!-- AI 补充（业界标配 Success Metrics）：做了值不值的度量——验收标准管"能用"，
+     成功指标管"有用"。给出可观测指标与预期值（如转化率、耗时、错误率）；可写"本期不度量"。 -->
+

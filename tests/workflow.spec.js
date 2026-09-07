@@ -58,15 +58,15 @@ test('WorkflowLoader: loadWorkflow default 返回 8 个 stages（Phase 2.2 含 r
   assert.equal(wf.stages[7]['to-state'], 'completed');
 });
 
-test('WorkflowLoader: findStageByToState specified → sdd-prd + prd.md', () => {
+test('WorkflowLoader: findStageByToState specified → sdd-prd + spec.md', () => {
   const wf = {
     stages: [
-      { skill: 'sdd-prd', artifact: 'prd.md', gate: 'prd', 'from-state': 'exploring', 'to-state': 'specified' },
+      { skill: 'sdd-prd', artifact: 'spec.md', gate: 'prd', 'from-state': 'exploring', 'to-state': 'specified' },
     ],
   };
   const stage = findStageByToState(wf, 'specified');
   assert.equal(stage.skill, 'sdd-prd');
-  assert.equal(stage.artifact, 'prd.md');
+  assert.equal(stage.artifact, 'spec.md');
 });
 
 test('WorkflowLoader: findStageByToState 不存在的 state 返回 null', () => {
@@ -93,7 +93,7 @@ test('WorkflowEngine: 无 Artifact → WAITING_FOR_ARTIFACT（生成 Instruction
   await rmrf(tmp);
 });
 
-// 完整的 prd.md 内容（通过 sdd-prd gate 的所有 machine-checks）
+// 完整的 spec.md 内容（通过 sdd-prd gate 的所有 machine-checks）
 const FULL_PRD =
   '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n\n## 6. 成功指标\n本期不度量\n';
 
@@ -145,9 +145,9 @@ test('WorkflowEngine: Human approved + hash 匹配 → ADVANCED + 状态推进�
 test('WorkflowEngine: prd（human-gate required）Human approved 但 Artifact 已修改（hash 不匹配）→ WAITING_FOR_HUMAN', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
   await advanceTo(changeDir, 'exploring');
-  await writeFile(join(changeDir, 'prd.md'), FULL_PRD, 'utf8');
+  await writeFile(join(changeDir, 'spec.md'), FULL_PRD, 'utf8');
   // 写 Human Gate approved 但 hash 是旧的（Artifact 在 approve 后被修改）
-  await writeHumanGate(changeDir, 'prd.md', {
+  await writeHumanGate(changeDir, 'spec.md', {
     status: 'approved',
     artifactHash: 'sha256:old',
   });
@@ -189,16 +189,16 @@ test('WorkflowEngine: completed 状态 → COMPLETED', async () => {
 test('WorkflowEngine: 断点续跑——prd 阶段 WAITING_FOR_HUMAN，approve 后再 run → ADVANCED', async () => {
   const { tmp, changeId, changeDir } = await setupChange();
   await advanceTo(changeDir, 'exploring');
-  await writeFile(join(changeDir, 'prd.md'), FULL_PRD, 'utf8');
+  await writeFile(join(changeDir, 'spec.md'), FULL_PRD, 'utf8');
 
   // 第一次 run：machine passed + human pending（required）→ WAITING_FOR_HUMAN
   const r1 = await runWorkflow(tmp, changeId, { harnessRoot });
   assert.equal(r1.result, WORKFLOW_RESULT.WAITING_FOR_HUMAN);
 
   // 模拟 gate approve：用 machine gate 写入的真实 hash 写 Human Gate
-  const gateResult = await readGateResult(changeDir, 'prd.md');
+  const gateResult = await readGateResult(changeDir, 'spec.md');
   const realHash = gateResult.gates.machine['artifact-hash'];
-  await writeHumanGate(changeDir, 'prd.md', {
+  await writeHumanGate(changeDir, 'spec.md', {
     status: 'approved',
     artifactHash: realHash,
   });

@@ -1,4 +1,4 @@
-﻿# sdd-design: 技术设计
+# sdd-design: 技术设计
 
 > 阶段: design
 > 状态转换: specified → designed
@@ -7,26 +7,26 @@
 
 ## 前置条件
 - Change 处于 `specified` 状态
-- prd.md 已完成
+- spec.md 已完成
 
 ## 执行步骤
 
 ### 1. 读取前序 Artifact
 
-读取 `delivery/changes/<CHG>/prd.md`。
+读取 `delivery/changes/<CHG>/spec.md`。
 
 #### 1.1 信息提取清单
 
-从 PRD 提取：
+从 spec 提取：
 - 功能范围（Scope In/Out）→ 确定设计边界
-- 验收标准 → 推导接口契约和测试点
+- 验收标准（AC-NNN）→ 推导接口契约和测试点
 - 业务规则 → 映射为数据约束和校验逻辑
 - 目标用户 → 推断权限/角色设计
 
 从 exploration.md 提取：
 - 影响仓库 → 确定设计范围
 - Feature 归属 → 理解在产品架构中的位置
-- 未知问题（已在 PRD 解决的标注，未解决的需在此处理）
+- 未知问题（已在 spec 解决的标注，未解决的需在此处理）
 
 ### 2. 读取工程上下文
 
@@ -57,7 +57,7 @@ front-matter（Phase 2.4 多仓）：
 
 元信息 section（占位符替换）：
 - `{{change-id}}`：Change ID
-- `{{prd-source}}`：`<CHG>/prd.md`
+- `{{spec-source}}`：`<CHG>/spec.md`
 - `{{repos-involved}}`：metadata.repositories 数组拼接
 - `{{repo-impact-count}}`：metadata.repositories.length
 - `{{need-migration}}`：初始化 `no`（Agent 分析后改）
@@ -161,15 +161,15 @@ CREATE TABLE users (
 
 **§7 待澄清问题：**
 - 需用户确认的设计决策（如缓存策略、限流阈值）
-- 需 PRD 补充的业务规则（如 PRD 未明确的边界 case）
+- 需 spec 补充的业务规则（如 spec 未明确的边界 case）
 - 需调查的技术可行性（如外部 API 是否可用）
 
 ### 4. 质量自检
 
 产出前自检：
-- [ ] 设计方案是否覆盖 PRD 全部 Scope In 项？
+- [ ] 设计方案是否覆盖 spec 全部 Scope In 项？
 - [ ] 每个接口是否有明确的入参/出参/错误码？
-- [ ] 数据模型是否覆盖 PRD 全部业务规则？
+- [ ] 数据模型是否覆盖 spec 全部业务规则？
 - [ ] front-matter `affected-repositories` 是否与 §3 分仓小节一致（task 阶段 du-coverage 机检输入）？
 - [ ] 多仓需求是否给出跨仓协作契约（API/Event/Data + 依赖方向 + 集成边界）？
 - [ ] design.md 是否未出现 DU-XXX 编号（Design 不产生 DU）？
@@ -243,7 +243,7 @@ openspec change status <CHG> --set designed
 
 ## 行为规则
 
-- 不修改 prd.md / requirement.md / exploration.md
+- 不修改 spec.md / requirement.md / exploration.md
 - 不修改 standards/（只能引用）
 - 不直接写 implementation/ 代码
 - 不产生 DU（DU-XXX 编号不得出现在 design.md，正式拆分交付单元是 sdd-task 职责）

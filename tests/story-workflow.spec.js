@@ -38,7 +38,7 @@ const S2 = 'STORY-SW-02';
 
 // ---- 夹具 ----
 
-// Change 级 change-prd.md（heading 锚点 '3-功能范围' + [S<n>] 编号条目，供 scope-subset 校验）
+// Change 级 change-spec.md（heading 锚点 '3-功能范围' + [S<n>] 编号条目，供 scope-subset 校验）
 const CHANGE_PRD = [
   '# Change PRD',
   '',
@@ -67,7 +67,7 @@ function storySpecMd(storyId, scopeRefs) {
   return [
     '---',
     `story-id: ${storyId}`,
-    'change-prd-ref: change-prd.md#3-功能范围',
+    'change-spec-ref: change-spec.md#3-功能范围',
     `scope-refs: [${scopeRefs.join(', ')}]`,
     '---',
     '',
@@ -175,7 +175,7 @@ async function advanceTo(changeDir, target) {
 }
 
 /**
- * 构造多 Story（3-tier）Change：2 个 Story + Change 级 change-prd/change-design 已产出。
+ * 构造多 Story（3-tier）Change：2 个 Story + Change 级 change-spec/change-design 已产出。
  * status 通过合法状态链推进（默认 designed，即 sdd-task 入口前）。
  */
 async function makeMultiStoryChange({ status = 'designed' } = {}) {
@@ -203,7 +203,7 @@ async function makeMultiStoryChange({ status = 'designed' } = {}) {
   ]);
   await advanceTo(changeDir, status);
   // Change 级三级产物（模拟 prd/design 阶段已过 Gate）
-  await writeFile(join(changeDir, 'change-prd.md'), CHANGE_PRD, 'utf8');
+  await writeFile(join(changeDir, 'change-spec.md'), CHANGE_PRD, 'utf8');
   await writeFile(join(changeDir, 'change-design.md'), CHANGE_DESIGN, 'utf8');
   return { tmp, changeId, changeDir };
 }
@@ -355,7 +355,7 @@ test('多 Story: 全部 Story completed → converge 聚合门放行（Change �
 
 // ---- Test Section B: inline 单 Story 向后兼容 ----
 
-test('inline 兼容: bindFeaturePath 单 Story（v3 inline）→ Change 级流程与 v0.2 一致（explore 入口）', async () => {
+test('inline 兼容: bindFeaturePath 单 Story（v4 inline）→ Change 级流程与 v0.2 一致（explore 入口）', async () => {
   const { tmp, changeId, changeDir } = await setupWorkspace('inline');
   await bindFeaturePath(changeDir, {
     'level-1': { id: 'FEAT-SW', name: '平台能力' },
@@ -364,7 +364,7 @@ test('inline 兼容: bindFeaturePath 单 Story（v3 inline）→ Change 级流�
     story: { id: 'STORY-SW-INLINE', name: '单 Story 平铺' },
   });
   const meta = await readMetadata(changeDir);
-  assert.equal(meta['schema-version'], 3);
+  assert.equal(meta['schema-version'], 4);
   assert.equal(meta.stories[0].inline, true);
 
   // 单 Story 不受多 Story 逻辑影响：created → explore 产物缺失 → 与既有行为一致
@@ -401,14 +401,14 @@ test('inline 兼容: 多 Story Change 传不存在的 storyId → 明确报错�
 
 // ---- Test Section C: Stale 分层传播（Change→Story / Story→tasks）----
 
-test('Stale 传播: change-prd Gate 后变更 → 未完成 Story 的 story-spec 传播提示; story-design 变更 → tasks 传播; completed Story 不传播', async () => {
+test('Stale 传播: change-spec Gate 后变更 → 未完成 Story 的 story-spec 传播提示; story-design 变更 → tasks 传播; completed Story 不传播', async () => {
   const { tmp, changeId, changeDir } = await makeMultiStoryChange({ status: 'story-splitting' });
   // S1 specified（未完成，参与传播）；S2 completed（不参与传播）
   await patchStoryMetadata(join(changeDir, 'stories', S1), { status: 'specified' });
   await patchStoryMetadata(join(changeDir, 'stories', S2), { status: 'completed' });
 
-  // Change 级 change-prd 过 Gate
-  await writeMachineGate(changeDir, 'change-prd.md', {
+  // Change 级 change-spec 过 Gate
+  await writeMachineGate(changeDir, 'change-spec.md', {
     status: 'passed',
     artifactHash: sha256(CHANGE_PRD),
     validator: 'sdd-prd',
@@ -440,16 +440,16 @@ test('Stale 传播: change-prd Gate 后变更 → 未完成 Story 的 story-spec
     validator: 'sdd-prd',
   });
 
-  // Gate 后改动上游：change-prd.md（Change 级）+ story-design.md（Story 级）
-  await writeFile(join(changeDir, 'change-prd.md'), CHANGE_PRD + '\n\n范围补丁', 'utf8');
+  // Gate 后改动上游：change-spec.md（Change 级）+ story-design.md（Story 级）
+  await writeFile(join(changeDir, 'change-spec.md'), CHANGE_PRD + '\n\n范围补丁', 'utf8');
   await writeFile(join(changeDir, 'stories', S1, 'story-design.md'), design1 + '\n\n设计补丁', 'utf8');
 
   const r = await runWorkflow(tmp, changeId, { harnessRoot });
   const stale = r.stale;
   // Change 级 hash 失配
-  assert.ok(stale.some((s) => s.artifact === 'change-prd.md' && s.kind === 'hash-mismatch' && s.layer === 'change'));
+  assert.ok(stale.some((s) => s.artifact === 'change-spec.md' && s.kind === 'hash-mismatch' && s.layer === 'change'));
   // Change→Story 传播（仅未完成 Story）
-  assert.ok(stale.some((s) => s.artifact === `stories/${S1}/story-spec.md` && s.kind === 'stale-propagated' && s.from === 'change-prd.md'));
+  assert.ok(stale.some((s) => s.artifact === `stories/${S1}/story-spec.md` && s.kind === 'stale-propagated' && s.from === 'change-spec.md'));
   // Story 级 hash 失配
   assert.ok(stale.some((s) => s.artifact === `stories/${S1}/story-design.md` && s.kind === 'hash-mismatch' && s.layer === 'story'));
   // Story→tasks 传播

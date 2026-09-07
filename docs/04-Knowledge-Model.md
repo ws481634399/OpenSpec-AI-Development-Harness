@@ -317,7 +317,7 @@ CHG-ORDER-001
 ```
 CHG-ORDER-001/
 ├── request.md
-├── prd.md
+├── spec.md
 ├── design.md
 ├── tasks.md
 ├── evidence/

@@ -137,7 +137,7 @@ function isNodeObject(n) {
  *   summary?: string,
  *   featurePath?: object,     // { level-1, level-2, level-3, story, candidate }
  *   evidenceTier?: 'light'|'standard'|'strict',
- *   changePrdRef?: string,    // cross-ref 到 change-prd.md 章节
+ *   changePrdRef?: string,    // cross-ref 到 change-spec.md 章节
  *   changeDesignRef?: string, // cross-ref 到 change-design.md 章节
  *   status?: string,          // 默认 pending
  * }} payload
@@ -164,7 +164,7 @@ export async function createStory(changeDir, payload, harnessRoot) {
     "evidence-tier": payload.evidenceTier || "standard",
     "created-at": now,
     "updated-at": now,
-    "change-prd-ref": payload.changePrdRef || "",
+    "change-spec-ref": payload.changePrdRef || "",
     "change-design-ref": payload.changeDesignRef || "",
     dus: [],
     artifacts: {},
@@ -281,7 +281,7 @@ function buildInlineStoryMeta(changeMeta, entry) {
     "evidence-tier": entry["evidence-tier"] || changeMeta["evidence-tier"] || "standard",
     "created-at": changeMeta["created-at"],
     "updated-at": changeMeta["updated-at"],
-    "change-prd-ref": "",
+    "change-spec-ref": "",
     "change-design-ref": "",
     "feature-path": changeMeta["feature-path"] || null,
     dus: [],
@@ -304,9 +304,9 @@ export async function writeChangeStories(changeDir, stories, { readMetadata, pat
   const raw = await readFile(file, "utf8");
   const doc = parseDocument(raw);
   doc.setIn(["stories"], stories);
-  // schema-version 如 < 3 → 升 3
+  // schema-version 如 < 4 → 升 4（Phase 4.3：spec 命名 + stories[].domain）
   const sv = (meta && meta["schema-version"]) || 1;
-  if (sv < 3) doc.setIn(["schema-version"], 3);
+  if (sv < 4) doc.setIn(["schema-version"], 4);
   doc.setIn(["updated-at"], new Date().toISOString());
   flowToBlock(doc.contents);
   await writeFile(file, doc.toString(), "utf8");
@@ -318,7 +318,7 @@ export async function writeChangeStories(changeDir, stories, { readMetadata, pat
  *  1. mkdir stories/<story-id>/
  *  2. 新建 story-metadata.yaml（从 inline 合成数据填充）
  *  3. 移动 tasks/implementation/test-report/review-report/evidence/du/ 到子目录
- *  4. 更新 Change metadata.stories（inline=true → inline=false，path=stories/<id>/，schema-version=3）
+ *  4. 更新 Change metadata.stories（inline=true → inline=false，path=stories/<id>/，schema-version=4）
  *  5. feature-path 在 Change 级清空（多 Story 场景不再权威），保留在 Story 级
  *
  * @param {string} changeDir
@@ -392,7 +392,10 @@ export async function splitInlineStory(changeDir, opts = {}) {
     }
   }
 
-  // 3) 更新 Change metadata：schema=3、stories 列表（inline=false + path）、清空 feature-path
+  // 3) 更新 Change metadata：schema=4、stories 列表（inline=false + path + domain 继承）、清空 feature-path
+  const inlineDomain =
+    (stories[0] && stories[0].domain) ||
+    { id: (fp["level-3"] && fp["level-3"].id) || "", name: (fp["level-3"] && fp["level-3"].name) || "" };
   const newStories = [
     {
       id: storyId,
@@ -401,13 +404,14 @@ export async function splitInlineStory(changeDir, opts = {}) {
       "evidence-tier": meta["evidence-tier"] || "standard",
       status: changeStatusToStoryStatus(meta.status),
       path: `stories/${storyId}/`,
+      domain: inlineDomain,
     },
   ];
   await writeStories(changeDir, newStories, inject);
   // 清空 Change 级 feature-path（Story 级成为权威）
   const patchMeta = inject.patchMetadata || changeModel.patchMetadata;
   await patchMeta(changeDir, {
-    "schema-version": 3,
+    "schema-version": 4,
     "feature-path": undefined, // 清空（Document API setIn 不支持删，这里 workaround 写空对象然后处理）
   });
   // setIn(undefined) 在 yaml 中不写键——但若之前存在则需要移除；改用 Document API 删

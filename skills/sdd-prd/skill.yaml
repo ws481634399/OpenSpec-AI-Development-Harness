@@ -7,7 +7,7 @@
 # v0.1 由外部 Agent 按 Instruction 执行，产出写回 CHG 目录，状态推进经 openspec workflow run（Transition Service 统一入口）。
 
 id: sdd-prd
-version: 0.2.2
+version: 0.2.4
 stage: prd
 description: 产品规格阶段 Skill——将需求转化为产品规格，定义业务规则与验收标准
 input:
@@ -15,11 +15,11 @@ input:
   - requirement.md
   - product/
 output:
-  - prd.md
+  - spec.md
 requires-state: exploring
 produces-state: specified
 output-artifacts:
-  - prd.md
+  - spec.md
 prompts: # Phase 2.3：引用 prompts/ 提示片段（相对 prompts/，不含 .md）
   - common/persona-sdd
   - common/constraints

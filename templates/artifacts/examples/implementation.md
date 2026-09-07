@@ -35,7 +35,7 @@ primary-repo: "main"
 | m0n1o2p | TASK-004 | feat(auth): implement register service | 1 |
 | q3r4s5t | TASK-005 | feat(auth): add register endpoint | 2 |
 | u6v7w8x | TASK-006 | feat(db): add users table migration | 1 |
-| y9z0a1b | TASK-007 | test(auth): add register tests (AC-1~AC-7) | 1 |
+| y9z0a1b | TASK-007 | test(auth): add register tests (AC-001~AC-007) | 1 |
 
 ## §3 实现状态
 

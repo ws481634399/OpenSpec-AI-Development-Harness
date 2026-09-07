@@ -301,7 +301,7 @@ delivery/
 
         ├── request.md
 
-        ├── prd.md
+        ├── spec.md
 
         ├── design.md
 
@@ -329,7 +329,7 @@ Change 目录中包含：
 |文件/目录|说明|
 |-|-|
 |request.md|变更请求（需求来源、修改目标、影响范围）|
-|prd.md|产品规格（背景、用户价值、范围、业务规则、验收标准）|
+|spec.md|产品规格（背景、用户价值、范围、业务规则、验收标准）|
 |design.md|技术设计（方案、架构影响、数据变化、接口变化、风险）|
 |tasks.md|任务拆分（目标仓库、模块、预期变更、验证方式）|
 |metadata.yaml|Change 元数据（id、title、status、features、repositories）|

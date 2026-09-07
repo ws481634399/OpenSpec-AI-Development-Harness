@@ -12,7 +12,7 @@ const META_FILE = 'metadata.yaml';
 
 /**
  * 将 artifact 文件名转换为 metadata.artifacts 段的 key。
- * 'prd.md' → 'prd'
+ * 'spec.md' → 'prd'
  * 'evidence/test-report.md' → 'test-report'
  * @param {string} artifactName
  * @returns {string}
@@ -47,7 +47,7 @@ function emptyHumanGate() {
  * 不存在时返回 status:'draft' + 全 pending 的 gates（不抛错）。
  *
  * @param {string} changeDir CHG 目录绝对路径
- * @param {string} artifactName Artifact 文件名（如 prd.md / evidence/test-report.md）
+ * @param {string} artifactName Artifact 文件名（如 spec.md / evidence/test-report.md）
  * @returns {Promise<{status:string, path:string, gates:{machine:object, human:object}}>}
  */
 export async function readGateResult(changeDir, artifactName) {

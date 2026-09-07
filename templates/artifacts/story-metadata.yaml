@@ -18,8 +18,8 @@ evidence-tier: standard  # 继承 Change 级或覆盖：light/standard/strict
 created-at: ""           # ISO8601，创建时填
 updated-at: ""           # ISO8601，每次变更更新
 
-# 交叉引用（Gate cross-reference blocking 检查：必须指向 change-prd.md / change-design.md 具体章节）
-change-prd-ref: ""       # 例：change-prd.md#32-story-1-功能范围
+# 交叉引用（Gate cross-reference blocking 检查：必须指向 change-spec.md / change-design.md 具体章节）
+change-spec-ref: ""       # 例：change-spec.md#32-story-1-功能范围
 change-design-ref: ""    # 例：change-design.md#41-story-1-模块改造
 
 # Feature 四级链（Story 级权威绑定；与 Change 级 feature-path 不同——Story 必非空）

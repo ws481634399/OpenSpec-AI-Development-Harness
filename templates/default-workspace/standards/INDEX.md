@@ -9,6 +9,7 @@
 ## SDD 流程规则（sdd/）
 
 - [Change 生命周期](sdd/change-lifecycle.md) — Change 定义、目录结构、生命周期状态、流转规则、完成标准
+- [追踪链 ID 规范](sdd/traceability-ids.md) — AC/DES/DU/TC/EVD 编号规则、引用关系、Story 级边界
 - [知识管理](sdd/knowledge-management.md) — 知识生命周期、知识来源、批准规则、冲突处理
 - [Skill 执行](sdd/skill-execution.md) — Skill 结构、执行规则、AI 行为约束、输出校验
 

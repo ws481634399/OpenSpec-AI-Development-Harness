@@ -13,7 +13,7 @@
 ## 1. 需求要点
 
 <!-- 不是复述原文：把需求拆成可引用的最小要点集——做什么 / 给谁 / 解决什么问题。
-     后续 story-spec / change-prd 引用这里的要点编号，而不是回贴原文。 -->
+     后续 story-spec / change-spec 引用这里的要点编号，而不是回贴原文。 -->
 
 - {{requirement-points}}
 

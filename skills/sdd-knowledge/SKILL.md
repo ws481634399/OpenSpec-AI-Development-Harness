@@ -112,7 +112,7 @@ updated-at: <ISO8601>
 **文件命名规则（standards 走子目录制，product 走三合法位置，禁止在 standards/ 或 product/ 根下新建文件）：**
 - 通用工程规则 → `standards/engineering/<topic>.md`（优先合并已有文件）
 - 项目专属规则 → `standards/project/<topic>.md`（如 `naming-convention.md`、`adr-NNN-<title>.md`）
-- 已确认产品规则 → `product/specs/<feature-domain>.md`（按 `templates/artifacts/spec.md` 格式，status: approved，需注明来源）
+- 已确认产品规则 → `product/specs/<feature-domain>.md`（按 `templates/artifacts/product-spec.md` 格式，status: approved，需注明来源）
 - 业务术语 → `product/glossary/terms.md`（单文件表格式，合并条目）
 - 通用约定 → `standards/engineering/<topic>.md`（如 `git-conventions.md`）
 

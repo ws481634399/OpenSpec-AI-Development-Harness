@@ -12,7 +12,7 @@ purpose: 所有 SDD Skill 共享的 Artifact 输出格式约定
 - 元信息 section 的 `{{placeholder}}` 占位符必须全部替换；不确定的值向用户确认，不填占位文本
 - 非结构化分析 section 必须填写实质内容，禁止留空或残留 HTML 注释（`<!-- -->`）
 - 表格用于结构化对照（AC 清单/Commit 记录/发现清单），列表用于要点陈述
-- 引用其他文件时写相对路径（如 `delivery/changes/CHG-0001/prd.md`），保证可追溯
+- 引用其他文件时写相对路径（如 `delivery/changes/CHG-0001/spec.md`），保证可追溯
 
 ## Evidence 记录
 

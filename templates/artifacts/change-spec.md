@@ -1,4 +1,4 @@
-# Change PRD（需求总规格）
+# Change Spec（需求总规格）
 
 > 阶段：sdd-prd 产物（Phase 4.2 Change 级）
 > 输入：CHG Context（exploration.md + requirement.md）

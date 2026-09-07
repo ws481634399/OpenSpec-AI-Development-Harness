@@ -78,7 +78,7 @@ stages:
     change-artifacts:
       - requirement.md
       - exploration.md # v0.4：未知问题清单是设计阶段澄清的直接输入
-      - prd.md
+      - spec.md
 
   # 任务拆分阶段：拆解为 Delivery Unit / 产出 Implementation Guidance
   task:
@@ -89,7 +89,7 @@ stages:
         mode: outline
     change-artifacts:
       - requirement.md
-      - prd.md
+      - spec.md
       - design.md
 
   # 开发阶段：绑定 DU 实施 / 消费 repo task.md 全 9 节
@@ -101,7 +101,7 @@ stages:
       - path: implementation/
         mode: outline # 仅结构清单；repo 侧正文由 DU 绑定自动注入
     change-artifacts:
-      - prd.md
+      - spec.md
       - design.md
     # repos:                                   # ← 取消注释启用 per-repo 规则段（version 0.3）
     #   backend:
@@ -123,7 +123,7 @@ stages:
       - path: implementation/
         mode: outline
     change-artifacts:
-      - prd.md
+      - spec.md
       - design.md
 
   # 评审检查点阶段（Phase 2.2）：需求/设计一致性 / 代码质量 / 知识同步候选
@@ -135,7 +135,7 @@ stages:
         mode: outline
     change-artifacts:
       - requirement.md
-      - prd.md
+      - spec.md
       - design.md
 
   # 知识沉淀阶段：逆向分析 / 更新项目知识 / 沉淀经验
@@ -152,7 +152,7 @@ stages:
         mode: outline
     change-artifacts:
       - design.md
-      - prd.md # v0.4：全局验收标准（change-prd §5）对照
+      - spec.md # v0.4：全局验收标准（change-spec §5）对照
       - implementation.md # v0.4：跨仓实施汇总（DU 状态/Fan-in）
       - evidence/test-report.md # v0.4：测试证据（多 Story 模式下 Story 级报告在 stories/<id>/，此处标注 missing 属预期）
       - review-report.md # v0.4：审查结论与发现闭环情况（人审全链视图）

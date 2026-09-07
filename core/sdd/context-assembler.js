@@ -393,11 +393,11 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
     if (storyId) {
       const changeRefs =
         stage === 'prd'
-          ? ['change-prd.md']
+          ? ['change-spec.md']
           : stage === 'design'
-            ? ['change-prd.md', 'change-design.md']
+            ? ['change-spec.md', 'change-design.md']
             : AUTO_TASKS_STAGES.has(stage)
-              ? ['change-prd.md', 'change-design.md']
+              ? ['change-spec.md', 'change-design.md']
               : [];
       const refMode = stage === 'prd' || stage === 'design' ? 'inline' : 'outline';
       for (const name of changeRefs) {

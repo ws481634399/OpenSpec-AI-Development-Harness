@@ -5,7 +5,7 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 # Change Design（架构总设计）
 
 > 阶段：sdd-design 产物（Phase 4.2 Change 级）
-> 输入：change-prd.md
+> 输入：change-spec.md
 > 产出状态：designed
 > 职责边界（硬约束）：回答"系统如何实现、哪些仓受影响、跨仓如何协作、公共组件如何抽取"；
 > **不得产生 DU**（DU-XXX 编号不得出现）——DU 拆分是 sdd-task（Story 级）的职责；
@@ -19,7 +19,7 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 ## 0. 元信息
 
 - Change ID: {{change-id}}
-- PRD 来源: {{prd-source}}
+- spec 来源: {{spec-source}}
 - 状态流转: {{from-state}} → {{to-state}}
 
 ## 1. 当前状态
@@ -68,7 +68,7 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 ## 5. Story 设计分派（Story Design Assignments）
 
 <!-- AI 补充：多 Story 必填（单 Story inline 可写"无——设计细节直接落入 design.md"）。
-     每个 Story 一行：对应 change-prd.md §3.3 的 Story ID + 本 Story 的技术要点 + 公共组件归属。
+     每个 Story 一行：对应 change-spec.md §3.3 的 Story ID + 本 Story 的技术要点 + 公共组件归属。
      本表是各 story-design.md 的权威输入；Story 级细化不得超出此处声明的技术边界。 -->
 
 | Story ID | 技术要点摘要 | 涉及仓库 | 公共组件/契约归属 |

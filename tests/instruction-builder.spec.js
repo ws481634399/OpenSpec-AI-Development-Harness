@@ -12,7 +12,7 @@ const SKILL = {
     description: '产品规格 Skill',
     'requires-state': 'exploring',
     'produces-state': 'specified',
-    'output-artifacts': ['prd.md'],
+    'output-artifacts': ['spec.md'],
   },
   skillMd: '# SKILL 原文',
 };
@@ -66,9 +66,9 @@ test('内联文件 section：rule+content 注入正文；outline 条目进文件
 });
 
 test('missing 与 skipped 展示', () => {
-  const ctx = mkContext([], { missingArtifacts: ['prd.md (not found)'], skipped: ['big.md (over budget)'] });
+  const ctx = mkContext([], { missingArtifacts: ['spec.md (not found)'], skipped: ['big.md (over budget)'] });
   const md = buildInstruction(SKILL, ctx, {});
-  assert.ok(md.includes('缺失产物（prd.md (not found)）'), md);
+  assert.ok(md.includes('缺失产物（spec.md (not found)）'), md);
   assert.ok(md.includes('因预算截断未装载的文件：big.md (over budget)'), md);
 });
 

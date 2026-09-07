@@ -47,7 +47,7 @@ import { resolveSubmoduleHead } from "./git-submodule.js";
  * Phase 4.2 三态分发（Gate 分层分发）：
  * - inline（缺省）：单 Story 平铺双语义，artifact/检查项与 v0.2 完全一致（100% 向后兼容）
  * - change3：多 Story Change（isMultiStory）且 gate.yaml 声明 three-tier.change-artifact
- *   → 检查 Change 级产物（change-prd.md / change-design.md，CHG 根）
+ *   → 检查 Change 级产物（change-spec.md / change-design.md，CHG 根）
  * - story：opts.storyId 传入且 gate.yaml 声明 three-tier.story-artifact
  *   → 检查 Story 级产物（story-spec.md / story-design.md / tasks.md...，stories/<id>/ 目录），
  *     machine-checks = 基础检查 + three-tier.story-machine-checks 追加，
@@ -177,7 +177,7 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
         break;
       case "change-ref-bound":
         // Phase 4.2 Story 级 cross-reference（blocking）：front-matter 引用必须指向
-        // change-prd.md / change-design.md 的真实章节锚点
+        // change-spec.md / change-design.md 的真实章节锚点
         await checkChangeRefBound(content, entry, changeDir, bucket, artifactName);
         break;
       case "scope-subset":
@@ -357,13 +357,13 @@ async function checkCrossReference(
   storyDir,
 ) {
   // v0.1：检查正文中所有 CHG-XXXX/<file>.md 引用的文件存在
-  // 占位符已替换后正文会包含 "CHG-0001/prd.md" 这类引用
+  // 占位符已替换后正文会包含 "CHG-0001/spec.md" 这类引用
   const refMatches = content.match(/CHG-\d+\/[\w/.-]+\.md/g) || [];
   const seen = new Set();
   for (const ref of refMatches) {
     if (seen.has(ref)) continue;
     seen.add(ref);
-    // 提取文件名部分（CHG-0001/prd.md → prd.md；CHG-0001/evidence/test-report.md → evidence/test-report.md）
+    // 提取文件名部分（CHG-0001/spec.md → spec.md；CHG-0001/evidence/test-report.md → evidence/test-report.md）
     const fileName = ref.split("/").slice(1).join("/");
     // Phase 3.5 修订：产物在 STORY 目录（绑定后）；未绑定/存量在 CHG 根——两处任一存在即通过
     const candidates = [join(changeDir, fileName)];
@@ -423,12 +423,12 @@ function collectHeadingSlugs(md) {
 
 /**
  * change-ref-bound（Story 级 cross-reference，blocking）：
- * entry: { id: 'change-ref-bound', field: 'change-prd-ref' | 'change-design-ref' }
- * front-matter.<field> 必须非空且锚点对应 change-prd.md / change-design.md 的真实章节标题。
+ * entry: { id: 'change-ref-bound', field: 'change-spec-ref' | 'change-design-ref' }
+ * front-matter.<field> 必须非空且锚点对应 change-spec.md / change-design.md 的真实章节标题。
  */
 async function checkChangeRefBound(content, entry, changeDir, issues, artifactName) {
-  const field = entry.field || "change-prd-ref";
-  const targetFile = field === "change-design-ref" ? "change-design.md" : "change-prd.md";
+  const field = entry.field || "change-spec-ref";
+  const targetFile = field === "change-design-ref" ? "change-design.md" : "change-spec.md";
   const fm = parseFrontMatter(content);
   const ref = typeof fm?.[field] === "string" ? fm[field].trim() : "";
   if (!ref) {
@@ -471,9 +471,9 @@ async function checkChangeRefBound(content, entry, changeDir, issues, artifactNa
  * scope-subset（确定性 Scope 子集校验，不做语义评分）：
  * entry: { id: 'scope-subset', target: 'change' | 'du' }
  *
- * target=change（story-spec）：change-prd.md 正文采用 [S<n>] 编号条目时，
- *   story-spec front-matter scope-refs 必须非空且每项 ∈ change-prd 编号集合；
- *   change-prd.md 不存在或无编号条目 → 仅 warning（编号约定未采用，不阻断）。
+ * target=change（story-spec）：change-spec.md 正文采用 [S<n>] 编号条目时，
+ *   story-spec front-matter scope-refs 必须非空且每项 ∈ change-spec 编号集合；
+ *   change-spec.md 不存在或无编号条目 → 仅 warning（编号约定未采用，不阻断）。
  * target=du（tasks.md，story mode）：每个 DU metadata.scope 条目中的 [S<n>] 引用
  *   必须 ⊆ 本 Story story-spec front-matter scope-refs；无引用条目 → warning。
  */
@@ -492,15 +492,15 @@ async function checkScopeSubset(
   if (target === "change") {
     let prdMd = null;
     try {
-      prdMd = await readFile(join(changeDir, "change-prd.md"), "utf8");
+      prdMd = await readFile(join(changeDir, "change-spec.md"), "utf8");
     } catch (e) {
       if (e.code !== "ENOENT") throw e;
     }
-    if (prdMd === null) return; // inline 双语义（prd.md 承担）→ 编号源不在 change-prd.md，跳过
+    if (prdMd === null) return; // inline 双语义（spec.md 承担）→ 编号源不在 change-spec.md，跳过
     const prdRefs = new Set([...prdMd.matchAll(/\[(S\d+)\]/g)].map((m) => m[1]));
     if (prdRefs.size === 0) {
       warnings.push(
-        `${artifactName}: change-prd.md 无 [S<n>] 编号范围条目，scope-subset 跳过（建议 §3 功能范围采用 [S1]/[S2] 编号条目）`,
+        `${artifactName}: change-spec.md 无 [S<n>] 编号范围条目，scope-subset 跳过（建议 §3 功能范围采用 [S1]/[S2] 编号条目）`,
       );
       return;
     }
@@ -508,7 +508,7 @@ async function checkScopeSubset(
     const refs = Array.isArray(fm?.["scope-refs"]) ? fm["scope-refs"].map(String) : [];
     if (refs.length === 0) {
       issues.push(
-        `${artifactName}: scope-refs 为空（change-prd.md 已采用编号条目，front-matter 须声明本 Story 覆盖的 [S<n>] 编号）`,
+        `${artifactName}: scope-refs 为空（change-spec.md 已采用编号条目，front-matter 须声明本 Story 覆盖的 [S<n>] 编号）`,
       );
       return;
     }
@@ -636,7 +636,7 @@ async function checkAllPredecessorsAccepted(changeDir, issues, artifactName) {
   // Phase 2.2：纳入 review-report.md（review 检查点未 accepted 时 converge 不可推进）
   const predecessors = [
     "exploration.md",
-    "prd.md",
+    "spec.md",
     "design.md",
     "tasks.md",
     "implementation.md",

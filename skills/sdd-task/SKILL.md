@@ -1,4 +1,4 @@
-﻿# sdd-task: 任务分解（Delivery Decomposition + Delivery Unit Specification）
+# sdd-task: 任务分解（Delivery Decomposition + Delivery Unit Specification）
 
 > 阶段: task
 > 状态转换: designed → tasked
@@ -105,7 +105,7 @@ Sketch 与 Pseudocode 不等价：Sketch = 结构方案（组件/调用关系）
 - Scope（范围）: models/User, services/auth/, controllers/auth/
 - Design References: design.md §2 提议方案 / §4 API Contract
 - Dependencies: 无
-- Acceptance Criteria: POST /api/auth/register 返回 201；重复邮箱 409；AC-1~3 覆盖
+- Acceptance Criteria: POST /api/auth/register 返回 201；重复邮箱 409；AC-001~3 覆盖
 - Execution Order: 1
 - Parallelization: 组 A（与 DU-MAIN-001 并行）
 - Implementation Sketch:
@@ -146,7 +146,7 @@ tasks.md 草稿完成后，逐个 DU 注册协调记录（STORY 目录下）：
 ```bash
 openspec du create <CHG> --id DU-BE-001 --repository backend \
   --scope "user-domain,registration-api" --dependencies "" \
-  --acceptance "AC-1 注册流程可用;AC-2 重复邮箱拒绝" \
+  --acceptance "AC-001 注册流程可用;AC-002 重复邮箱拒绝" \
   --complexity "business-flow"
 ```
 
@@ -164,7 +164,7 @@ openspec du create <CHG> --id DU-BE-001 --repository backend \
 - [ ] 每个 DU 是否 1:1 对应一个仓库？
 - [ ] DU ID 是否符合 `DU-<别名>-<nnn>` 且 Workspace 内唯一？
 - [ ] design.md 的每个变更点是否落入某个 DU 的 Scope？
-- [ ] 每个 PRD 验收标准是否映射到某 DU 的 Acceptance？
+- [ ] 每条 spec 验收标准（AC-NNN）是否映射到某 DU 的 Acceptance？
 - [ ] 跨仓依赖是否显式声明且无循环？
 - [ ] 每个 DU 是否都有非空 Implementation Sketch？（du-guidance 机检）
 - [ ] complexity-trigger 判定是否合理（该写伪代码的没偷懒，简单任务没硬凑）？
@@ -246,7 +246,7 @@ openspec du sync-status <CHG>
 - Scope: models/User, services/auth/, controllers/auth/
 - Design References: design.md §2 / §4 API Contract
 - Dependencies: 无
-- Acceptance: POST /api/auth/register 201；重复 409；AC-1~3
+- Acceptance: POST /api/auth/register 201；重复 409；AC-001~3
 - Implementation Sketch:
   ```text
   RegisterController → RegisterApplicationService → UserDomainService
@@ -270,7 +270,7 @@ openspec du sync-status <CHG>
 - Scope: pages/register/, api/auth.ts
 - Design References: design.md §2 / §4 API Contract
 - Dependencies: DU-BE-001（API 可用后联调）
-- Acceptance: AC-4 表单校验；AC-5 注册成功跳转
+- Acceptance: AC-004 表单校验；AC-005 注册成功跳转
 - Implementation Sketch: RegisterPage → useRegisterForm → authApi.register
 - Pseudocode: N/A（标准表单提交流程，无复杂业务流程/算法/状态转换/编排）
 - Verification: Unit（表单校验规则）；E2E（提交成功跳转）
@@ -289,11 +289,11 @@ openspec du create <CHG> --id DU-FE-001 --repository frontend \
 
 - affected-repositories: [backend, frontend] → DU-BE-001 ✓ / DU-FE-001 ✓
 - design.md 变更点: model ✓ / service ✓ / endpoint ✓ / page ✓ / api client ✓
-- PRD 验收标准: AC-1~3 → DU-BE-001 ✓；AC-4~5 → DU-FE-001 ✓
+- spec 验收标准: AC-001~3 → DU-BE-001 ✓；AC-004~5 → DU-FE-001 ✓
 
 ## 行为规则
 
-- 不修改 design.md / prd.md
+- 不修改 design.md / spec.md
 - 不回写 design.md：Sketch/Pseudocode 属 Task 产物，只写入 tasks.md，禁止把实现级伪代码上浮 design（Phase 2.5）
 - 不直接写 implementation/ 代码（实施由 sdd-dev 在 repo 侧执行）
 - 不直接创建各仓 delivery/ 目录（统一走 `openspec du materialize`）

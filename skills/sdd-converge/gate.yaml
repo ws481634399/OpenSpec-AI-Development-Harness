@@ -26,7 +26,7 @@ required-replacements:
 non-empty-ai-sections:
   - "## 1. 知识变化总结"
   - "## 2. 更新判断"
-  - "## 4. 全局验收标准对照" # 缺陷 10 收口：change-prd §5 逐条对照必填（机检保底节存在非空）
+  - "## 4. 全局验收标准对照" # 缺陷 10 收口：change-spec §5 逐条对照必填（机检保底节存在非空）
 
 human-checks:
   - "## 1. 知识变化总结"

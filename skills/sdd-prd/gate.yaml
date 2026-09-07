@@ -2,7 +2,7 @@
 # 见 phase-1.5-workflow-engine-design.md §11
 
 stage: prd
-artifact: prd.md
+artifact: spec.md
 
 # Phase 4.1 轻量化：advisory fail 只记 warning 不阻断；skip-tier 命中 evidence-tier 时跳过
 machine-checks:
@@ -32,10 +32,10 @@ human-checks:
   - "## 6. 成功指标"
 
 # Phase 4.2 三级规格分层（plans/phase-4.2-three-tier-spec-design.md §5/§8）
-# - inline 单 Story（缺省）：仅用上方共享配置，prd.md 双语义（Change+Story 合并，一次机检/人审）
-# - 多 Story Change：Change 级检查 change-prd.md（CHG 根）；Story 级（workflow 传 storyId）检查 story-spec.md
+# - inline 单 Story（缺省）：仅用上方共享配置，spec.md 双语义（Change+Story 合并，一次机检/人审）
+# - 多 Story Change：Change 级检查 change-spec.md（CHG 根）；Story 级（workflow 传 storyId）检查 story-spec.md
 three-tier:
-  change-artifact: change-prd.md
+  change-artifact: change-spec.md
   change-non-empty-ai-sections:
     - "## 1. 背景"
     - "## 2. 用户价值"
@@ -52,7 +52,7 @@ three-tier:
     - scope-out
   story-artifact: story-spec.md
   story-machine-checks:
-    - { id: change-ref-bound, field: change-prd-ref } # Story→Change PRD 章节引用（blocking，评审决策：Story 级从 advisory 升 blocking）
+    - { id: change-ref-bound, field: change-spec-ref } # Story→Change spec 章节引用（blocking，评审决策：Story 级从 advisory 升 blocking）
     - { id: scope-subset, target: change } # Story Scope ⊆ Change Scope（[S<n>] 编号引用，blocking）
   story-non-empty-ai-sections:
     - "## 1. Story 目标"
@@ -61,6 +61,6 @@ three-tier:
   story-required-replacements:
     - change-id
     - story-id
-    - change-prd-ref
+    - change-spec-ref
     - scope-in
     - scope-out

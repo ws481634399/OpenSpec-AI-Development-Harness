@@ -609,15 +609,15 @@ Converge
 
 ```javascript
 // 格式：<AC 编号>: <场景描述> → <预期结果>
-test('AC-1: 有效邮箱+密码 → 注册成功', async () => { ... });
-test('AC-2: 已注册邮箱 → 返回 409', async () => { ... });
-test('AC-3: 无效邮箱格式 → 返回 400', async () => { ... });
+test('AC-001: 有效邮箱+密码 → 注册成功', async () => { ... });
+test('AC-002: 已注册邮箱 → 返回 409', async () => { ... });
+test('AC-003: 无效邮箱格式 → 返回 400', async () => { ... });
 ```
 
 ## 14.3 测试结构（AAA 模式）
 
 ```javascript
-test('AC-1: 有效邮箱+密码 → 注册成功', async () => {
+test('AC-001: 有效邮箱+密码 → 注册成功', async () => {
   // Arrange（准备）
   const input = { email: 'test@example.com', password: 'Password123' };
 
@@ -656,7 +656,7 @@ const mockRepo = {
   save: async (user) => ({ ...user, id: '123' }),
 };
 
-test('AC-1: 有效邮箱+密码 → 注册成功', async () => {
+test('AC-001: 有效邮箱+密码 → 注册成功', async () => {
   const result = await registerUser(
     { email: 'test@example.com', password: 'Password123' },
     mockRepo

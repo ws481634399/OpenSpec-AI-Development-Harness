@@ -4,9 +4,9 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-task
-version: 0.2.2
+version: 0.2.4
 stage: task
-description: 任务拆分阶段 Skill——将设计拆分为可执行任务，明确修改范围与验证方式
+description: 交付分解阶段 Skill——将设计拆分为 Delivery Unit（DU 1:1 仓库），生成 Implementation Guidance 并注册物化
 input:
   - design.md
   - delivery/

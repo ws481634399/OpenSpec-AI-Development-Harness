@@ -9,14 +9,14 @@
 ## R2：证据约束
 
 - 所有发现必须登记为 evidence.yaml 的 review-finding 条目（不写口头结论）
-- target 必须可定位（`prd.md#AC-N` / `design.md#<section>` / `文件:symbol`）
+- target 必须可定位（`spec.md#AC-NNN` / `tasks.md#DU-XXX` / `design.md#<section>` / `文件:symbol`）
 - blocker/major 闭环时 resolution 必须引用修复证据（新 code-change/test-run 的 EV id）
 - minor 允许开放，但必须留档
 
 ## R3：只读分析
 
 - 不直接修改业务代码；修复动作产生的变更走新证据条目记录
-- 不修改 prd.md / design.md / implementation.md / tasks.md / test-report.md
+- 不修改 spec.md / design.md / implementation.md / tasks.md / test-report.md
 - 代码质量 finding 必须有 standards/ 明确依据，无依据不记
 
 ## R4：职责边界

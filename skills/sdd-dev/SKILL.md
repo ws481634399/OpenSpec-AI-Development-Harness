@@ -1,4 +1,4 @@
-﻿# sdd-dev: 代码实现
+# sdd-dev: 代码实现
 
 > 阶段: dev
 > 状态转换: tasked → developing
@@ -49,7 +49,7 @@ Phase 2.4 多仓语义：实施正文在各仓 DU 内完成，Workspace 的 impl
 
 - §7 Implementation Sketch → 推荐组件与调用关系（实施的结构基线）
 - §8 Pseudocode → 关键流程执行逻辑（逻辑基线；`N/A` 则跳过）
-- §9 Verification → 自测清单（每个 Task 自测 + DU 完成前逐项验证）
+- §9 Verification → 自测清单（DU 完成前逐项验证）
 
 > 实施前先读 repo task.md §7/§8/§9，不读则视为未消费 DU Guidance。
 
@@ -112,8 +112,7 @@ Dev 可按仓内真实情况调整，但**明显偏离时必须在 repo 侧 `imp
 
 [可选 body: 详细说明]
 
-DU: DU-XXX-NNN
-Task: TASK-NNN
+DU: DU-<REPO>-NNN
 ```
 
 - type: feat / fix / refactor / test / docs
@@ -130,10 +129,9 @@ feat(auth): 实现用户注册端点
 - 返回 userId + token
 
 DU: DU-BE-001
-Task: TASK-003
 ```
 
-#### 2.2 代码质量要求
+#### 2.3 代码质量要求
 
 **命名规范：**
 
@@ -195,11 +193,11 @@ evidence:
 #### 3.3 evidence/commits.md（DU 级）
 
 ```markdown
-| Commit  | Task     | 消息                              | 文件数 |
-| ------- | -------- | --------------------------------- | ------ |
-| a1b2c3d | TASK-001 | feat(models): add User model      | 1      |
-| e4f5g6h | TASK-002 | feat(utils): add password hash    | 1      |
-| i7j8k9l | TASK-003 | feat(auth): add register endpoint | 3      |
+| Commit  | DU        | 消息                              | 文件数 |
+| ------- | --------- | --------------------------------- | ------ |
+| a1b2c3d | DU-BE-001 | feat(models): add User model      | 1      |
+| e4f5g6h | DU-BE-001 | feat(utils): add password hash    | 1      |
+| i7j8k9l | DU-BE-001 | feat(auth): add register endpoint | 3      |
 ```
 
 #### 3.4 状态回传 Workspace
@@ -285,7 +283,7 @@ openspec change status <CHG> --set developing
 
 > 完整示例参考: `templates/artifacts/examples/implementation.md`（含 Commit 记录/文件清单/实现状态）
 
-**TASK-003: 注册端点实现**
+**DU-BE-001: 注册端点实现**
 
 ```javascript
 // controllers/auth/register.js
@@ -327,7 +325,7 @@ export async function register(req, res) {
 
 ## 行为规则
 
-- 不修改 design.md / tasks.md / prd.md
+- 不修改 design.md / tasks.md / spec.md
 - 实施严格限定在 DU 的 Scope 与所属仓库内，不越仓改动
 - 实施前先读 repo task.md §7/§8/§9，不默默改道；偏离必须记录 Deviations，不为匹配伪代码写坏代码（Phase 2.5）
 - Workspace implementation.md 只引用各仓 DU 正文，不复制（Reference do not duplicate）

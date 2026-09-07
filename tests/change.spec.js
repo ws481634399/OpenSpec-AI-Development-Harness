@@ -110,7 +110,7 @@ test('ChangeModel.runChangeCreate: 产出 CHG-0001 目录 + metadata + evidence/
   assert.deepEqual(meta.repositories, ['main']);
 
   // 不预创建 requirement/exploration/prd/design/tasks/implementation/convergence
-  for (const f of ['requirement.md', 'exploration.md', 'prd.md', 'design.md', 'tasks.md', 'implementation.md', 'convergence.md']) {
+  for (const f of ['requirement.md', 'exploration.md', 'spec.md', 'design.md', 'tasks.md', 'implementation.md', 'convergence.md']) {
     assert.ok(!(await pathExists(join(changeDir, f))), `${f} 不应预创建`);
   }
   await rmrf(tmp);

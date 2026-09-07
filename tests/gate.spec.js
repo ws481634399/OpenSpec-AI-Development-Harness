@@ -79,7 +79,7 @@ test('ArtifactHash: hashMatches 不一致返回 false', () => {
 test('GateConfigLoader: loadGate 返回 sdd-prd 正确配置', async () => {
   const g = await loadGate('sdd-prd', harnessRoot);
   assert.equal(g.stage, 'prd');
-  assert.equal(g.artifact, 'prd.md');
+  assert.equal(g.artifact, 'spec.md');
   assert.ok(g['machine-checks'].includes('no-placeholder'));
   assert.ok(g['required-replacements'].includes('scope-in'));
   assert.ok(g['non-empty-ai-sections'].includes('## 1. 背景'));
@@ -109,7 +109,7 @@ test('GateConfigLoader: listGates 返回 11 个（Phase 2.2 含 sdd-review）', 
 
 test('GateRepository: readGateResult 未初始化返回 draft + pending', async () => {
   const { tmp, changeDir } = await setupChange();
-  const r = await readGateResult(changeDir, 'prd.md');
+  const r = await readGateResult(changeDir, 'spec.md');
   assert.equal(r.status, 'draft');
   assert.equal(r.gates.machine.status, 'pending');
   assert.equal(r.gates.human.status, 'pending');
@@ -119,13 +119,13 @@ test('GateRepository: readGateResult 未初始化返回 draft + pending', async 
 
 test('GateRepository: writeMachineGate + readGateResult ReadBack 全字段一致', async () => {
   const { tmp, changeDir } = await setupChange();
-  await writeMachineGate(changeDir, 'prd.md', {
+  await writeMachineGate(changeDir, 'spec.md', {
     status: 'passed',
     issues: [],
     artifactHash: 'sha256:abc',
     validator: 'sdd-prd',
   });
-  const r = await readGateResult(changeDir, 'prd.md');
+  const r = await readGateResult(changeDir, 'spec.md');
   assert.equal(r.gates.machine.status, 'passed');
   assert.equal(r.gates.machine['artifact-hash'], 'sha256:abc');
   assert.equal(r.gates.machine.validator, 'sdd-prd');
@@ -136,13 +136,13 @@ test('GateRepository: writeMachineGate + readGateResult ReadBack 全字段一致
 
 test('GateRepository: writeMachineGate failed 时 issues 全字段一致', async () => {
   const { tmp, changeDir } = await setupChange();
-  await writeMachineGate(changeDir, 'prd.md', {
+  await writeMachineGate(changeDir, 'spec.md', {
     status: 'failed',
     issues: ['占位符未替换: {{scope-in}}', 'section 内容为空: ## 1. 背景'],
     artifactHash: 'sha256:def',
     validator: 'sdd-prd',
   });
-  const r = await readGateResult(changeDir, 'prd.md');
+  const r = await readGateResult(changeDir, 'spec.md');
   assert.equal(r.gates.machine.status, 'failed');
   assert.equal(r.gates.machine.issues.length, 2);
   assert.equal(r.gates.machine.issues[0], '占位符未替换: {{scope-in}}');
@@ -151,13 +151,13 @@ test('GateRepository: writeMachineGate failed 时 issues 全字段一致', async
 
 test('GateRepository: writeHumanGate + readGateResult ReadBack 全字段一致', async () => {
   const { tmp, changeDir } = await setupChange();
-  await writeHumanGate(changeDir, 'prd.md', {
+  await writeHumanGate(changeDir, 'spec.md', {
     status: 'approved',
     reviewer: 'tester',
     reason: '',
     artifactHash: 'sha256:abc',
   });
-  const r = await readGateResult(changeDir, 'prd.md');
+  const r = await readGateResult(changeDir, 'spec.md');
   assert.equal(r.gates.human.status, 'approved');
   assert.equal(r.gates.human.reviewer, 'tester');
   assert.equal(r.gates.human['artifact-hash'], 'sha256:abc');
@@ -168,8 +168,8 @@ test('GateRepository: writeHumanGate + readGateResult ReadBack 全字段一致',
 
 test('GateRepository: patchArtifactStatus 更新 status', async () => {
   const { tmp, changeDir } = await setupChange();
-  await patchArtifactStatus(changeDir, 'prd.md', 'accepted');
-  const r = await readGateResult(changeDir, 'prd.md');
+  await patchArtifactStatus(changeDir, 'spec.md', 'accepted');
+  const r = await readGateResult(changeDir, 'spec.md');
   assert.equal(r.status, 'accepted');
   await rmrf(tmp);
 });
@@ -202,7 +202,7 @@ test('GateValidator: Artifact 不存在返回 passed:false + 空 hash', async ()
 test('GateValidator: 占位符未替换 → failed', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值\n\n## 5. 验收标准\n标准\n\n## 6. 成功指标\n本期不度量\n\n{{scope-in}} {{scope-out}}',
     'utf8'
   );
@@ -217,7 +217,7 @@ test('GateValidator: 占位符未替换 → failed', async () => {
 test('GateValidator: section 缺失 → failed', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景\n\n## 2. 用户价值\n价值\n',
     'utf8'
   );
@@ -228,10 +228,10 @@ test('GateValidator: section 缺失 → failed', async () => {
   await rmrf(tmp);
 });
 
-test('GateValidator: 完整 prd.md（占位符全替换 + sections 非空）→ passed', async () => {
+test('GateValidator: 完整 spec.md（占位符全替换 + sections 非空）→ passed', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 3. 范围\n### 3.1 包含\nA\n### 3.2 不包含\nB\n\n## 4. 业务规则\n规则\n\n## 5. 验收标准\n标准内容\n\n## 6. 成功指标\n本期不度量\n',
     'utf8'
   );
@@ -245,7 +245,7 @@ test('GateValidator: 完整 prd.md（占位符全替换 + sections 非空）→ 
 test('GateValidator: section 仅含注释 → failed', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n<!-- AI 填写 -->\n\n## 2. 用户价值\n价值内容\n\n## 5. 验收标准\n标准内容\n',
     'utf8'
   );
@@ -261,7 +261,7 @@ test('GateValidator: section 仅含注释 → failed', async () => {
 test('GateValidator: advisory fail 只进 warnings 不阻断（passed: true）', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 5. 验收标准\n标准内容\n\nCHG-9999/missing.md',
     'utf8'
   );
@@ -281,7 +281,7 @@ test('GateValidator: advisory fail 只进 warnings 不阻断（passed: true）',
 test('GateValidator: skip-tier 命中 evidence-tier 时整条跳过', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 5. 验收标准\n标准内容\n\n{{scope-in}}',
     'utf8'
   );
@@ -302,7 +302,7 @@ test('GateValidator: skip-tier 命中 evidence-tier 时整条跳过', async () =
 test('GateValidator: skip-tier 不命中时检查照常执行', async () => {
   const { tmp, changeDir } = await setupChange();
   await writeFile(
-    join(changeDir, 'prd.md'),
+    join(changeDir, 'spec.md'),
     '# PRD\n\n## 0. 元信息\n\n## 1. 背景\n背景内容\n\n## 2. 用户价值\n价值内容\n\n## 5. 验收标准\n标准内容\n\n{{scope-in}}',
     'utf8'
   );
@@ -406,19 +406,19 @@ test('GateValidator: section 下真正为空仍报错（缺陷 4 回归保护）
 
 test('GateRepository: 多轮 Gate 写入后 metadata 保持块式（缺陷 8）', async () => {
   const { tmp, changeDir } = await setupChange();
-  await writeMachineGate(changeDir, 'prd.md', {
+  await writeMachineGate(changeDir, 'spec.md', {
     status: 'passed',
     issues: [],
     warnings: ['advisory-w'],
     artifactHash: 'sha256:abc',
     validator: 'sdd-prd',
   });
-  await writeHumanGate(changeDir, 'prd.md', {
+  await writeHumanGate(changeDir, 'spec.md', {
     status: 'approved',
     reviewer: 'user',
     artifactHash: 'sha256:abc',
   });
-  await patchArtifactStatus(changeDir, 'prd.md', 'accepted');
+  await patchArtifactStatus(changeDir, 'spec.md', 'accepted');
   const raw = await readFile(join(changeDir, 'metadata.yaml'), 'utf8');
   // 流式嵌套形态（人工编辑易坏）必须消失
   assert.doesNotMatch(raw, /gates: \{/);
@@ -430,7 +430,7 @@ test('GateRepository: 多轮 Gate 写入后 metadata 保持块式（缺陷 8）'
   assert.match(raw, /reviewer: user/);
   assert.match(raw, /warnings:\n {10}- advisory-w/);
   // 仍可被正常解析读回
-  const gateResult = await readGateResult(changeDir, 'prd.md');
+  const gateResult = await readGateResult(changeDir, 'spec.md');
   assert.equal(gateResult.gates.machine.status, 'passed');
   assert.equal(gateResult.gates.human.reviewer, 'user');
   await rmrf(tmp);
@@ -460,7 +460,7 @@ async function toThreeTier(changeDir, storyId = 'STORY-1') {
 /** Change PRD（CHG 根，含 [S<n>] 编号条目与章节锚点）。 */
 async function writeChangePrd(changeDir) {
   await writeFile(
-    join(changeDir, 'change-prd.md'),
+    join(changeDir, 'change-spec.md'),
     [
       '# Change PRD',
       '',
@@ -524,49 +524,49 @@ test('GateRepository: ForStory inline 单 Story 复用 CHG metadata.yaml（双�
   const { tmp, changeDir } = await setupChange();
   const meta = await readMetadata(changeDir);
   // inline：stories 为空 / inline=true → 复用 Change 级 artifacts 段
-  await writeMachineGateForStory(changeDir, meta, 'STORY-X', 'prd.md', {
+  await writeMachineGateForStory(changeDir, meta, 'STORY-X', 'spec.md', {
     status: 'passed',
     issues: [],
     warnings: [],
     artifactHash: 'sha256:i1',
   });
-  const r = await readGateResultForStory(changeDir, meta, 'STORY-X', 'prd.md');
+  const r = await readGateResultForStory(changeDir, meta, 'STORY-X', 'spec.md');
   assert.equal(r.gates.machine.status, 'passed');
   const raw = await readFile(join(changeDir, 'metadata.yaml'), 'utf8');
-  assert.match(raw, /prd:/);
+  assert.match(raw, /spec:/);
   await rmrf(tmp);
 });
 
-test('GateValidator: change3 mode（多 Story）检查 change-prd.md 并使用 change 专用段', async () => {
+test('GateValidator: change3 mode（多 Story）检查 change-spec.md 并使用 change 专用段', async () => {
   const { tmp, changeDir } = await setupChange();
   await toThreeTier(changeDir);
-  // prd.md 不存在、change-prd.md 存在 → change3 分发到 change-prd.md
+  // spec.md 不存在、change-spec.md 存在 → change3 分发到 change-spec.md
   await writeChangePrd(changeDir);
   const gateConfig = {
     stage: 'prd',
-    artifact: 'prd.md',
+    artifact: 'spec.md',
     'machine-checks': ['required-sections', 'no-placeholder'],
     'required-replacements': ['scope-in'],
     'non-empty-ai-sections': ['## 1. 背景'],
     'three-tier': {
-      'change-artifact': 'change-prd.md',
+      'change-artifact': 'change-spec.md',
       'change-non-empty-ai-sections': ['## 5. 全局验收标准'],
       'change-required-replacements': [],
     },
   };
   const r = await runMachineGate(changeDir, gateConfig);
-  // change3 段生效：## 5. 全局验收标准 非空 → passed；若回落共享段（## 1. 背景 在 change-prd 存在）也过，
-  // 关键断言：artifactName 是 change-prd.md（构造占位符失败场景验证）
+  // change3 段生效：## 5. 全局验收标准 非空 → passed；若回落共享段（## 1. 背景 在 change-spec 存在）也过，
+  // 关键断言：artifactName 是 change-spec.md（构造占位符失败场景验证）
   const gateConfig2 = {
     ...gateConfig,
     'three-tier': { ...gateConfig['three-tier'], 'change-required-replacements': ['target-user'] },
   };
   const r2 = await runMachineGate(changeDir, gateConfig2);
   assert.ok(
-    r2.issues.some((i) => i.startsWith('change-prd.md: 占位符未替换')),
-    `应检查 change-prd.md 的 change 专用占位符，实际: ${JSON.stringify(r2.issues)}`
+    r2.issues.some((i) => i.startsWith('change-spec.md: 占位符未替换')),
+    `应检查 change-spec.md 的 change 专用占位符，实际: ${JSON.stringify(r2.issues)}`
   );
-  assert.ok(!r2.issues.some((i) => i.startsWith('prd.md:')), '不应回落检查 prd.md');
+  assert.ok(!r2.issues.some((i) => i.startsWith('spec.md:')), '不应回落检查 spec.md');
   await rmrf(tmp);
 });
 
@@ -575,13 +575,13 @@ test('GateValidator: story mode 路径分发到 stories/<id>/story-spec.md', asy
   await toThreeTier(changeDir);
   await writeChangePrd(changeDir);
   const storyDir = join(changeDir, 'stories', 'STORY-1');
-  // story-spec.md 存在且合法；prd.md 不存在 → story mode 检查的是 story-spec.md
+  // story-spec.md 存在且合法；spec.md 不存在 → story mode 检查的是 story-spec.md
   await writeFile(
     join(storyDir, 'story-spec.md'),
     [
       '---',
       'story-id: STORY-1',
-      'change-prd-ref: "change-prd.md#31-包含"',
+      'change-spec-ref: "change-spec.md#31-包含"',
       'scope-refs: [S1]',
       '---',
       '',
@@ -595,12 +595,12 @@ test('GateValidator: story mode 路径分发到 stories/<id>/story-spec.md', asy
   );
   const gateConfig = {
     stage: 'prd',
-    artifact: 'prd.md',
+    artifact: 'spec.md',
     'machine-checks': [],
     'three-tier': {
       'story-artifact': 'story-spec.md',
       'story-machine-checks': [
-        { id: 'change-ref-bound', field: 'change-prd-ref' },
+        { id: 'change-ref-bound', field: 'change-spec-ref' },
         { id: 'scope-subset', target: 'change' },
       ],
       'story-required-replacements': [],
@@ -620,25 +620,25 @@ test('GateValidator: change-ref-bound 空 ref / 锚点不存在 → failed（blo
   const storyDir = join(changeDir, 'stories', 'STORY-1');
   const gateConfig = {
     stage: 'prd',
-    artifact: 'prd.md',
+    artifact: 'spec.md',
     'machine-checks': [],
     'three-tier': {
       'story-artifact': 'story-spec.md',
-      'story-machine-checks': [{ id: 'change-ref-bound', field: 'change-prd-ref' }],
+      'story-machine-checks': [{ id: 'change-ref-bound', field: 'change-spec-ref' }],
     },
   };
   // 场景 1：ref 为空
   await writeFile(
     join(storyDir, 'story-spec.md'),
-    '---\nstory-id: STORY-1\nchange-prd-ref: ""\n---\n\n# Story Spec\n',
+    '---\nstory-id: STORY-1\nchange-spec-ref: ""\n---\n\n# Story Spec\n',
     'utf8'
   );
   const r1 = await runMachineGate(changeDir, gateConfig, { storyId: 'STORY-1' });
-  assert.ok(r1.issues.some((i) => i.includes('change-prd-ref 为空')));
+  assert.ok(r1.issues.some((i) => i.includes('change-spec-ref 为空')));
   // 场景 2：锚点不存在
   await writeFile(
     join(storyDir, 'story-spec.md'),
-    '---\nstory-id: STORY-1\nchange-prd-ref: "change-prd.md#99-不存在章节"\n---\n',
+    '---\nstory-id: STORY-1\nchange-spec-ref: "change-spec.md#99-不存在章节"\n---\n',
     'utf8'
   );
   const r2 = await runMachineGate(changeDir, gateConfig, { storyId: 'STORY-1' });
@@ -646,7 +646,7 @@ test('GateValidator: change-ref-bound 空 ref / 锚点不存在 → failed（blo
   // 场景 3：缺锚点
   await writeFile(
     join(storyDir, 'story-spec.md'),
-    '---\nstory-id: STORY-1\nchange-prd-ref: "change-prd.md"\n---\n',
+    '---\nstory-id: STORY-1\nchange-spec-ref: "change-spec.md"\n---\n',
     'utf8'
   );
   const r3 = await runMachineGate(changeDir, gateConfig, { storyId: 'STORY-1' });
@@ -661,14 +661,14 @@ test('GateValidator: scope-subset(target=change) 空 scope-refs / 引用不存�
   const storyDir = join(changeDir, 'stories', 'STORY-1');
   const gateConfig = {
     stage: 'prd',
-    artifact: 'prd.md',
+    artifact: 'spec.md',
     'machine-checks': [],
     'three-tier': {
       'story-artifact': 'story-spec.md',
       'story-machine-checks': [{ id: 'scope-subset', target: 'change' }],
     },
   };
-  // 场景 1：scope-refs 为空（change-prd 已用编号条目）
+  // 场景 1：scope-refs 为空（change-spec 已用编号条目）
   await writeFile(
     join(storyDir, 'story-spec.md'),
     '---\nstory-id: STORY-1\nscope-refs: []\n---\n',
@@ -775,14 +775,14 @@ test('GateValidator: story mode evidence-tier 取 Story metadata 覆盖（skip-t
   await writeFile(join(storyDir, 'story-spec.md'), '---\nstory-id: STORY-1\n---\n', 'utf8');
   const gateConfig = {
     stage: 'prd',
-    artifact: 'prd.md',
+    artifact: 'spec.md',
     'machine-checks': [],
     'three-tier': {
       'story-artifact': 'story-spec.md',
-      'story-machine-checks': [{ id: 'change-ref-bound', field: 'change-prd-ref', 'skip-tier': ['light'] }],
+      'story-machine-checks': [{ id: 'change-ref-bound', field: 'change-spec-ref', 'skip-tier': ['light'] }],
     },
   };
-  // change-prd.md 不存在：若检查执行必然报"引用的 change-prd.md 不存在"；light 档跳过 → 无 issue
+  // change-spec.md 不存在：若检查执行必然报"引用的 change-spec.md 不存在"；light 档跳过 → 无 issue
   const r = await runMachineGate(changeDir, gateConfig, { storyId: 'STORY-1' });
   assert.deepEqual(r.issues, []);
   await rmrf(tmp);

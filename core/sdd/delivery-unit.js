@@ -377,7 +377,7 @@ export async function materializeDeliveryUnit(workspaceRoot, changeId, duId, opt
   // Phase 3.5 修订：全部产物落 STORY 目录，追溯引用统一带四级目录段
   doc.setIn(['workspace-source'], {
     requirement: `delivery/changes/${changeId}/${[...dirs, 'requirement.md'].join('/')}`,
-    prd: `delivery/changes/${changeId}/${[...dirs, 'prd.md'].join('/')}`,
+    prd: `delivery/changes/${changeId}/${[...dirs, 'spec.md'].join('/')}`,
     design: `delivery/changes/${changeId}/${[...dirs, 'design.md'].join('/')}`,
     tasks: `delivery/changes/${changeId}/${[...dirs, 'tasks.md'].join('/')}`,
   });

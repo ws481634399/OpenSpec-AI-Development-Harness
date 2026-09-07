@@ -18,10 +18,10 @@
 
 ## R4：数据变更
 
-- 涉及数据库结构变更必须显式写在 §4，不得隐含
+- 涉及数据库结构变更必须显式写在 §5 数据变更，不得隐含
 - need-migration=yes 必须说明 Migration 范围与回滚方案
 
 ## R5：Artifact 写入约束
 
-- 只写 design.md，不得覆写 prd.md / exploration.md / requirement.md
+- 只写 design.md，不得覆写 spec.md / exploration.md / requirement.md
 - patchStatus 前 validateTransition(specified, designed)

@@ -1,16 +1,17 @@
 # OpenSpec Change Metadata
 #
-# 版本: v3（Phase 4.2 Three-Tier Spec Delivery）
+# 版本: v4（Phase 4.3 Traceability：spec 改名 + stories[].domain）
 # 类型: Change Metadata（SDD 生命周期载体元信息）
 #
 # 由 ChangeModel.runChangeCreate 生成（sdd-explore 内部调用）。
 # v2 增量：schema-version / feature-path / repository-baseline / repository-result
 # v3 增量：stories 列表（Change 1:N Story 权威索引）
-# 兼容规则：schema-version 缺失 = v1；= 2 旧格式（CHG↔Story 1:1 平铺）；= 3 新格式（含 stories）
-#          旧 Change 仅在被显式操作（bind-feature-path / split-story / upgrade）时升 v3
+# v4 增量：prd.md→spec.md / change-prd.md→change-spec.md 改名；stories[].domain 领域归属（inline 自动继承 L3）
+# 兼容规则：schema-version 缺失 = v1；= 2 旧格式（CHG↔Story 1:1 平铺）；= 3 三级规格（含 stories）；= 4 本格式
+#          旧 Change 仅在被显式操作（bind-feature-path / split-story / upgrade）时升 v4
 # 后续 status/archive 由 Document API 改写（保留注释）。
 
-schema-version: 3 # 1=v1(仅 features 扁平表)；2=v2(Phase 2.4-4.1，单 Story 平铺)；3=v3(本格式，1:N Stories)
+schema-version: 4 # 1=v1(仅 features 扁平表)；2=v2(Phase 2.4-4.1，单 Story 平铺)；3=v3(1:N Stories)；4=v4(本格式，spec 命名+domain)
 
 id: "" # CHG-XXXX，创建时填
 title: "" # 简短标题
@@ -54,6 +55,7 @@ stories: [] # 默认空数组；bind-feature-path 时自动写入单条 inline�
   #   evidence-tier: standard       # 可选；不填继承 Change 级
   #   status: pending               # Story 状态同步冗余（权威源：story-metadata.yaml 或 inline CHG metadata.status）
   #   path: stories/STORY-001-02-03-01/   # inline=false 时填；inline=true 时填 "./"
+  #   domain: { id: FEAT-001-02-03, name: 用户认证 }  # v4 领域归属（L3 节点）；inline 自动继承 feature-path.level-3，拆分 Story 由 Agent 按领域判据填写
 
 # Phase 2.4 保留：仓库 Baseline / Result（DU 物化与完成时由 delivery-unit.js 写入）
 # repository-baseline：DU materialize 时记录各仓起始 commit（可由 du sync-status 刷新）
@@ -65,7 +67,7 @@ repository-result: {}
   # backend: { commit: abc999 }
 
 # Phase 1.5 保留：artifacts 段（Gate Result 持久化）
-# v3 语义：仅存储 **Change 级** 产物 Gate（exploration / change-prd / change-design / convergence）。
+# v3 语义：仅存储 **Change 级** 产物 Gate（exploration / change-spec / change-design / convergence）。
 # Story 级产物（story-spec / story-design / tasks / implementation / ...）Gate 存储在
 # stories/<id>/story-metadata.yaml.artifacts（inline 模式仍存在此处，双语义合并）。
 # GateRepository 用 setIn 按需创建（不预填，避免模板臃肿）。
