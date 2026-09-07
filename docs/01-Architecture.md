@@ -709,7 +709,7 @@ OpenSpec Harness v1.x 不包含：
 | DU 绑定执行 | dev/test 显式绑定 DU，per-repo 规则段与 repo 侧上下文自动注入 | Phase 2.7 |
 | Version/Upgrade | 三层版本全景、确定性升级、schema 迁移框架、--rollback | Phase 3.1 |
 | Template 系统 | 技术栈包（spring-cloud/vue/ai-agent/empty）与 init 叠加 | Phase 3.2 |
-| IDE 适配 | Trae/Cursor/Claude Code 项目规则生成（plan/apply 幂等 + doctor 落后检测） | Phase 3.3 |
+| IDE 适配 | Trae/Cursor/Claude Code/Codex 项目规则生成（plan/apply 幂等 + doctor 落后检测） | Phase 3.3 |
 
 ## 后续扩展方向
 

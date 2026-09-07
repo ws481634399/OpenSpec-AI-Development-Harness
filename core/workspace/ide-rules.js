@@ -11,17 +11,21 @@ import { join, dirname } from 'node:path';
 import { compareSemver } from './version.js';
 
 /** 合法 IDE 目标枚举 */
-export const TARGETS = ['trae', 'cursor', 'claude-code'];
+export const TARGETS = ['trae', 'cursor', 'claude-code', 'codex'];
 
-/** CLAUDE.md 标记块协议（块外内容不归 openspec 管理） */
+/** CLAUDE.md / AGENTS.md 标记块协议（块外内容不归 openspec 管理） */
 export const BLOCK_BEGIN = '<!-- openspec:begin (managed by openspec ide, do not edit inside) -->';
 export const BLOCK_END = '<!-- openspec:end -->';
+
+/** 使用标记块合并协议的 target（项目根 markdown，可能已有用户内容） */
+const BLOCK_MERGE_TARGETS = new Set(['claude-code', 'codex']);
 
 /** 各 target 的落位文件（相对 Workspace 根） */
 export const TARGET_FILES = {
   trae: join('.trae', 'rules', 'openspec-workflow.md'),
   cursor: join('.cursor', 'rules', 'openspec-workflow.mdc'),
   'claude-code': 'CLAUDE.md',
+  codex: 'AGENTS.md',
 };
 
 /** 各 target 的模板源文件名（templates/ide/<target>/ 下平铺，与落位路径不同源） */
@@ -29,6 +33,7 @@ const TEMPLATE_FILES = {
   trae: 'openspec-workflow.md',
   cursor: 'openspec-workflow.mdc',
   'claude-code': 'CLAUDE.md',
+  codex: 'AGENTS.md',
 };
 
 const VERSION_MARK_RE = /openspec-ide-rules:\s*v(\d+\.\d+\.\d+)/;
@@ -36,7 +41,7 @@ const VERSION_MARK_RE = /openspec-ide-rules:\s*v(\d+\.\d+\.\d+)/;
 /**
  * 渲染目标模板：读 templates/ide/<target>/ 源文件 + 占位符替换。
  *
- * @param {string} target IDE 目标（trae|cursor|claude-code）
+ * @param {string} target IDE 目标（trae|cursor|claude-code|codex）
  * @param {string} harnessRoot Harness 根目录
  * @param {string} harnessVersion 当前 Harness 版本
  * @returns {Promise<string>} 渲染后的文件内容（含版本标记）
@@ -67,12 +72,12 @@ function extractVersionMark(content) {
 }
 
 /**
- * 用渲染内容构造 CLAUDE.md 完整内容：替换既有标记块，或追加到末尾。
- * @param {string|null} existing 现有 CLAUDE.md 内容（null=新建）
+ * 用渲染内容构造标记块管理的文件完整内容（CLAUDE.md / AGENTS.md）：替换既有标记块，或追加到末尾。
+ * @param {string|null} existing 现有文件内容（null=新建）
  * @param {string} rendered 渲染后的标记块内容
  * @returns {string}
  */
-function mergeClaudeMd(existing, rendered) {
+function mergeManagedBlock(existing, rendered) {
   if (!existing) return `${BLOCK_BEGIN}\n${rendered}\n${BLOCK_END}\n`;
   const beginIdx = existing.indexOf(BLOCK_BEGIN);
   const endIdx = existing.indexOf(BLOCK_END);
@@ -113,7 +118,7 @@ export async function planIdeRules(workspaceRoot, target, harnessRoot, harnessVe
     return { action: 'created', file, content: rendered };
   }
 
-  if (target === 'claude-code') {
+  if (BLOCK_MERGE_TARGETS.has(target)) {
     const cur = extractVersionMark(existing);
     if (cur && compareSemver(cur, harnessVersion) === 0) {
       return { action: 'up-to-date', file };
@@ -150,7 +155,7 @@ export async function applyIdeRules(workspaceRoot, target, plan, opts = {}) {
   }
 
   const dest = join(workspaceRoot, plan.file);
-  if (target === 'claude-code') {
+  if (BLOCK_MERGE_TARGETS.has(target)) {
     let existing = null;
     try {
       existing = await readFile(dest, 'utf8');
@@ -159,7 +164,7 @@ export async function applyIdeRules(workspaceRoot, target, plan, opts = {}) {
     }
     // rendered 内容是标记块内正文（无外层标记），plan.content 同样只含正文
     const renderedBody = plan.content;
-    await writeFile(dest, mergeClaudeMd(existing, renderedBody), 'utf8');
+    await writeFile(dest, mergeManagedBlock(existing, renderedBody), 'utf8');
   } else {
     await mkdir(dirname(dest), { recursive: true });
     await writeFile(dest, plan.content, 'utf8');

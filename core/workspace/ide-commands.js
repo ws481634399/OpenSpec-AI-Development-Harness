@@ -94,13 +94,16 @@ export function renderCommand(target, skill, harnessVersion) {
  * Skill 清单来自 Workspace skills/（优先，含用户 local-only）回退 Harness——
  * 这样 skill sync 升级后重新 ide 即可让命令内容跟随最新版本。
  *
- * @param {string} target IDE 目标（trae|cursor|claude-code）
+ * @param {string} target IDE 目标（trae|cursor|claude-code|codex）
  * @param {string} harnessRoot Harness 根目录
  * @param {string|null} workspaceRoot Workspace 根目录（null 时仅用 Harness skills）
  * @param {string} harnessVersion 当前 Harness 版本
- * @returns {Promise<Map<string, string>>} 相对路径 → 渲染内容
+ * @returns {Promise<Map<string, string>>} 相对路径 → 渲染内容（codex 等 无 slash command 概念的 target 返回空 Map）
  */
 export async function renderCommands(target, harnessRoot, workspaceRoot, harnessVersion) {
+  if (!COMMANDS_DIR[target]) {
+    return new Map(); // codex 等 无 slash command 概念的 target
+  }
   const skills = await listSkills(harnessRoot, workspaceRoot);
   const out = new Map();
   for (const skill of skills) {

@@ -77,6 +77,14 @@ export function registerIdeCommand(program) {
           process.exit(1);
         }
 
+        // codex 等 无 slash command 概念的 target：plan/apply 天然返回空，给出明确提示
+        if (!COMMANDS_DIR[target]) {
+          ok(`Commands: ${target} 无项目级 slash command 概念，已跳过生成（规则文件已就位即可生效）`);
+          dim('重启 IDE 对话后规则生效。');
+          outro('Done.');
+          return;
+        }
+
         const byAction = { created: 0, updated: 0 };
         for (const s of cmdResult.skipped) {
           if (s.action === 'created') byAction.created++;
@@ -88,7 +96,7 @@ export function registerIdeCommand(program) {
           const parts = [];
           if (byAction.created) parts.push(`${byAction.created} 生成`);
           if (byAction.updated) parts.push(`${byAction.updated} 更新`);
-          ok(`Commands: Skill 斜杠命令 ${parts.join('，')}（共 ${cmdResult.skipped.length} 个，目录 ${target === 'trae' ? '.trae/commands' : target === 'cursor' ? '.cursor/commands' : '.claude/commands'}）`);
+          ok(`Commands: Skill 斜杠命令 ${parts.join('，')}（共 ${cmdResult.skipped.length} 个，目录 ${COMMANDS_DIR[target]}）`);
         }
 
         dim('重启 IDE 对话后规则与命令生效。用法示例：/sdd-explore CHG-0002');

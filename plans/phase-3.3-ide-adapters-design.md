@@ -35,6 +35,7 @@ Roadmap Phase 3.3 要求为三类 AI IDE 生成项目规则，让 Agent 无需�
 | Trae | `.trae/rules/*.md` | Markdown + front-matter（alwaysApply/globs/description，与 Cursor 同款） | 支持目录嵌套（至多 3 层）；plain md 无 front-matter 也可读取，但 front-matter 控制生效方式；另兼容读取 CLAUDE.md/AGENTS.md |
 | Cursor | `.cursor/rules/*.mdc` | **必须 .mdc 扩展名** + front-matter 三字段（description/globs/alwaysApply） | plain `.md` 会被规则系统忽略；四种激活模式（Always/Auto Attach/Agent Requested/Manual） |
 | Claude Code | 项目根 `CLAUDE.md`（+ 可选 `CLAUDE.local.md`） | 纯 Markdown，无 front-matter | 用户可能已有内容——**必须标记块管理**，不能整文件覆盖 |
+| Codex CLI | 项目根 `AGENTS.md` | 纯 Markdown，无 front-matter（与 CLAUDE.md 同款） | 用户可能已有内容——**标记块管理**（复用 claude-code 协议）；**无项目级 slash command 机制**（命令侧跳过） |
 
 **激活方式选择**：三个目标统一采用「始终生效」——OpenSpec 工作流引导是项目级基础上下文（类似编码规范），Token 开销可控（< 100 行）。Cursor 用 `alwaysApply: true`，Trae 同款 front-matter，CLAUDE.md 天然全文生效。
 
@@ -221,3 +222,34 @@ openspec status / change list / gate verify / gate approve / du show / context /
 2. **冲突策略**：trae/cursor 同名文件无标记时报错退出（推荐，绝不覆盖用户文件）vs 覆盖（危险）？
 3. **CLAUDE.md 追加位置**：文件末尾追加标记块（推荐，常见实践是 CLAUDE.md 末尾放项目细节）vs 文件开头？
 4. **无 --all**：v0.1 是否需要一条命令生成全部三个？推荐不需要（输出独立报告更清晰，Agent 可串行调用）。
+
+---
+
+## 13. Codex 适配增量（Phase 3.3.1，2026-09-07）
+
+§1 Non-goals 中「不生成 AGENTS.md」预留的口子，在 Phase 3.3.1 补齐：新增 `codex` 作为第四个 target。
+
+### 13.1 决策
+
+| 决策点 | 选择 | 理由 |
+| --- | --- | --- |
+| 规则落位 | 项目根 `AGENTS.md` | Codex CLI 约定，与 CLAUDE.md 同款（纯 markdown 无 front-matter） |
+| 合并协议 | 复用 claude-code 的 `<!-- openspec:begin/end -->` 标记块 | 块外内容永不修改；引入 `BLOCK_MERGE_TARGETS = new Set(['claude-code', 'codex'])` 消除两处硬编码 |
+| 函数命名 | `mergeClaudeMd` → `mergeManagedBlock` | 私有函数零外部影响，避免未来读者误解 |
+| 命令侧 | 跳过（不生成 `.codex/commands/`） | Codex CLI 无项目级 slash command 机制；COMMANDS_DIR 不加 codex，`renderCommands` 早返空 Map，doctor `Object.entries(COMMANDS_DIR)` 天然跳过 |
+| 模板内容 | 复制 CLAUDE.md + 「常用命令」段加一行说明 | 保持方法论单一真相源，仅说明无 slash command |
+
+### 13.2 影响
+
+- `core/workspace/ide-rules.js`：TARGETS/TARGET_FILES/TEMPLATE_FILES 加 codex；引入 BLOCK_MERGE_TARGETS；mergeClaudeMd → mergeManagedBlock
+- `core/workspace/ide-commands.js`：renderCommands 加 `if (!COMMANDS_DIR[target]) return new Map()` 早返
+- `cli/openspec/src/commands/ide.js`：description 加 codex；codex 短路输出「无 slash command 概念」；第 91 行三元判断重构为 `COMMANDS_DIR[target]`
+- `templates/ide/codex/AGENTS.md`：新建（基于 CLAUDE.md 复制 + codex 特化说明）
+- `core/sdd/doctor-checks.js`：零代码改动（Object.entries 天然适配）
+- tests：新增 codex 5 场景测试（复用 claude-code 标记块合并）+ codex doctor 落后测试 + renderCommands codex 空 Map 测试
+
+### 13.3 边界
+
+- `--force` 对 codex 无意义（block-merge 天然安全，永远不触发 conflict 路径），用户传 `--force` 无副作用
+- 多 target 共存：用户可同时跑 `openspec ide claude-code` 与 `openspec ide codex`，生成 CLAUDE.md 与 AGENTS.md 两个独立文件，无冲突
+- 升级时存量 codex 文件迁移：用户手写过 AGENTS.md → 第一次跑走「末尾追加」路径，原文保留；旧版本 openspec 生成的 → 走 updated 分支，块内替换块外保留。无迁移脚本

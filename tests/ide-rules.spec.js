@@ -21,7 +21,7 @@ const renderOld = (t) =>
 
 // ---- renderIdeRules ----
 
-test('renderIdeRules: 三 target 版本占位符已替换，front-matter 正确', async () => {
+test('renderIdeRules: 四 target 版本占位符已替换，front-matter 正确', async () => {
   for (const t of TARGETS) {
     const c = await renderIdeRules(t, harnessRoot, harnessVersion);
     assert.ok(!c.includes('{{HARNESS_VERSION}}'), `${t}: 占位符应已替换`);
@@ -31,15 +31,17 @@ test('renderIdeRules: 三 target 版本占位符已替换，front-matter 正确'
   const trae = await renderIdeRules('trae', harnessRoot, harnessVersion);
   const cursor = await renderIdeRules('cursor', harnessRoot, harnessVersion);
   const claude = await renderIdeRules('claude-code', harnessRoot, harnessVersion);
+  const codex = await renderIdeRules('codex', harnessRoot, harnessVersion);
   for (const c of [trae, cursor]) {
     assert.ok(c.startsWith('---\n'), 'front-matter 应在文件头');
     assert.ok(c.includes('alwaysApply: true'));
   }
   assert.ok(!claude.startsWith('---\n'), 'claude-code 模板无 front-matter');
+  assert.ok(!codex.startsWith('---\n'), 'codex 模板无 front-matter');
 });
 
 test('renderIdeRules: 非法 target 抛错含枚举', async () => {
-  await assert.rejects(() => renderIdeRules('vscode', harnessRoot, harnessVersion), /trae \| cursor \| claude-code/);
+  await assert.rejects(() => renderIdeRules('vscode', harnessRoot, harnessVersion), /trae \| cursor \| claude-code \| codex/);
 });
 
 // ---- planIdeRules ----
@@ -167,6 +169,58 @@ test('claude-code: 新建 / 末尾追加 / 标记块替换 / 块外保留', asyn
   await rmrf(root);
 });
 
+test('codex: 新建 / 末尾追加 / 标记块替换 / 块外保留', async () => {
+  const root = await ws();
+  const dest = join(root, 'AGENTS.md');
+
+  // 1. 新建（含标记块）
+  let plan = await planIdeRules(root, 'codex', harnessRoot, harnessVersion);
+  assert.equal(plan.action, 'created');
+  await applyIdeRules(root, 'codex', plan);
+  let content = await readFile(dest, 'utf8');
+  assert.ok(content.startsWith(BLOCK_BEGIN));
+  assert.ok(content.trimEnd().endsWith(BLOCK_END));
+  assert.ok(content.includes(`openspec-ide-rules: v${harnessVersion}`));
+
+  // 2. 二次运行 up-to-date
+  plan = await planIdeRules(root, 'codex', harnessRoot, harnessVersion);
+  assert.equal(plan.action, 'up-to-date');
+
+  // 3. 已有用户文件（无标记）→ 末尾追加，原文保留
+  await rmrf(root);
+  const root2 = await ws();
+  const dest2 = join(root2, 'AGENTS.md');
+  await writeFile(dest2, '# My Project\n\n自定义说明。\n');
+  plan = await planIdeRules(root2, 'codex', harnessRoot, harnessVersion);
+  await applyIdeRules(root2, 'codex', plan);
+  content = await readFile(dest2, 'utf8');
+  assert.ok(content.startsWith('# My Project\n\n自定义说明。'));
+  assert.ok(content.includes(BLOCK_BEGIN));
+
+  // 4. 已有标记块 + 旧版本 → 块内替换、块外保留
+  const userPart = '# My Project\n\n自定义说明。\n';
+  await writeFile(dest2, `${userPart}${BLOCK_BEGIN}\n# 旧内容\nopenspec-ide-rules: v${olderVersion}\n${BLOCK_END}\n尾部用户补充\n`);
+  plan = await planIdeRules(root2, 'codex', harnessRoot, harnessVersion);
+  assert.equal(plan.action, 'updated');
+  await applyIdeRules(root2, 'codex', plan);
+  content = await readFile(dest2, 'utf8');
+  assert.ok(content.startsWith(userPart));
+  assert.ok(content.trimEnd().endsWith('尾部用户补充'));
+  assert.ok(!content.includes(`v${olderVersion}`), '旧标记块内容应被清除');
+  assert.ok(content.includes(`openspec-ide-rules: v${harnessVersion}`));
+
+  // 5. 只有一个标记 → 视为无块，末尾追加（防御）
+  await writeFile(dest2, `${userPart}${BLOCK_BEGIN}\n残留内容\n`);
+  plan = await planIdeRules(root2, 'codex', harnessRoot, harnessVersion);
+  await applyIdeRules(root2, 'codex', plan);
+  content = await readFile(dest2, 'utf8');
+  assert.ok(content.includes(userPart));
+  assert.ok(content.includes(BLOCK_END));
+
+  await rmrf(root2);
+  await rmrf(root);
+});
+
 // ---- doctor runIdeRulesChecks ----
 
 test('doctor runIdeRulesChecks: 落后 → info；最新/不存在/无标记 → 无提示', async () => {
@@ -189,6 +243,16 @@ test('doctor runIdeRulesChecks: 落后 → info；最新/不存在/无标记 →
   assert.match(r.infos[0], /IDE 规则可更新（trae: v0\.0\.1 → v/);
   assert.match(r.infos[0], /openspec ide trae/);
 
+  await rmrf(root);
+});
+
+test('doctor runIdeRulesChecks: codex AGENTS.md 落后 → info', async () => {
+  const root = await ws();
+  await writeFile(join(root, 'AGENTS.md'),
+    `${BLOCK_BEGIN}\n${await renderOld('codex')}\n${BLOCK_END}\n`);
+  const r = await runIdeRulesChecks(root, harnessRoot);
+  assert.ok(r.infos.some((m) => /IDE 规则可更新（codex: v0\.0\.1 → v/.test(m)));
+  assert.ok(r.infos.some((m) => /openspec ide codex/.test(m)));
   await rmrf(root);
 });
 
@@ -235,8 +299,8 @@ test('renderCommand: dev/test 注入 DU 绑定段；utility 类引导 SKILL.md �
   }
 });
 
-test('renderCommands: 11 skill × 3 target = 33 个命令文件，路径正确', async () => {
-  for (const t of TARGETS) {
+test('renderCommands: 11 skill × 3 target（command-applicable）= 33 个命令文件，路径正确', async () => {
+  for (const t of ['trae', 'cursor', 'claude-code']) {
     const map = await renderCommands(t, harnessRoot, null, harnessVersion);
     assert.equal(map.size, 11);
     for (const [file, content] of map) {
@@ -247,6 +311,11 @@ test('renderCommands: 11 skill × 3 target = 33 个命令文件，路径正确',
     assert.ok(map.has(join(COMMANDS_DIR[t], 'sdd-explore.md')));
     assert.ok(map.has(join(COMMANDS_DIR[t], 'sdd-knowledge.md')));
   }
+});
+
+test('renderCommands: codex 提前返回空 Map（无 slash command 概念）', async () => {
+  const map = await renderCommands('codex', harnessRoot, null, harnessVersion);
+  assert.equal(map.size, 0);
 });
 
 test('plan/applyIdeCommands: created → 幂等 up-to-date → 旧版本 updated(from/to)', async () => {

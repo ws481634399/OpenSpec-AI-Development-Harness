@@ -219,6 +219,7 @@ openspec init
 openspec ide trae          # 生成 .trae/rules
 openspec ide cursor        # 生成 .cursor/rules（.mdc）
 openspec ide claude-code   # 注入 CLAUDE.md 标记块
+openspec ide codex         # 注入 AGENTS.md 标记块（Codex CLI）
 ```
 
 ## 日常命令

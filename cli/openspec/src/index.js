@@ -67,7 +67,7 @@ registerContextCommand(program);
 registerVersionCommand(program);
 registerUpgradeCommand(program);
 
-// Phase 3.3：IDE 项目规则生成（trae / cursor / claude-code）
+// Phase 3.3：IDE 项目规则生成（trae / cursor / claude-code / codex）
 registerIdeCommand(program);
 
 program.parseAsync();

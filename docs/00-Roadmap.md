@@ -25,7 +25,7 @@ OpenSpec AI Development Harness 是一套面向 AI Coding Agent 的软件工程�
 - Skill 标准化；
 - 工程规则约束；
 
-帮助开发者使用 Trae、Cursor、Claude Code 等 AI Coding Agent 进行可控、可持续的软件开发。
+帮助开发者使用 Trae、Cursor、Claude Code、Codex 等 AI Coding Agent 进行可控、可持续的软件开发。
 
 ---
 
