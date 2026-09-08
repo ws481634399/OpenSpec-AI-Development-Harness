@@ -242,7 +242,7 @@ export function registerGateCommand(program) {
           `Human gate ${status} for ${id}/${opts.stage}${opts.story ? ` @ story ${opts.story}` : ''} (reviewer: ${reviewer || '-'})`
         );
         if (status === 'approved') {
-          outro('Done. Run \'openspec change status --set <next-state>\' or \'openspec workflow run\' to advance.');
+          outro("Done. 运行 'openspec approve'（无参数）可自动扫描待审批项并续跑 workflow。");
         } else {
           outro('Rejected.');
         }

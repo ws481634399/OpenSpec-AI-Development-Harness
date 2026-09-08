@@ -63,7 +63,8 @@ export function renderCommand(target, skill, harnessVersion) {
     body.push(`2. 严格按照 Instruction 中的 Prompt 片段与 \`skills/${skill.id}/SKILL.md\` 方法论执行。`);
     body.push('3. 将产物写入 Instruction 指定的 Artifact 路径（写回 Change 目录）。');
     body.push(`4. 运行 \`openspec gate check $ARGUMENTS --stage ${skill.stage}\` 做机器检查；`);
-    body.push(`   通过后提示用户执行 \`openspec gate approve $ARGUMENTS --stage ${skill.stage}\`（人工评审）。`);
+    body.push(`   通过后进入人工评审：向用户展示待审内容摘要，用户确认后运行 \`openspec approve $ARGUMENTS --yes --reviewer <用户姓名>\``);
+    body.push('   一键完成 Human Gate 审批并自动续跑 workflow（免记 --stage/--story 参数；审计要求 --reviewer 必填）。');
     if (DU_STAGES.has(skill.stage)) {
       body.push('');
       body.push('## DU 绑定（必须）');

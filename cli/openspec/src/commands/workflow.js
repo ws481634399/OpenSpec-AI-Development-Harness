@@ -167,7 +167,7 @@ export function registerWorkflowCommand(program) {
             break;
           case 'WAITING_FOR_HUMAN':
             warn(`${opts.change}: WAITING_FOR_HUMAN - ${result.reason}`);
-            outro('Run \'openspec gate approve\' 后再次 run。');
+            outro(`运行 'openspec approve ${opts.change}' 一键审批并自动续跑（或手动 gate approve + workflow run）。`);
             break;
           case 'ADVANCED':
             ok(`${opts.change}: ADVANCED - ${result.reason}`);

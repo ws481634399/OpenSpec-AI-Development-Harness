@@ -7,6 +7,7 @@ import { registerChangeCommand } from './commands/change.js';
 import { registerStoryCommand } from './commands/story.js';
 import { registerSkillCommand } from './commands/skill.js';
 import { registerGateCommand } from './commands/gate.js';
+import { registerApproveCommand } from './commands/approve.js';
 import { registerWorkflowCommand } from './commands/workflow.js';
 import { registerDoctorCommand } from './commands/doctor.js';
 import { registerStatusCommand } from './commands/status.js';
@@ -48,6 +49,8 @@ registerSkillCommand(program);
 
 // Phase 1.5：gate / workflow（Gate-driven Workflow Engine）
 registerGateCommand(program);
+// Phase 4.3：approve 一键人审（扫描待审批项 → 交互确认 → 自动续跑 workflow）
+registerApproveCommand(program);
 registerWorkflowCommand(program);
 
 // Phase 1 补齐：doctor / status / validate / reverse / feature

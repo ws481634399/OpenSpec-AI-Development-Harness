@@ -270,7 +270,7 @@ test('renderCommand: stage 类正文含 workflow run + gate 链路，frontmatter
   assert.ok(claude.includes('argument-hint: <CHG-ID>'), 'claude-code 应有 argument-hint');
   assert.ok(claude.includes('workflow run --change $ARGUMENTS --stage explore'));
   assert.ok(claude.includes('gate check $ARGUMENTS --stage explore'));
-  assert.ok(claude.includes('gate approve $ARGUMENTS --stage explore'));
+  assert.ok(claude.includes('openspec approve $ARGUMENTS --yes --reviewer'), '人审引导走一键 approve 命令');
   assert.ok(claude.includes('skills/sdd-explore/SKILL.md'));
   assert.ok(claude.includes(`openspec-ide-commands: v${harnessVersion} skill:sdd-explore`));
   assert.ok(!claude.includes('--du'), 'explore 不应含 DU 段');

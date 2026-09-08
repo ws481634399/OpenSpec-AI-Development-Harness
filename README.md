@@ -230,8 +230,9 @@ openspec ide codex         # 注入 AGENTS.md 标记块（Codex CLI）
 | `openspec change create/list` | 变更管理 |
 | `openspec feature tree` | 特性树管理 |
 | `openspec workflow run` | 推进 SDD 流程（Gate 驱动） |
+| `openspec approve` | 一键人审：扫描待审批项 → 确认 → 自动续跑（免记 stage/story） |
 | `openspec du` | Delivery Unit 管理（多仓交付） |
-| `openspec gate` | Gate 评审（machine/human） |
+| `openspec gate` | Gate 评审（machine/human，低层命令） |
 | `openspec status` | 变更状态全景 |
 | `openspec validate` | Artifact 校验 |
 | `openspec doctor` | 工作区健康检查 |

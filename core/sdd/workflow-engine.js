@@ -52,8 +52,10 @@ const STORY_EXEC_SKILLS = new Set(['sdd-dev', 'sdd-test', 'sdd-review']);
 /**
  * §5.2 Story 生命周期 7 阶段 → Story 级 stage 映射。
  * artifact 实名取 gate.yaml three-tier.story-artifact；story-spec（prd gate）人审 required（评审决策 2）。
+ *
+ * 导出供 review-queue（openspec approve 待审批项扫描）复用，保持单一事实源。
  */
-const STORY_STAGE_FLOW = [
+export const STORY_STAGE_FLOW = [
   { from: 'pending', skill: 'sdd-prd', gate: 'prd', next: 'specified', humanRequired: true },
   { from: 'specified', skill: 'sdd-design', gate: 'design', next: 'designed', humanRequired: false },
   { from: 'designed', skill: 'sdd-task', gate: 'task', next: 'tasked', humanRequired: false },
@@ -320,7 +322,7 @@ async function runWorkflowCore(workspaceRoot, changeId, opts = {}) {
         return {
           result: WORKFLOW_RESULT.WAITING_FOR_HUMAN,
           stage,
-          reason: `Human gate ${humanStatus} or stale. Run 'openspec gate approve ${changeId} --stage ${stage.gate}'.`,
+          reason: `Human gate ${humanStatus} or stale. Run 'openspec approve ${changeId}'（一键审批并续跑），或手动 'openspec gate approve ${changeId} --stage ${stage.gate}'.`,
         };
       }
     }
@@ -441,7 +443,7 @@ async function processStoryStage(workspaceRoot, changeDir, changeId, meta, story
           result: WORKFLOW_RESULT.WAITING_FOR_HUMAN,
           stage: { ...stage, artifact: artifactName },
           story: story.id,
-          reason: `Story ${story.id} story-spec human gate ${h.status} or stale. Run 'openspec gate approve ${changeId} --stage prd --story ${story.id}'.`,
+          reason: `Story ${story.id} story-spec human gate ${h.status} or stale. Run 'openspec approve ${changeId}'（一键审批并续跑），或手动 'openspec gate approve ${changeId} --stage prd --story ${story.id}'.`,
         },
       };
     }
