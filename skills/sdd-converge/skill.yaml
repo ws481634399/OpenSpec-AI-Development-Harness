@@ -4,7 +4,7 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-converge
-version: 0.2.5
+version: 0.2.6
 stage: converge
 description: 知识沉淀阶段 Skill——逆向分析，更新项目知识，沉淀经验，收敛 Change
 input:

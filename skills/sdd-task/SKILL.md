@@ -1,18 +1,23 @@
-# sdd-task: 任务分解（Delivery Decomposition + Delivery Unit Specification）
+# sdd-task: 逐 DU 任务分解（Per-Delivery-Unit Task Decomposition）
 
 > 阶段: task
 > 状态转换: designed → tasked
-> 产出: tasks.md（STORY 级）+ Workspace DU 协调记录
+> 产出: tasks.md + test-design.md（STORY 级双产物）+ Workspace DU 协调记录补全
 > 提示片段: prompts/common/persona-sdd.md · prompts/common/constraints.md · prompts/common/output-format.md · prompts/design/persona-task.md
 
-Phase 2.4 起 sdd-task 升级为 **Delivery Decomposition Skill**：
-回答"正式拆成哪些交付单元"——把设计拆解为 Delivery Unit（DU），
-每个 DU 是本次 Change 在一个具体仓库中的实施交付单元（DU 1:1 Repository）。
+Phase 4.3 起 sdd-task 收窄为 **逐 DU 任务分解 Skill**：
+消费 design 阶段（design.md §6 / story-design.md §5）已产出的 **DU 划分表**，
+对每个 DU 做任务分解 + Implementation Guidance，不再新造 DU（du-source-of-truth 机检）。
+DU 划分决策属 design；task 阶段只回答「每个 DU 具体怎么实现」。
 
-Phase 2.5 起进一步升级为 **Delivery Unit Specification**（DU v2：
-Repository-specific executable delivery specification）：每个 DU 除分解字段外，
-还必须产出 **Implementation Sketch（必填）+ Pseudocode（条件必填）+ Verification（必填）**，
-作为 sdd-dev 的可执行实现指导。
+Phase 4.3 S3 起 sdd-task 产出 **双产物**——tasks.md + test-design.md：
+- tasks.md：逐 DU 任务分解 + Implementation Guidance（Expected Implementation）
+- test-design.md：验证意图（Verification Intent），定义 TC-NNN 测试用例表，在 dev 开始前锁定
+- 双产物机检：tasks.md accepted 前必须存在 test-design.md（test-design-exists 机检：blocking）
+- 隔离原则：test-design.md 先于任何 dev 执行产出，test 阶段 Agent 不注入 implementation.md（防「照实现写断言」）
+
+Phase 2.5 的 **Delivery Unit Specification**（Implementation Sketch 必填 + Pseudocode 条件必填
++ Verification 必填）保留在 tasks.md 的 per-DU 小节，作为 sdd-dev 的可执行实现指导。
 
 ## 前置条件
 
@@ -31,11 +36,12 @@ Repository-specific executable delivery specification）：每个 DU 除分解�
 
 从设计文档提取：
 
-- **affected-repositories**（front-matter）→ 本 Change 的影响仓全集，每个仓至少 1 个 DU
+- **DU 划分表**（design.md §6 / story-design.md §5）→ 本阶段权威输入，DU/仓库/covers AC/depends on 已由 design 决定，**tasks.md 只引用不新造**（du-source-of-truth 机检：blocking）
+- **affected-repositories**（front-matter）→ 影响仓全集（design 已保证每仓至少 1 个 DU）
 - 提议方案（新增/修改模块、接口、数据模型）→ 归入对应 DU 的 Scope
-- **仓库影响分仓小节**（§3.x）→ 每个 DU 的 Goal
-- **跨仓协作契约**（§4）→ DU 间的 Dependencies 与 Acceptance
-- 数据变更 → 如需 Migration，单独列为对应仓的 DU 或 DU 内子任务
+- **仓库影响分仓小节**（§3.x）→ 每个 DU 的 Goal 来源
+- **跨仓协作契约**（§4）→ DU 间的 Dependencies 与 Acceptance（须与 DU 划分表 depends on 一致）
+- 数据变更 → 如需 Migration，归入对应仓的 DU 子任务
 - 风险评估 → 高风险缓解措施纳入 DU 的 Acceptance
 - 待澄清问题 → 已解决的转化为 DU 内容，未解决的标注阻塞
 
@@ -57,12 +63,14 @@ Repository-specific executable delivery specification）：每个 DU 除分解�
 
 **硬约束：**
 
-- Change 1:N DU；**DU 1:1 Repository**（跨仓交付必须拆成多个 DU）
+- **DU 划分在 design 已定义**（design.md §6 / story-design.md §5 DU 划分表）；
+  tasks.md 的 `### DU-XXX` 小节**只引用不新造**——DU id/仓库/covers AC/depends on 须与 design DU 划分表一致（du-source-of-truth 机检：blocking）
+- Change 1:N DU；**DU 1:1 Repository**（跨仓交付必须拆成多个 DU，由 design 决定）
 - DU ID 规范：`DU-<REPO别名>-<nnn>`（如 DU-BE-001 / DU-FE-001），
   别名见 `.sdd/repositories.yaml` 的 alias（缺省取 id 前 2-4 字符大写）
-- design.md 中不得出现 DU-XXX（Design 不产生 DU）；本阶段才开始编号
-- design.md 中也不得出现实现级伪代码（Pseudocode 是本阶段在 DU 层产出的 Dev Guidance，不上浮 design）
+- tasks.md 不上浮系统级设计决策（Pseudocode / Implementation Sketch 是 DU 层 Dev Guidance，design 只保留系统级方案 + DU 划分）
 - **Implementation Sketch 必填；Pseudocode 条件必填（complexity-trigger 命中时）；Verification 必填**
+- 每个任务条目声明 `verifies: TC-NNN`（红绿灯对象；S3 test-design.md 落地 TC 编号，S2 先开字段）
 
 **粒度标准：**
 
@@ -139,18 +147,61 @@ Sketch 与 Pseudocode 不等价：Sketch = 结构方案（组件/调用关系）
 - Verification: CI pipeline 全绿
 ```
 
-### 3. 注册 Workspace DU 协调记录
+#### 2.4 生成 test-design.md（验证意图，Phase 4.3 S3）
 
-tasks.md 草稿完成后，逐个 DU 注册协调记录（STORY 目录下）：
+读取模板 `templates/artifacts/test-design.md`，与 tasks.md 同批产出。产物位置与 tasks.md 同目录：
+`delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/test-design.md`
 
-```bash
-openspec du create <CHG> --id DU-BE-001 --repository backend \
-  --scope "user-domain,registration-api" --dependencies "" \
-  --acceptance "AC-001 注册流程可用;AC-002 重复邮箱拒绝" \
-  --complexity "business-flow"
+**test-design.md 是验证意图（Verification Intent），不是测试代码**——在 dev 开始前锁定 TC-NNN 测试用例表，
+保证 test 阶段的独立性（test Agent 不读 implementation.md，照 test-design 执行）。
+
+**TC 表构造规则：**
+
+- 每个 spec.md / story-spec.md 中的 AC-NNN 至少被一个 TC-NNN verified-by（tc-coverage 机检：blocking）
+- 允许标注 `TC-NOT-TESTABLE: 理由`（不可测的 AC 进 warnings 不阻断，但需有替代验证方式）
+- verified-by AC 列必须引用 spec 中真实存在的 AC-NNN
+- 归属 DU 列必须引用 design DU 划分表中真实存在的 DU id
+- TC 编号三位递增不复用（TC-001, TC-002, ...）
+
+**TC 表格式：**
+
+```markdown
+| TC     | 验证方式     | verified-by AC | 归属 DU   | 备注 |
+| ------ | ------------ | -------------- | --------- | ---- |
+| TC-001 | API 集成测试 | AC-001         | DU-BE-001 |      |
+| TC-002 | E2E          | AC-002         | DU-FE-001 |      |
 ```
 
-- scope/dependencies/acceptance 是 `du-coverage` 机检输入，必须填写
+**与 tasks.md 的绑定：**
+
+- tasks.md 每个 DU 小节的 `verifies: TC-NNN` 字段必须引用 test-design.md 中定义的 TC id
+- 无 TC 的任务只能是 `type: docs/chore`（非功能性任务）
+- 此绑定是 dev 红绿灯的执行对象：dev 按 TC-NNN 先写失败测试（红）→ 实现至通过（绿）
+
+**测试策略段（§2）：**
+
+- 分层测试策略（Unit / Integration / API / E2E），各层覆盖范围与不重复原则
+- 数据准备策略（fixture / mock / seed）
+- 环境要求（测试运行环境与依赖服务）
+
+### 3. 补全 Workspace DU 协调记录
+
+DU 框架已在 design 阶段用 `openspec du create` 登记（见 sdd-design §6）。
+本阶段对每个 DU 补全 tasks 路径与 Implementation Guidance 声明：
+
+```bash
+# design 阶段已执行（sdd-design）：登记 DU 框架
+# openspec du create <CHG> --id DU-BE-001 --repository backend \
+#   --scope "user-domain,registration-api" --dependencies "" \
+#   --acceptance "AC-001 注册流程可用;AC-002 重复邮箱拒绝" \
+#   --complexity "business-flow"
+
+# task 阶段：补全/校验 DU 与 tasks.md 一致性
+openspec du sync-status <CHG>   # 刷新 DU 状态与 tasks 路径引用
+```
+
+- scope/dependencies/acceptance 是 `du-coverage` 机检输入，design 阶段已填写，本阶段校验与 tasks.md 一致
+- tasks.md 中 `### DU-XXX` 小节必须与 design DU 划分表的 DU id 一一对应（du-source-of-truth 机检：blocking）
 - `--complexity <triggers>`（business-flow/algorithm/state-transition/orchestration）：
   命中任一则 Pseudocode 必填（metadata.pseudocode 自动置 true）；
   简单 DU 可不传，或显式 `--pseudocode false`
@@ -163,6 +214,13 @@ openspec du create <CHG> --id DU-BE-001 --repository backend \
 - [ ] affected-repositories 的每个仓库是否都有至少 1 个 DU？（du-coverage 机检）
 - [ ] 每个 DU 是否 1:1 对应一个仓库？
 - [ ] DU ID 是否符合 `DU-<别名>-<nnn>` 且 Workspace 内唯一？
+- [ ] tasks.md 的 `### DU-XXX` 是否全部在 design DU 划分表中定义？（du-source-of-truth 机检：只引用不新造）
+- [ ] 每个任务条目是否声明 `verifies: TC-NNN`（无 TC 的任务只能是 docs/chore 类型）？
+- [ ] test-design.md 是否与 tasks.md 同批产出？（test-design-exists 机检：blocking）
+- [ ] test-design.md 中每个 AC-NNN 是否至少被一个 TC-NNN verified-by？（tc-coverage 机检：blocking）
+- [ ] test-design.md 的 verified-by AC 列是否引用 spec 中真实存在的 AC-NNN？
+- [ ] test-design.md 的归属 DU 列是否引用 design DU 划分表中的 DU id？
+- [ ] 不可测 AC 是否标注 `TC-NOT-TESTABLE: 理由`（进 warnings 不阻断）？
 - [ ] design.md 的每个变更点是否落入某个 DU 的 Scope？
 - [ ] 每条 spec 验收标准（AC-NNN）是否映射到某 DU 的 Acceptance？
 - [ ] 跨仓依赖是否显式声明且无循环？
@@ -198,6 +256,7 @@ openspec du create <CHG> --id DU-BE-001 --repository backend \
 ## 产出草稿
 
 - `delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md` — Repository Delivery Decomposition Plan
+- `delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/test-design.md` — 验证意图（Verification Intent，TC-NNN 表）
 - `<STORY>/DU-*/metadata.yaml` — Workspace DU 协调记录（du create 写入）
 
 ## 用户确认
@@ -294,11 +353,12 @@ openspec du create <CHG> --id DU-FE-001 --repository frontend \
 ## 行为规则
 
 - 不修改 design.md / spec.md
+- 不新造 DU：tasks.md 的 `### DU-XXX` 只引用 design DU 划分表已定义的 DU（du-source-of-truth 机检：blocking）
 - 不回写 design.md：Sketch/Pseudocode 属 Task 产物，只写入 tasks.md，禁止把实现级伪代码上浮 design（Phase 2.5）
 - 不直接写 implementation/ 代码（实施由 sdd-dev 在 repo 侧执行）
 - 不直接创建各仓 delivery/ 目录（统一走 `openspec du materialize`）
-- DU 必须先经 `openspec du create` 注册再物化（guidance 声明经 --pseudocode/--complexity 写入 metadata）
-- 跨仓依赖必须显式声明且无循环
+- DU 必须先经 `openspec du create` 注册（design 阶段已执行）再物化（guidance 声明经 --pseudocode/--complexity 写入 metadata）
+- 跨仓依赖必须显式声明且无循环（须与 design DU 划分表 depends on 一致）
 - feature-path 未绑定时先补绑，禁止跳过
 
 > 通用行为约束（产出草稿供用户确认 / 不直接推进状态等）见 prompts/common/constraints.md。

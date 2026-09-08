@@ -4,7 +4,7 @@ title: "用户注册任务分解"
 design-source: "CHG-0001/design.md"
 from-state: "designed"
 to-state: "tasked"
-task-count: 7
+du-count: 1
 ---
 
 # 任务分解：用户注册
@@ -12,74 +12,59 @@ task-count: 7
 ## 元信息
 
 - Change: CHG-0001
-- 设计来源: design.md
+- 设计来源: design.md（§5 DU 划分）
 - 状态转换: designed → tasked
-- 任务总数: 7
+- DU 总数: 1
 
-## 任务清单
+## Delivery Units
 
-### TASK-001: 创建 User 数据模型
+<!-- 引用 design.md §5 DU 划分表，对每个 DU 做逐 DU 任务分解。
+     DU 行只引用不新造（du-source-of-truth 机检：design.md 已定义 DU-MAIN-001）。 -->
 
-- 目标仓库: main
-- 目标模块: models/
-- 预期变更: 新增 user.js，定义 User model（id/email/phone/passwordHash/status/createdAt）
-- 验证方法: model 字段断言 + UNIQUE 约束检查
-- 依赖: 无
-- 预估变更: ~35 行
-
-### TASK-002: 实现 User Repository
+### DU-MAIN-001: 注册服务全栈（main）
 
 - 目标仓库: main
-- 目标模块: repositories/
-- 预期变更: 新增 user-repository.js（findById/findByEmail/findByPhone/save）
-- 验证方法: mock Sequelize，断言调用参数
-- 依赖: TASK-001
-- 预估变更: ~40 行
+- 目标 Goal: 实现注册 API（校验 → 哈希 → 存储 → token）+ 数据模型 + 测试
+- Scope（范围）: models/user.js, repositories/user-repository.js, services/auth/register-service.js, utils/password.js, controllers/auth/register-controller.js, migrations/, tests/auth/
+- Design References: design.md §2 提议方案 / §3 仓库影响 / §4 数据变更
+- Dependencies（须与 design DU 划分表一致）: 无
+- Acceptance Criteria（验收标准）: AC-001 ~ AC-007 全覆盖
+- Execution Order（执行顺序）: 1
+- Parallelization（可并行组，可空）: 无
+- verifies（本 DU 对应验证用例，红绿灯对象；S3 test-design.md 落地）: TC-001, TC-002
+- Implementation Sketch:
+  ```text
+  RegisterController
+      ↓
+  RegisterApplicationService
+      ↓
+  UserDomainService
+      ├── UserRepository
+      └── PasswordEncoder
+  ```
+- Pseudocode:            # complexity-trigger: business-flow → 必填
+  ```text
+  register(request):
+      existing = userRepository.findByEmail(request.email)
+      if existing exists: throw EmailAlreadyRegistered
+      user = User.create(email, passwordEncoder.encode(request.password))
+      userRepository.save(user)
+      return user.id
+  ```
+- Verification: Unit（UserDomainService 单测，覆盖重复邮箱分支）；
+  Integration（register API 201/409 两路径）；Error Case（DB 不可用返回 500）
 
-### TASK-003: 实现密码哈希工具
+#### 任务清单（DU-MAIN-001 内部，1 Commit 粒度）
 
-- 目标仓库: main
-- 目标模块: utils/
-- 预期变更: 新增 password.js（hashPassword/verifyPassword/validatePasswordStrength）
-- 验证方法: hash → compare 往返测试 + 强度校验各 case
-- 依赖: 无
-- 预估变更: ~30 行
-
-### TASK-004: 实现注册服务
-
-- 目标仓库: main
-- 目标模块: services/auth/
-- 预期变更: 新增 register-service.js（校验 → 查重 → 哈希 → 存储 → 生成 Token）
-- 验证方法: mock repository + mock password，单元测试（正常/重复/弱密码/缺参）
-- 依赖: TASK-002, TASK-003
-- 预估变更: ~80 行
-
-### TASK-005: 实现注册端点
-
-- 目标仓库: main
-- 目标模块: controllers/auth/
-- 预期变更: 新增 register-controller.js + 修改 router.js
-- 验证方法: 集成测试（POST /api/auth/register，覆盖 AC-001 ~ AC-007）
-- 依赖: TASK-004
-- 预估变更: ~50 行
-
-### TASK-006: 数据库 Migration
-
-- 目标仓库: main
-- 目标模块: migrations/
-- 预期变更: 新增 001_create_users_table.js
-- 验证方法: 迁移测试（建表 + UNIQUE 约束 + CHECK 约束）
-- 依赖: TASK-001
-- 预估变更: ~20 行
-
-### TASK-007: 注册接口单元测试
-
-- 目标仓库: main
-- 目标模块: tests/auth/
-- 预期变更: 新增 register.spec.js（覆盖 AC-001 ~ AC-007 + 边界 case）
-- 验证方法: npm test 全绿
-- 依赖: TASK-005
-- 预估变更: ~120 行
+| TASK   | 模块               | 变更摘要                                      | verifies | 依赖        |
+| ------ | ------------------ | --------------------------------------------- | -------- | ----------- |
+| TASK-001 | models/            | 新增 user.js（User model）                    | TC-001   | —           |
+| TASK-002 | repositories/      | 新增 user-repository.js（CRUD）               | TC-001   | TASK-001    |
+| TASK-003 | utils/             | 新增 password.js（hash/verify/strength）      | TC-002   | —           |
+| TASK-004 | services/auth/     | 新增 register-service.js（注册业务逻辑）     | TC-001   | TASK-002, TASK-003 |
+| TASK-005 | controllers/auth/  | 新增 register-controller.js + 改 router.js   | TC-001   | TASK-004    |
+| TASK-006 | migrations/        | 新增 001_create_users_table.js               | TC-001   | TASK-001    |
+| TASK-007 | tests/auth/        | 新增 register.spec.js（覆盖 AC-001~007）     | TC-001, TC-002 | TASK-005 |
 
 ## 依赖关系图
 
@@ -109,17 +94,17 @@ TASK-003 (Password Utils)
 | 数据库 Migration | TASK-006 | ✓ |
 | 测试覆盖 | TASK-007 | ✓ |
 
-### PRD 验收标准覆盖
+### spec 验收标准覆盖
 
-| AC | 测试 Task | 测试用例 |
-|----|----------|---------|
-| AC-001: 有效邮箱注册 | TASK-007 | valid_email_register |
-| AC-002: 有效手机号注册 | TASK-007 | valid_phone_register |
-| AC-003: 已注册邮箱 | TASK-007 | duplicate_email |
-| AC-004: 无效邮箱格式 | TASK-007 | invalid_email_format |
-| AC-005: 密码强度不足 | TASK-007 | weak_password |
-| AC-006: 邮箱手机都空 | TASK-007 | missing_contact |
-| AC-007: 密码含特殊字符 | TASK-007 | password_with_special_chars |
+| AC | 对应 DU | 测试 Task | 测试用例 |
+|----|---------|----------|---------|
+| AC-001: 有效邮箱注册 | DU-MAIN-001 | TASK-007 | valid_email_register |
+| AC-002: 有效手机号注册 | DU-MAIN-001 | TASK-007 | valid_phone_register |
+| AC-003: 已注册邮箱 | DU-MAIN-001 | TASK-007 | duplicate_email |
+| AC-004: 无效邮箱格式 | DU-MAIN-001 | TASK-007 | invalid_email_format |
+| AC-005: 密码强度不足 | DU-MAIN-001 | TASK-007 | weak_password |
+| AC-006: 邮箱手机都空 | DU-MAIN-001 | TASK-007 | missing_contact |
+| AC-007: 密码含特殊字符 | DU-MAIN-001 | TASK-007 | password_with_special_chars |
 
 ### 风险缓解覆盖
 

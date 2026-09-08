@@ -4,13 +4,14 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-test
-version: 0.2.4
+version: 0.2.5
 stage: test
-description: 测试阶段 Skill——验证实现，生成 Evidence，检查质量
+description: 独立测试验证 Skill——照 test-design TC 逐条执行，不读 implementation.md，产出 EVD 证据
 input:
-  - implementation.md
+  - test-design.md
+  - spec.md
+  - design.md
   - delivery/
-  - implementation/
 output:
   - evidence/
   - evidence/evidence.yaml # Phase 2.1：结构化证据（test-run 条目）

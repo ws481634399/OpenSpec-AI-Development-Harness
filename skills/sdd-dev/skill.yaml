@@ -4,9 +4,9 @@
 # 类型: Skill 元数据 + Artifact Contract
 
 id: sdd-dev
-version: 0.2.3
+version: 0.2.4
 stage: dev
-description: 开发阶段 Skill——按 DU 在各仓实施代码，消费 Implementation Guidance，遵循工程规范
+description: 开发阶段 Skill——按 DU 红绿灯 TDD 实施（先红后绿），消费 Implementation Guidance，遵循工程规范
 input:
   - tasks.md
   - standards/engineering/

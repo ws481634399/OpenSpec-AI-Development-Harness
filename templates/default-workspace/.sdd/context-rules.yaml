@@ -20,6 +20,9 @@
 # change-artifacts：本 CHG 前序产物（相对 CHG 目录），正文注入 Instruction；
 #   task/dev/test/review/converge 阶段还会自动注入 STORY 级 tasks.md 与 DU-*/metadata.yaml
 #   （feature-path 未绑定时在 Instruction 中标注缺失）。
+#   三层模式（story mode）下还会自动注入 Change 级 change-spec/change-design（outline）
+#   与 Story 级 story-design（task 阶段 inline 消费 DU 划分表，dev/test/review outline）
+#   + story-spec（task 阶段 inline 消费 AC）。
 #
 # repos（v0.3，Phase 2.7）：per-repo 规则段（repoId → { read }），仅当 workflow run
 #   显式绑定 DU（--du）且 DU.repository === repoId 时激活；条目格式与 read 完全一致。
@@ -80,7 +83,8 @@ stages:
       - exploration.md # v0.4：未知问题清单是设计阶段澄清的直接输入
       - spec.md
 
-  # 任务拆分阶段：拆解为 Delivery Unit / 产出 Implementation Guidance
+  # 任务拆分阶段：逐 DU 任务分解（Phase 4.3 S2：DU 划分前移到 design，task 只消费 DU 表）
+  # 三层模式下自动注入 story-design.md（DU 划分表）+ story-spec.md（AC 引用）
   task:
     read:
       - path: standards/
@@ -115,16 +119,18 @@ stages:
     #         mode: outline
     #         exclude: ["**/node_modules/**", "**/dist/**"]
 
-  # 测试阶段：验证实现 / 生成 Evidence / 检查质量（repos 段同 dev，按需配置）
+  # 测试阶段：独立验证（Phase 4.3 S3：不注入 implementation.md，防「照实现写断言」）
+  # test Agent 只消费 test-design.md + spec/design，照 TC 逐条执行记 EVD
   test:
     read:
       - path: standards/
         mode: outline
       - path: implementation/
-        mode: outline
+        mode: outline # 仅代码结构清单，不注入 implementation.md 产物正文
     change-artifacts:
       - spec.md
       - design.md
+      - test-design.md # Phase 4.3 S3：验证意图（TC-NNN 表），test Agent 照此执行
 
   # 评审检查点阶段（Phase 2.2）：需求/设计一致性 / 代码质量 / 知识同步候选
   review:
@@ -137,6 +143,8 @@ stages:
       - requirement.md
       - spec.md
       - design.md
+      - test-design.md # Phase 4.3 S4：追踪链抽核（AC→DES→DU→TC→EVD）
+      - evidence/test-report.md # Phase 4.3 S4：EVD ↔ TC 对齐检查
 
   # 知识沉淀阶段：逆向分析 / 更新项目知识 / 沉淀经验
   # product/ 只读 SSOT 与知识文件（同 explore），不读 features/ 派生缓存
@@ -153,6 +161,7 @@ stages:
     change-artifacts:
       - design.md
       - spec.md # v0.4：全局验收标准（change-spec §5）对照
+      - test-design.md # Phase 4.3 S4：全链追踪表汇总（AC→DES→DU→TC→EVD 覆盖统计）
       - implementation.md # v0.4：跨仓实施汇总（DU 状态/Fan-in）
       - evidence/test-report.md # v0.4：测试证据（多 Story 模式下 Story 级报告在 stories/<id>/，此处标注 missing 属预期）
       - review-report.md # v0.4：审查结论与发现闭环情况（人审全链视图）

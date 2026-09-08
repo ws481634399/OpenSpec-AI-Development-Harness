@@ -10,8 +10,11 @@ machine-checks:
   - no-placeholder
   - required-sections
   - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
+  - { id: test-design-exists, skip-tier: [light] } # Phase 4.3 S3：双产物——test-design.md 与 tasks.md 同批产出（light 档跳过：light 不强制全产物仪式）
+  - { id: tc-coverage, skip-tier: [light] } # Phase 4.3 S4：每个 AC-NNN 至少被一个 TC-NNN verified-by（追踪链仪式检查，light 档跳过）
   - { id: du-coverage, skip-tier: [light] } # Phase 2.4：DU 覆盖对齐（单仓轻量档跳过；structural 强约束留给 S4 ac-coverage 等追踪链机检）
   - { id: du-guidance, skip-tier: [light] } # Phase 2.5：DU Implementation Guidance 完整性（单仓轻量档跳过）
+  - { id: du-source-of-truth, skip-tier: [light] } # Phase 4.3 S2：tasks.md 引用的 DU 必须在 design DU 划分表定义
 
 required-front-matter: []
 
@@ -31,3 +34,4 @@ three-tier:
   story-artifact: tasks.md
   story-machine-checks:
     - { id: scope-subset, target: du } # DU Scope ⊆ Story Scope（[S<n>] 编号引用；无引用条目仅 warning）
+    - { id: du-source-of-truth, skip-tier: [light] } # Phase 4.3 S2：tasks.md DU 引用 ⊆ story-design DU 表

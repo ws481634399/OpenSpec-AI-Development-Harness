@@ -9,11 +9,11 @@ change-design-ref: "" # 交叉引用：change-design.md#<章节锚点>（change-
 > 阶段：sdd-design 产物（Phase 4.2 Story 级）
 > 输入：story-spec.md + change-design.md（§5 Story 设计分派对应行）
 > 产出状态：designed（Story 级）
-> 职责边界（硬约束）：描述**单个 Story** 的模块级技术方案；
+> 职责边界（硬约束）：描述**单个 Story** 的模块级技术方案 + **DU 划分**；
 > 公共组件/跨 Story 契约引用 change-design.md §5.1（不得重复定义）；
-> **不得产生 DU**——DU 拆分是 sdd-task 的职责。
+> **DU 划分是 story-design 的产物**（§5 DU 划分表），sdd-task 仅消费此表做逐 DU 任务分解。
 
-本文档将 Change Design 中本 Story 对应分派细化为模块级技术方案（sdd-task 拆 DU 的直接输入）。
+本文档将 Change Design 中本 Story 对应分派细化为模块级技术方案与 DU 划分（sdd-task 逐 DU 任务分解的直接输入）。
 
 结构化字段由 sdd-design 通过 ArtifactWriter 填充（{{placeholder}}），
 非结构化段落由外部 Agent 按 Instruction 补充。
@@ -55,6 +55,17 @@ change-design-ref: "" # 交叉引用：change-design.md#<章节锚点>（change-
 
 <!-- AI 补充：本 Story 的错误场景与处理路径 -->
 
-## 5. 测试策略
+## 5. DU 划分（Delivery Units）
+
+<!-- AI 补充：将本 Story 设计方案拆成 Delivery Unit（每个 DU 1:1 一个仓库）。
+     DU 拆分三判据：单仓 / 可独立红绿灯 / 依赖显式无环。
+     covers AC 必须引用 story-spec.md 中真实存在的 AC-NNN。
+     design 验收后用 `openspec du create --story <STORY-ID>` 登记 DU 框架。 -->
+
+| DU        | 仓库     | 职责（实现哪些 DES） | covers AC      | depends on |
+| --------- | -------- | -------------------- | -------------- | ---------- |
+| DU-<REPO>-001 | <repo> | <该 DU 实现目标>     | AC-001         | —          |
+
+## 6. 测试策略
 
 <!-- AI 补充：本 Story 的测试策略（Unit/Integration/API + 边界场景），sdd-test 的输入 -->

@@ -151,6 +151,11 @@ design.md 声明 ↔ code-change 条目对照：
 - [ ] 全部 blocker/major 是否已闭环（resolution 非空）？
 - [ ] review-finding 条目与 §2 发现清单是否一一对应？
 - [ ] 知识同步候选是否已写入 §1.4？
+- [ ] **追踪链完整（Phase 4.3 S4）**：AC→DES→DU→TC→EVD 全链无断链？
+  - 每个 AC-NNN 有对应 TC-NNN（tc-coverage）？
+  - 每个 TC-NNN 在 test-design.md 定义且有 EVD 执行证据（evidence-trace）？
+  - 每个 DU covers 的 AC 真实存在于 spec（ac-coverage）？
+  - 红绿灯证据真实性抽核（red-green-record 真实性靠人审）？
 
 ## 产出草稿
 - `delivery/changes/<CHG>/review-report.md` — 评审报告

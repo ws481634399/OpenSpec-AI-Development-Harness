@@ -24,6 +24,7 @@
 - `delivery/changes/<CHG>/design.md`
 - STORY 级 `delivery/changes/<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`
 - `delivery/changes/<CHG>/implementation.md`（跨仓汇总；各仓 DU 正文按引用追溯）
+- STORY 级 `test-design.md`（Phase 4.3 S4：追踪链 TC 表，全链覆盖统计来源）
 - `delivery/changes/<CHG>/evidence/test-report.md`
 - `delivery/changes/<CHG>/review-report.md`
 - 各仓 DU 侧证据（按 evidence.yaml 的 evidence-ref 追溯到 `implementation/<repo>/delivery/.../DU-XXX/evidence/`）
@@ -238,6 +239,11 @@ openspec feature update <STORY-ID> --status delivered
 - [ ] 索引是否已重建？
 - [ ] Story 状态是否已更新（如需）？
 - [ ] 无遗留的 Unresolved 问题？
+- [ ] **追踪链全链覆盖统计（Phase 4.3 S4）**：AC→DES→DU→TC→EVD 各环节数量对齐？
+  - spec AC 数 = test-design TC verified-by 覆盖的 AC 数
+  - design DU 数 = tasks.md DU 小节数
+  - test-design TC 数 = test-report EVD 引用的 TC 数
+  - 断链项是否已标注并进 §4 全局验收标准对照？
 
 ### 8. 用户交互
 

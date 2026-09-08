@@ -12,6 +12,7 @@ machine-checks:
   - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
   - { id: evidence-coverage, skip-tier: [light] } # Phase 2.1：Commit ↔ Evidence 对齐机检（轻量档免逐 commit 映射）
   - { id: du-materialized, skip-tier: [light] } # Phase 2.4：全部 DU 已物化到仓库（单仓轻量档跳过）
+  - { id: red-green-record, severity: advisory } # Phase 4.3 S3：evidence 每 DU 至少一条红→绿记录（advisory，防造假靠人审）
 
 # Phase 2.1 evidence-coverage 开关（phase-2.1-evidence-system-design.md §4.2）
 evidence-coverage:

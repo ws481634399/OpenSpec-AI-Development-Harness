@@ -6,7 +6,7 @@
 # 见 plans/phase-2.2-sdd-review-skill-design.md §4.1
 
 id: sdd-review
-version: 0.2.4
+version: 0.2.5
 stage: review
 description: 评审检查点 Skill——需求一致性 / 设计一致性 / 跨仓一致性 / 代码质量 / 知识同步候选五项检查
 input:

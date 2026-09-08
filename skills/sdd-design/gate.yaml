@@ -12,6 +12,10 @@ machine-checks:
   - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
   - { id: repositories-match-metadata, skip-tier: [light] } # 单仓轻量档免多仓声明对齐
   - feature-path-bound # Phase 2.4：feature-path 四级完整且 candidate=false（收口项，保持 blocking）
+  - story-domain-boundary # Phase 4.3 S2：stories[].domain 领域归属（缺 domain.id 阻断；同域重叠 advisory）；Change 级检查，story mode 跳过
+  - { id: du-defined, skip-tier: [light] } # Phase 4.3 S2：DU 划分表存在 + 每 DU covers ≥1 AC（light 档跳过）
+  - { id: du-dependency, skip-tier: [light] } # Phase 4.3 S2：DU depends on 引用有效 + 无环（light 档跳过）
+  - { id: ac-coverage, skip-tier: [light] } # Phase 4.3 S4：DU covers 的 AC 必须存在于 spec（追踪链仪式检查，light 档跳过）
 
 required-front-matter: []
 
@@ -52,6 +56,9 @@ three-tier:
   story-machine-checks:
     - { id: change-ref-bound, field: change-design-ref } # Story→Change Design 章节引用（blocking）
     - repo-subset # story-design.affected-repositories ⊆ change-design 声明（blocking）
+    - { id: du-defined, skip-tier: [light] } # Phase 4.3 S2：story-design DU 划分表（light 档跳过）
+    - { id: du-dependency, skip-tier: [light] } # Phase 4.3 S2：story-design DU depends on 无环
+    - { id: ac-coverage, skip-tier: [light] } # Phase 4.3 S4：story-design DU covers AC 存在于 story-spec（light 档跳过）
   story-non-empty-ai-sections:
     - "## 1. 模块改动（Module Changes）"
     - "## 2. 接口契约细化"

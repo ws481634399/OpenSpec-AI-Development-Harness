@@ -211,7 +211,17 @@ ALTER TABLE users ADD CONSTRAINT chk_contact CHECK (email IS NOT NULL OR phone I
 
 向后兼容：新表，不影响现有数据。
 
-## §5 风险评估
+## §5 DU 划分（Delivery Units）
+
+本需求单仓（main），拆为 1 个 DU（DU 1:1 Repository）：
+
+| DU         | 仓库 | 职责（实现哪些 DES）                 | covers AC                  | depends on |
+| ---------- | ---- | ------------------------------------ | -------------------------- | ---------- |
+| DU-MAIN-001 | main | User 模型/Repository/Service/Controller/Migration/测试 | AC-001 ~ AC-007 | —          |
+
+DU 拆分判据：单仓（仅 main）/ 可独立红绿灯（注册 API 可独立写失败测试）/ 依赖显式（无依赖）。
+
+## §6 风险评估
 
 | 风险项 | 级别 | 缓解措施 |
 |--------|------|---------|
@@ -221,7 +231,7 @@ ALTER TABLE users ADD CONSTRAINT chk_contact CHECK (email IS NOT NULL OR phone I
 | JWT Secret 泄露 | 高 | 从环境变量读取，不硬编码，不入库 |
 | 注册接口被刷 | 中 | 速率限制（每 IP 每分钟 5 次） |
 
-## §6 待澄清问题
+## §7 待澄清问题
 
 1. **JWT 策略** — 有效期 24h，HS256 算法。Refresh Token 是否本期实现？→ 否，后续独立 Change。
 2. **速率限制** — 本期使用内存计数（简单），后续可换 Redis。是否需要？→ 需要，但简化实现。

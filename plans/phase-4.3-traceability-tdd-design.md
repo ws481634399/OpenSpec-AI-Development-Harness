@@ -2,7 +2,7 @@
 
 > Version: v1.0（Reviewed）  
 > Owner: Design Review Required  
-> Status: 已评审定稿（2026-09-04，决策记录见 §13）；S1 已交付（2026-09-04，命名统一 + schema v4 + ID 规范 + AC-NNN 表格化），S2-S4 待启动  
+> Status: 已评审定稿（2026-09-04，决策记录见 §13）；S1 已交付（2026-09-04，命名统一 + schema v4 + ID 规范 + AC-NNN 表格化）；S2 已交付（2026-09-07，领域化拆分 + DU 前移 design + 4 项追踪链前半段机检）；S3+S4 已交付（2026-09-07，test-design 双产物 + dev 红绿灯 TDD + test 独立性 + 追踪链后半段机检 tc-coverage/ac-coverage/evidence-trace/red-green-record + review/converge 全链抽核）  
 > 前置依赖：Phase 4.2 三级规格分层（已落地，见 phase-4.2-three-tier-spec-design.md 附录 A 遗留项）
 
 ---
@@ -246,13 +246,13 @@ CLI：`openspec workflow run --story <ID>` 增 `--du <DU-ID>` 提示模式，输
 
 # 12. 验收标准（Definition of Done）
 
-- [ ] 追踪链机检：AC→DES→DU→TC→EVD 断链场景 Machine Gate 必 fail；tc-coverage 允许 NOT-TESTABLE 标注进 warnings
-- [ ] task 阶段不再拆 DU：tasks.md 出现 design 未定义的 DU → fail；test-design 与 tasks.md 同批产出（双产物机检）
-- [ ] dev 红绿灯：SKILL 协议 + evidence 记录表 + advisory 机检；test 阶段上下文不含 implementation.md（context-rules 断言）
-- [ ] 并行：du-dependency 无环机检 + DU 指令包生成 + syncDuStatusFromRepos 回流汇总闭环
-- [ ] 领域化：stories[].domain 机检 + 拆分判据写入 SKILL；多 Story 域重叠触发 advisory
+- [x] 追踪链机检：AC→DES→DU→TC→EVD 断链场景 Machine Gate 必 fail；tc-coverage 允许 NOT-TESTABLE 标注进 warnings（S3+S4 已交付：ac-coverage/tc-coverage/evidence-trace/red-green-record 4 项机检 + gate-s3-s4.spec.js 18 项覆盖断链场景；tc-coverage 支持 TC-NOT-TESTABLE 进 warnings 不阻断）
+- [x] task 阶段不再拆 DU：tasks.md 出现 design 未定义的 DU → fail；test-design 与 tasks.md 同批产出（双产物机检）（S2 已交付 du-source-of-truth + S3 已交付 test-design-exists 双产物机检）
+- [x] dev 红绿灯：SKILL 协议 + evidence 记录表 + advisory 机检；test 阶段上下文不含 implementation.md（context-rules 断言）（S3 已交付：sdd-dev §2.4 红绿灯协议 + sdd-test §1 测试独立性 + context-rules test 阶段排除 implementation.md 注入 test-design.md + red-green-record advisory 机检）
+- [x] 并行：du-dependency 无环机检 + DU 指令包生成 + syncDuStatusFromRepos 回流汇总闭环（S2 已交付：du-dependency 无环机检 + workflow-engine autoSyncDus 前置；DU 指令包并行调度归外部 Agent，Engine 不执行 AI 推理）
+- [x] 领域化：stories[].domain 机检 + 拆分判据写入 SKILL；多 Story 域重叠触发 advisory（S2 已交付：story-domain-boundary 机检 + sdd-design §6 领域化拆分判据）
 - [x] 命名统一：新 Workspace 无 prd.md；存量经 upgrade v3→v4 改名后 workflow run 正常（S1 已交付：模板改名 + migrateChangeSchema 产物改名/artifacts 键重写/domain 继承，测试覆盖幂等与回滚审计）
-- [ ] 全量测试通过；4.3 全链路集成测试（多 Story 多 DU 并行场景）跑通
+- [x] 全量测试通过；4.3 全链路集成测试（多 Story 多 DU 并行场景）跑通（492/492 通过；gate-s3-s4.spec.js 18 项新增机检覆盖 test-design-exists/tc-coverage/ac-coverage/evidence-trace/red-green-record/parseTcTable）
 
 ---
 

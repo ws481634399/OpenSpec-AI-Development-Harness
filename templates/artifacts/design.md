@@ -13,8 +13,8 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 结构化字段由 sdd-design 通过 ArtifactWriter 填充（{{placeholder}}），
 非结构化段落（现状/方案/影响/风险）由外部 Agent 按 Instruction 补充。
 
-职责边界（硬约束）：Design 回答"系统如何实现、哪些仓受影响、跨仓如何协作"；
-**不得产生 DU**（DU-XXX 编号不得出现在本文档）——正式拆分交付单元是 sdd-task 的职责。
+职责边界（硬约束）：Design 回答"系统如何实现、哪些仓受影响、跨仓如何协作、拆成哪些交付单元"；
+**DU 划分是 design 的产物**（§6 DU 划分表），sdd-task 仅消费此表做逐 DU 任务分解，不再新造 DU。
 
 ## 0. 元信息
 
@@ -72,7 +72,19 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 - 是否需 Migration: {{need-migration}}
 - 变更摘要: {{data-change-summary}}
 
-## 6. 风险
+## 6. DU 划分（Delivery Units）
+
+<!-- AI 补充：将设计方案拆成 Delivery Unit（每个 DU 1:1 一个仓库）。
+     DU 拆分三判据：单仓（一个 DU 只落一个仓库）/ 可独立红绿灯（能独立写出失败测试）/ 依赖显式（depends on 声明且无环）。
+     DU id 规范：DU-<REPO别名>-<nnn>（如 DU-BE-001），别名见 .sdd/repositories.yaml。
+     covers AC 必须引用 spec.md/story-spec.md 中真实存在的 AC-NNN。
+     design 验收后用 `openspec du create` 登记 DU 框架（tasked 态补 tasks 路径）。 -->
+
+| DU        | 仓库     | 职责（实现哪些 DES） | covers AC      | depends on |
+| --------- | -------- | -------------------- | -------------- | ---------- |
+| DU-<REPO>-001 | <repo> | <该 DU 实现目标>     | AC-001         | —          |
+
+## 7. 风险
 
 <!-- AI 补充：识别的技术风险与缓解措施 -->
 
@@ -80,6 +92,6 @@ affected-repositories: [] # Phase 2.4：受影响仓库 id 列表（对应 .sdd/
 - 主要风险: {{risk-summary}}
 - 缓解措施: {{mitigation}}
 
-## 7. 待澄清问题
+## 8. 待澄清问题
 
 <!-- AI 补充：设计阶段无法确认的问题 -->

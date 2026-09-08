@@ -403,6 +403,24 @@ export async function assembleContext(workspaceRoot, stage, opts = {}) {
       for (const name of changeRefs) {
         await pushArtifact(name, 'auto', undefined, refMode);
       }
+      // 2e. Phase 4.3 S2/S3：story mode 自动注入 Story 级规格引用
+      // 三层模式下显式 spec.md/design.md 无法解析（文件名为 story-spec.md/story-design.md），
+      // 需自动补齐：
+      // - task 阶段 inline（消费 story-design DU 划分表 + story-spec AC + test-design TC 表）
+      // - test 阶段 inline（消费 story-spec AC + story-design 设计 + test-design TC 执行）
+      // - dev/review 阶段 outline（设计上下文引用，DU 绑定已提供实施正文）
+      if (AUTO_TASKS_STAGES.has(stage)) {
+        const storyRefs = ['story-design.md'];
+        // task/test 需要 story-spec（AC 引用）+ test-design（TC 表）
+        if (stage === 'task' || stage === 'test') {
+          storyRefs.push('story-spec.md');
+        }
+        const storyRefMode =
+          stage === 'task' || stage === 'test' ? 'inline' : 'outline';
+        for (const name of storyRefs) {
+          await pushArtifact(name, 'auto', undefined, storyRefMode);
+        }
+      }
     }
   }
 

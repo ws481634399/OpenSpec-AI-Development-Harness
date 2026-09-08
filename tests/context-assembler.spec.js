@@ -526,7 +526,9 @@ test('模板规则 v0.4：converge 注入全链产物（缺口 2：人审全链�
     assert.equal(f.source, 'change-artifact');
   }
   assert.deepEqual(
-    ctx.missingArtifacts.filter((m) => !m.includes('tasks.md') && !m.includes('DU-')),
+    ctx.missingArtifacts.filter(
+      (m) => !m.includes('tasks.md') && !m.includes('test-design.md') && !m.includes('DU-')
+    ),
     [],
     `不应有非 DU 仪式性 missing: ${ctx.missingArtifacts.join(';')}`
   );

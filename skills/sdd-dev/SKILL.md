@@ -11,7 +11,7 @@ Phase 2.4 多仓语义：实施正文在各仓 DU 内完成，Workspace 的 impl
 ## 前置条件
 
 - Change 处于 `tasked` 状态
-- STORY 级 tasks.md 已完成（`<CHG>/<L1>/<L2>/<L3>/<STORY>/tasks.md`）
+- STORY 级 tasks.md + test-design.md 已完成（双产物，`<CHG>/<L1>/<L2>/<L3>/<STORY>/`）
 - design.md 已完成（含 affected-repositories front-matter）
 - Change 已绑定 feature-path（metadata.feature-path）
 - Workspace DU 已注册（`openspec du create`）并已物化（`openspec du materialize <CHG> <DU-ID>`）到各仓
@@ -20,7 +20,9 @@ Phase 2.4 多仓语义：实施正文在各仓 DU 内完成，Workspace 的 impl
 
 ### 1. 读取前序 Artifact
 
-读取 `delivery/changes/<CHG>/design.md`、STORY 级 `tasks.md` 和 DU metadata。
+读取 `delivery/changes/<CHG>/design.md`、STORY 级 `tasks.md` + `test-design.md` 和 DU metadata。
+
+> Phase 4.3 S3：dev 读 test-design.md 获取 TC-NNN 测试意图（红绿灯对象），按 TC 先写失败测试再实现。
 
 #### 1.1 信息提取清单
 
@@ -159,6 +161,37 @@ DU: DU-BE-001
 - 不解释代码做什么（好命名已经说明）
 - 记录约束、不变量、workaround
 
+#### 2.4 红绿灯执行协议（TDD Red-Green，Phase 4.3 S3）
+
+Phase 4.3 S3 起 dev 实施**红绿灯 TDD**——每个有 `verifies: TC-NNN` 的任务必须先写失败测试（红）再实现至通过（绿）：
+
+```text
+红灯：按 TC-NNN 写测试 → 运行确认失败
+      （失败原因必须是"功能未实现"，不是语法/环境错误）
+绿灯：最小实现 → 测试通过 → 记录红绿灯证据
+重构：绿灯后允许重构，重构后测试必须仍绿
+```
+
+**执行规则：**
+
+- tasks.md 每个 DU 小节的 `verifies: TC-NNN` 字段是红绿灯对象——dev 按 TC 编号先写失败测试
+- test-design.md 中定义了 TC-NNN 的验证方式与 verified-by AC——dev 读 test-design 获取测试意图
+- 无 TC 的任务只能是 `type: docs/chore`（非功能性任务，不要求红绿灯）
+- 红灯失败原因必须是「功能未实现」（如 `TypeError: register is not a function`），不能是语法错误或环境缺失
+- 绿灯后允许重构，但重构后所有 TC 必须仍通过
+
+**红绿灯证据记录（写入 DU 级 evidence/red-green.md）：**
+
+```markdown
+| TC     | 红灯失败摘要           | 绿灯通过确认 | 备注 |
+| ------ | --------------------- | ------------ | ---- |
+| TC-001 | TypeError: register is not a function | ✅ 全绿 |      |
+| TC-002 | AssertionError: status 409 期望但得 500 | ✅ 全绿 | 重构一次 |
+```
+
+- 机检 `red-green-record`（advisory）：evidence 中每 DU 至少一条红→绿记录
+- 真实性靠 review 人审抽核（机检只校验存在性，不判断测试质量）
+
 ### 3. 记录实施证据（DU 级 + Workspace 聚合）
 
 **DU 级证据**写入该仓 DU 目录
@@ -236,6 +269,8 @@ openspec du sync-status <CHG> <DU-ID>
 - [ ] 实施前是否已读 repo task.md §7/§8/§9（消费 DU Guidance，Phase 2.5）？
 - [ ] 与 DU 建议（Sketch/Pseudocode）偏离时是否已记录到 repo implementation.md `## Deviations`（三要素齐全）？
 - [ ] 每个 DU 是否已按 task.md §9 Verification 清单逐项验证？
+- [ ] 有 `verifies: TC-NNN` 的任务是否执行了红绿灯（先红后绿）？（red-green-record 机检：advisory）
+- [ ] DU 级 evidence/red-green.md 是否记录了每个 TC 的红→绿证据？
 - [ ] 代码是否遵循 design.md 的接口契约与跨仓协作契约？
 - [ ] 代码是否遵循该仓 standards/ 编码规范？
 - [ ] 每个 Commit 是否对应一个 Task 并标注 DU？

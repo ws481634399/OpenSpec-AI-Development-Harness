@@ -32,6 +32,7 @@ import {
   aggregateDuStatusForStory,
   readRepositories,
   DU_COMPLEXITY_TRIGGERS,
+  DU_ID_PATTERN,
 } from "./delivery-unit.js";
 import { resolveSubmoduleHead } from "./git-submodule.js";
 
@@ -268,6 +269,42 @@ export async function runMachineGate(changeDir, gateConfig, opts = {}) {
       case "submodule-pointer-aligned":
         // Phase 2.4 §17.3：repository-result commit == 实际 Submodule HEAD
         await checkSubmodulePointerAligned(changeDir, bucket, artifactName);
+        break;
+      case "story-domain-boundary":
+        // Phase 4.3 S2：stories[].domain 领域归属校验（Change 级，story mode 跳过）
+        checkStoryDomainBoundary(meta, issues, warnings, artifactName, opts);
+        break;
+      case "du-defined":
+        // Phase 4.3 S2：story-design.md/design.md DU 划分表存在 + 每 DU covers ≥1 AC
+        checkDuDefined(content, issues, artifactName);
+        break;
+      case "du-dependency":
+        // Phase 4.3 S2：DU 表 depends on 引用有效 + 无环
+        checkDuDependency(content, issues, artifactName);
+        break;
+      case "du-source-of-truth":
+        // Phase 4.3 S2：tasks.md 引用的 DU 必须在 design DU 划分表中定义
+        await checkDuSourceOfTruth(changeDir, content, meta, issues, warnings, artifactName, opts);
+        break;
+      case "test-design-exists":
+        // Phase 4.3 S3：双产物——test-design.md 与 tasks.md 同批产出
+        await checkTestDesignExists(changeDir, meta, issues, artifactName, opts);
+        break;
+      case "red-green-record":
+        // Phase 4.3 S3：evidence 每 DU 至少一条红→绿记录（advisory）
+        await checkRedGreenRecord(changeDir, meta, issues, warnings, artifactName, { ...opts, _content: content });
+        break;
+      case "tc-coverage":
+        // Phase 4.3 S4：每个 AC-NNN 至少被一个 TC-NNN verified-by
+        await checkTcCoverage(changeDir, meta, issues, warnings, artifactName, opts);
+        break;
+      case "ac-coverage":
+        // Phase 4.3 S4：story-design 每个 DU covers 的 AC 必须存在于 story-spec
+        await checkAcCoverage(changeDir, meta, issues, warnings, artifactName, opts);
+        break;
+      case "evidence-trace":
+        // Phase 4.3 S4：test-report 每 EVD 对应的 TC-NNN 必须存在于 test-design.md
+        await checkEvidenceTrace(changeDir, meta, issues, warnings, artifactName, { ...opts, _content: content });
         break;
       default:
         // 未知 check 不抛错（向前兼容，未来 gate.yaml 可声明新 check 而旧 validator 不破）
@@ -1119,5 +1156,549 @@ async function checkSubmodulePointerAligned(changeDir, issues, artifactName) {
         `${artifactName}: Submodule Pointer 未对齐: ${repository} recorded=${recorded} actual=${head}（先执行 openspec du sync-status）`,
       );
     }
+  }
+}
+
+// ---- Phase 4.3 S2 追踪链前半段机检（plans/phase-4.3-traceability-tdd-design.md §3/§4）----
+
+/**
+ * 解析 design.md / story-design.md 中的「DU 划分」markdown 表格。
+ *
+ * 定位策略：按关键词「DU 划分」匹配 section 标题（不依赖具体编号），抽取该 section
+ * 下第一个 markdown 表格。按表头列名定位 DU / covers AC / depends on 列索引（容忍列序）。
+ *
+ * @param {string} content markdown 正文
+ * @returns {Array<{du:string, repo:string, coversAc:string[], dependsOn:string[]}>|null}
+ *   无 DU 划分 section 或无表格返回 null；空表（仅表头）返回 []
+ */
+export function parseDuTable(content) {
+  // 定位「DU 划分」section：匹配 ## N. ... DU 划分 ... 或 ## ... DU 划分（Delivery Units）
+  const lines = content.split("\n");
+  const startIdx = lines.findIndex((l) => /^#{1,6}\s+.*DU\s*划分/.test(l));
+  if (startIdx === -1) return null;
+  // section 标题级别（# 数量），用于截断到下一个同级或更高级标题
+  const level = (lines[startIdx].match(/^#+/) || ["##"])[0].length;
+  let endIdx = lines.length;
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^(#+)\s/);
+    if (m && m[1].length <= level) {
+      endIdx = i;
+      break;
+    }
+  }
+  const sectionLines = lines.slice(startIdx, endIdx);
+
+  // 提取表格行（以 | 开头且非空）
+  const tableLines = sectionLines.filter((l) => /^\s*\|/.test(l) && l.trim());
+  if (tableLines.length === 0) return null;
+  const lines2 = tableLines;
+
+  // 分离表头 / 分隔行 / 数据行
+  const splitRow = (l) =>
+    l.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+  const header = splitRow(lines2[0]);
+  // 第二行若是分隔行（---）则跳过
+  let dataStart = 1;
+  if (lines2.length > 1 && /^[\s|-]+$/.test(lines2[1]) && lines2[1].includes("-")) {
+    dataStart = 2;
+  }
+  const dataRows = lines2.slice(dataStart).map(splitRow);
+
+  // 列索引定位（容忍中英文/列序）
+  const findCol = (patterns) => {
+    for (let i = 0; i < header.length; i++) {
+      const h = header[i];
+      if (patterns.some((p) => p.test(h))) return i;
+    }
+    return -1;
+  };
+  const duCol = findCol([/^DU$/i, /^DU\b/i]);
+  const repoCol = findCol([/仓/i, /^repo/i]);
+  const coversCol = findCol([/cover/i, /AC/i]);
+  const depsCol = findCol([/depend/i, /依赖/i]);
+
+  // text.match(globalRe) 返回全匹配字符串数组（无捕获组时即所需 ID 列表）
+  const extractIds = (text, re) => text.match(re) || [];
+
+  const table = dataRows
+    .map((row) => {
+      const du = duCol >= 0 ? row[duCol] || "" : "";
+      const repo = repoCol >= 0 ? row[repoCol] || "" : "";
+      const coversRaw = coversCol >= 0 ? row[coversCol] || "" : "";
+      const depsRaw = depsCol >= 0 ? row[depsCol] || "" : "";
+      // depends on：整列为 — / - / 无 / 空 表示无依赖（注意不能用 contains 匹配，DU id 含连字符）
+      const depsTrim = depsRaw.trim();
+      const hasNoDeps = ["", "—", "-", "无"].includes(depsTrim);
+      const dependsOn = hasNoDeps
+        ? []
+        : extractIds(depsRaw, /DU-[A-Z0-9]{2,8}-\d{3}/g);
+      return {
+        du: du.trim(),
+        repo: repo.trim(),
+        coversAc: extractIds(coversRaw, /AC-\d{3}/g),
+        dependsOn,
+      };
+    })
+    .filter((r) => r.du); // 仅保留 DU 列非空行（忽略说明性行）
+
+  return table.length === 0 && dataRows.length === 0 ? [] : table;
+}
+
+/**
+ * story-domain-boundary：stories[].domain 领域归属校验。
+ * - 缺失 domain.id → issues（blocking，防遗漏；inline bindFeaturePath 自动继承 L3 应总有值）
+ * - 多 Story 同 domain.id → warnings（advisory，提示合并评估）
+ * story mode（opts.storyId）跳过：Change 级检查已在 change3（change-design.md gate）校验。
+ */
+function checkStoryDomainBoundary(meta, issues, warnings, artifactName, opts) {
+  if (opts?.storyId) return; // Change 级检查，per-story 跳过
+  const stories = Array.isArray(meta?.stories) ? meta.stories : [];
+  if (stories.length === 0) return; // 未拆 Story（v1 兼容）→ 不校验
+  const seen = new Map(); // domainId → [storyId...]
+  for (const s of stories) {
+    const domainId =
+      s?.domain && typeof s.domain === "object" ? s.domain.id : "";
+    if (!domainId) {
+      issues.push(
+        `${artifactName}: Story ${s?.id || "?"} 缺少 domain.id（领域归属必填，inline 由 bind-feature-path 自动继承 L3）`,
+      );
+      continue;
+    }
+    if (!seen.has(domainId)) seen.set(domainId, []);
+    seen.get(domainId).push(s.id || "?");
+  }
+  for (const [domainId, ids] of seen) {
+    if (ids.length > 1) {
+      warnings.push(
+        `${artifactName}: 多个 Story 同 domain（${domainId}）: ${ids.join(", ")}——建议评估是否合并`,
+      );
+    }
+  }
+}
+
+/**
+ * du-defined：DU 划分表存在 + 每 DU covers ≥1 AC + DU id 合法 + 不重复。
+ * change-design.md（Change 级）无 DU 表 → 跳过（DU 是 Story 级产物）。
+ */
+function checkDuDefined(content, issues, artifactName) {
+  if (artifactName === "change-design.md") return; // Change 级无 DU 表
+  const table = parseDuTable(content);
+  if (table === null) {
+    issues.push(`${artifactName}: 缺少「DU 划分」表格（design 阶段必须产出 DU 划分表）`);
+    return;
+  }
+  if (table.length === 0) {
+    issues.push(`${artifactName}: 「DU 划分」表无数据行（至少 1 个 DU）`);
+    return;
+  }
+  const seen = new Set();
+  for (const row of table) {
+    if (!DU_ID_PATTERN.test(row.du)) {
+      issues.push(
+        `${artifactName}: DU id 非法 '${row.du}'（规范 DU-<REPO>-NNN，如 DU-BE-001）`,
+      );
+    }
+    if (seen.has(row.du)) {
+      issues.push(`${artifactName}: DU id 重复: ${row.du}`);
+    }
+    seen.add(row.du);
+    if (row.coversAc.length === 0) {
+      issues.push(
+        `${artifactName}: DU ${row.du} covers AC 列为空（每 DU 至少覆盖 1 个 AC-NNN）`,
+      );
+    }
+  }
+}
+
+/**
+ * du-dependency：DU 表 depends on 引用有效 + 无环。
+ * 表缺失时由 du-defined 报错，此处直接返回不重复报。
+ */
+function checkDuDependency(content, issues, artifactName) {
+  if (artifactName === "change-design.md") return;
+  const table = parseDuTable(content);
+  if (!table || table.length === 0) return; // 表缺失/空由 du-defined 报
+
+  const idSet = new Set(table.map((r) => r.du));
+  const adj = new Map(); // du → [依赖 du...]
+  for (const row of table) {
+    adj.set(row.du, []);
+  }
+  for (const row of table) {
+    for (const dep of row.dependsOn) {
+      if (!idSet.has(dep)) {
+        issues.push(
+          `${artifactName}: DU ${row.du} depends on 不存在的 DU: ${dep}`,
+        );
+      } else {
+        adj.get(row.du).push(dep);
+      }
+    }
+    // 自环
+    if (row.dependsOn.includes(row.du)) {
+      issues.push(`${artifactName}: DU ${row.du} 依赖自身（自环）`);
+    }
+  }
+
+  // DFS 环检测
+  const WHITE = 0,
+    GRAY = 1,
+    BLACK = 2;
+  const color = new Map();
+  for (const du of idSet) color.set(du, WHITE);
+  const cyclePath = [];
+  let hasCycle = false;
+  function dfs(u) {
+    if (hasCycle) return;
+    color.set(u, GRAY);
+    cyclePath.push(u);
+    for (const v of adj.get(u) || []) {
+      if (color.get(v) === GRAY) {
+        // 找到环：从 v 在 path 中的位置到 u
+        const start = cyclePath.indexOf(v);
+        const cycle = cyclePath.slice(start).concat([v]);
+        issues.push(`${artifactName}: DU 依赖存在环: ${cycle.join(" → ")}`);
+        hasCycle = true;
+        return;
+      }
+      if (color.get(v) === WHITE) dfs(v);
+      if (hasCycle) return;
+    }
+    color.set(u, BLACK);
+    cyclePath.pop();
+  }
+  for (const du of idSet) {
+    if (color.get(du) === WHITE) dfs(du);
+    if (hasCycle) break;
+  }
+}
+
+/**
+ * du-source-of-truth：tasks.md 引用的 DU 必须在 design DU 划分表中定义。
+ * - tasks.md 出现但 design/story-design DU 表不存在的 DU → issues（blocking）
+ * - design 有但 tasks.md 无 → warning（task 阶段可能尚未分解全部 DU）
+ */
+async function checkDuSourceOfTruth(changeDir, content, meta, issues, warnings, artifactName, opts) {
+  // 提取 tasks.md 中所有 ### DU-XXX 小节标题
+  const duInTasks = new Set();
+  const re = /^###\s+(DU-[A-Z0-9]{2,8}-\d{3})\b/gm;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    duInTasks.add(m[1]);
+  }
+  if (duInTasks.size === 0) return; // 无 DU 小节 → 由 du-coverage 报，此处跳过
+
+  // 读 design 源 DU 表
+  const storyId = opts?.storyId;
+  let designPath;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    if (!sDir) return;
+    designPath = join(sDir, "story-design.md");
+  } else {
+    designPath = resolveArtifactPath(changeDir, "design.md", meta);
+  }
+  let designMd;
+  try {
+    designMd = await readFile(designPath, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      issues.push(`${artifactName}: design 源 (${designPath}) 不存在，无法校验 DU 来源`);
+      return;
+    }
+    throw e;
+  }
+  const designTable = parseDuTable(designMd);
+  if (!designTable || designTable.length === 0) {
+    issues.push(`${artifactName}: design 源缺少 DU 划分表，无法校验 tasks DU 来源`);
+    return;
+  }
+  const designDus = new Set(designTable.map((r) => r.du));
+
+  // tasks.md 出现但 design 未定义 → blocking
+  for (const du of duInTasks) {
+    if (!designDus.has(du)) {
+      issues.push(
+        `${artifactName}: tasks.md 引用未在 design DU 划分表定义的 DU: ${du}（DU 行只允许引用不允许新造）`,
+      );
+    }
+  }
+  // design 有但 tasks.md 无 → warning
+  for (const du of designDus) {
+    if (!duInTasks.has(du)) {
+      warnings.push(
+        `${artifactName}: design DU ${du} 在 tasks.md 中无对应小节（可能尚未分解任务）`,
+      );
+    }
+  }
+}
+
+/**
+ * test-design-exists：双产物机检——tasks.md accepted 前必须存在 test-design.md。
+ * 只在 tasks.md gate 运行（artifactName === 'tasks.md'）；test-design.md 须在同目录。
+ */
+async function checkTestDesignExists(changeDir, meta, issues, artifactName, opts) {
+  if (artifactName !== "tasks.md") return;
+  const storyId = opts?.storyId;
+  let testDesignPath;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    if (!sDir) return; // story 目录未解析 → 其他检查已报
+    testDesignPath = join(sDir, "test-design.md");
+  } else {
+    testDesignPath = resolveArtifactPath(changeDir, "test-design.md", meta);
+  }
+  try {
+    await readFile(testDesignPath, "utf8");
+  } catch (e) {
+    if (e.code === "ENOENT") {
+      issues.push(
+        `${artifactName}: 缺少 test-design.md（双产物机检：task 阶段必须与 tasks.md 同批产出 test-design.md）`,
+      );
+      return;
+    }
+    throw e;
+  }
+}
+
+/**
+ * parseTcTable：从 test-design.md 解析 TC 表。
+ * 定位「测试用例」section，抽取 TC-NNN / verified-by AC / 归属 DU / TC-NOT-TESTABLE 标注。
+ * @returns {Array<{tc:string, verifiedByAc:string[], du:string[], notTestable:boolean}>|null}
+ */
+export function parseTcTable(content) {
+  const lines = content.split("\n");
+  const startIdx = lines.findIndex(
+    (l) => /^#{1,6}\s+.*测试用例/.test(l) || /^#{1,6}\s+.*TC\b/i.test(l),
+  );
+  if (startIdx === -1) return null;
+  const level = (lines[startIdx].match(/^#+/) || ["##"])[0].length;
+  let endIdx = lines.length;
+  for (let i = startIdx + 1; i < lines.length; i++) {
+    const m = lines[i].match(/^(#+)\s/);
+    if (m && m[1].length <= level) {
+      endIdx = i;
+      break;
+    }
+  }
+  const sectionLines = lines.slice(startIdx, endIdx);
+  const tableLines = sectionLines.filter((l) => /^\s*\|/.test(l) && l.trim());
+  if (tableLines.length === 0) return null;
+
+  const splitRow = (l) =>
+    l.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map((c) => c.trim());
+  const header = splitRow(tableLines[0]);
+  let dataStart = 1;
+  if (tableLines.length > 1 && /^[\s|-]+$/.test(tableLines[1]) && tableLines[1].includes("-")) {
+    dataStart = 2;
+  }
+  const dataRows = tableLines.slice(dataStart).map(splitRow);
+
+  const findCol = (patterns) => {
+    for (let i = 0; i < header.length; i++) {
+      if (patterns.some((p) => p.test(header[i]))) return i;
+    }
+    return -1;
+  };
+  const tcCol = findCol([/^TC$/i, /^TC\b/i]);
+  const acCol = findCol([/verified.*AC/i, /AC/i, /覆盖/i]);
+  const duCol = findCol([/DU/i, /归属/i]);
+  const noteCol = findCol([/备注/i, /note/i]);
+
+  const table = dataRows
+    .map((row) => {
+      const tc = tcCol >= 0 ? row[tcCol] || "" : "";
+      const acRaw = acCol >= 0 ? row[acCol] || "" : "";
+      const duRaw = duCol >= 0 ? row[duCol] || "" : "";
+      const noteRaw = noteCol >= 0 ? row[noteCol] || "" : "";
+      const notTestable = /TC-NOT-TESTABLE/i.test(noteRaw) || /TC-NOT-TESTABLE/i.test(acRaw);
+      return {
+        tc: tc.trim(),
+        verifiedByAc: acRaw.match(/AC-\d{3}/g) || [],
+        du: duRaw.match(/DU-[A-Z0-9]{2,8}-\d{3}/g) || [],
+        notTestable,
+      };
+    })
+    .filter((r) => r.tc);
+
+  return table.length === 0 && dataRows.length === 0 ? [] : table;
+}
+
+/**
+ * 从 spec.md / story-spec.md 提取所有 AC-NNN（§5 AC 表 + 正文引用）。
+ */
+export function extractAcIdsFromSpec(content) {
+  const ids = new Set();
+  const matches = content.match(/AC-\d{3}/g);
+  if (matches) for (const id of matches) ids.add(id);
+  return ids;
+}
+
+/**
+ * tc-coverage：每个 AC-NNN 至少被一个 TC-NNN verified-by。
+ * 允许 TC-NOT-TESTABLE 标注（进 warnings 不阻断）。
+ */
+async function checkTcCoverage(changeDir, meta, issues, warnings, artifactName, opts) {
+  const storyId = opts?.storyId;
+  let tdPath;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    if (!sDir) return;
+    tdPath = join(sDir, "test-design.md");
+  } else {
+    tdPath = resolveArtifactPath(changeDir, "test-design.md", meta);
+  }
+  let tdContent;
+  try {
+    tdContent = await readFile(tdPath, "utf8");
+  } catch {
+    return; // test-design.md 不存在 → test-design-exists 已报
+  }
+  const tcTable = parseTcTable(tdContent);
+  if (!tcTable || tcTable.length === 0) {
+    issues.push(`${artifactName}: test-design.md 缺少 TC 表（tc-coverage 无法校验）`);
+    return;
+  }
+
+  // 读取 spec 提取 AC-NNN
+  let specPath;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    specPath = join(sDir, "story-spec.md");
+  } else {
+    specPath = resolveArtifactPath(changeDir, "spec.md", meta);
+  }
+  let specContent = "";
+  try {
+    specContent = await readFile(specPath, "utf8");
+  } catch {
+    return; // spec 不存在 → cross-reference 已报
+  }
+  const specAcs = extractAcIdsFromSpec(specContent);
+
+  const coveredAcs = new Set();
+  const notTestableAcs = new Set();
+  for (const row of tcTable) {
+    if (row.notTestable) {
+      for (const ac of row.verifiedByAc) notTestableAcs.add(ac);
+    }
+    for (const ac of row.verifiedByAc) coveredAcs.add(ac);
+  }
+
+  for (const ac of specAcs) {
+    if (!coveredAcs.has(ac)) {
+      issues.push(
+        `${artifactName}: AC ${ac} 未被任何 TC-NNN verified-by（tc-coverage：每个 AC 至少 1 个 TC）`,
+      );
+    }
+  }
+  for (const ac of notTestableAcs) {
+    warnings.push(
+      `${artifactName}: AC ${ac} 标注 TC-NOT-TESTABLE（不可测，需有替代验证方式）`,
+    );
+  }
+}
+
+/**
+ * ac-coverage：story-design 每个 DU covers 的 AC 必须存在于 spec。
+ * du-defined 已检查 covers 非空；本检查进一步验证 AC 引用有效。
+ */
+async function checkAcCoverage(changeDir, meta, issues, warnings, artifactName, opts) {
+  if (artifactName === "change-design.md") return;
+  let designPath;
+  const storyId = opts?.storyId;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    if (!sDir) return;
+    designPath = join(sDir, "story-design.md");
+  } else {
+    designPath = resolveArtifactPath(changeDir, "design.md", meta);
+  }
+  let designContent;
+  try {
+    designContent = await readFile(designPath, "utf8");
+  } catch {
+    return;
+  }
+  const duTable = parseDuTable(designContent);
+  if (!duTable || duTable.length === 0) return;
+
+  let specPath;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    specPath = join(sDir, "story-spec.md");
+  } else {
+    specPath = resolveArtifactPath(changeDir, "spec.md", meta);
+  }
+  let specContent = "";
+  try {
+    specContent = await readFile(specPath, "utf8");
+  } catch {
+    return;
+  }
+  const specAcs = extractAcIdsFromSpec(specContent);
+
+  for (const row of duTable) {
+    for (const ac of row.coversAc) {
+      if (!specAcs.has(ac)) {
+        issues.push(
+          `${artifactName}: DU ${row.du} covers AC ${ac} 不存在于 spec（ac-coverage：covers 必须引用真实 AC-NNN）`,
+        );
+      }
+    }
+  }
+}
+
+/**
+ * evidence-trace：test-report 中引用的 TC-NNN 必须存在于 test-design.md。
+ */
+async function checkEvidenceTrace(changeDir, meta, issues, warnings, artifactName, opts) {
+  // evidence-trace 运行在 test-report.md gate；content 是 test-report 正文
+  // 调用方需通过 opts._content 注入当前 artifact 正文
+  const content = opts?._content || "";
+
+  const storyId = opts?.storyId;
+  let tdPath;
+  if (storyId) {
+    const sDir = resolveStoryDirV3(changeDir, meta, storyId);
+    if (!sDir) return;
+    tdPath = join(sDir, "test-design.md");
+  } else {
+    tdPath = resolveArtifactPath(changeDir, "test-design.md", meta);
+  }
+  let tdContent;
+  try {
+    tdContent = await readFile(tdPath, "utf8");
+  } catch {
+    return; // test-design.md 不存在（旧 Change）→ 跳过
+  }
+  const tcTable = parseTcTable(tdContent);
+  if (!tcTable || tcTable.length === 0) return;
+
+  const validTcs = new Set(tcTable.map((r) => r.tc));
+  const referencedTcs = content.match(/TC-\d{3}/g) || [];
+  const seen = new Set();
+  for (const tc of referencedTcs) {
+    if (seen.has(tc)) continue;
+    seen.add(tc);
+    if (!validTcs.has(tc)) {
+      issues.push(
+        `${artifactName}: 引用 TC ${tc} 不存在于 test-design.md（evidence-trace：EVD 对应的 TC 必须在 test-design 定义）`,
+      );
+    }
+  }
+}
+
+/**
+ * red-green-record：evidence 中每 DU 至少一条红→绿记录（advisory，防造假靠人审）。
+ */
+async function checkRedGreenRecord(changeDir, meta, issues, warnings, artifactName, opts) {
+  const content = opts?._content || "";
+  const hasRed = /红灯|red\s*灯|\bred\b/i.test(content);
+  const hasGreen = /绿灯|green\s*灯|\bgreen\b/i.test(content);
+  if (!hasRed || !hasGreen) {
+    warnings.push(
+      `${artifactName}: 未检测到红绿灯记录（red-green-record：每 DU 至少一条红→绿记录，advisory）`,
+    );
   }
 }

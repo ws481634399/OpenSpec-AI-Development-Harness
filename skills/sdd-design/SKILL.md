@@ -53,7 +53,8 @@ front-matter（Phase 2.4 多仓）：
 - `affected-repositories`：受影响仓库 id 列表（对应 `.sdd/repositories.yaml`）
   - 来源：exploration.md 影响分析 + metadata.repositories
   - 必须与 §3 分仓小节一致（task 阶段 `du-coverage` 机检输入）
-- **硬约束：Design 不产生 DU**（DU-XXX 编号不得出现在 design.md，正式拆分是 sdd-task 职责）
+- **DU 划分是 design 的产物**：§6 产出 DU 划分表（DU/仓库/covers AC/depends on），
+  sdd-task 仅消费此表做逐 DU 任务分解，不再新造 DU（du-defined/du-dependency/du-source-of-truth 机检）
 
 元信息 section（占位符替换）：
 - `{{change-id}}`：Change ID
@@ -142,7 +143,41 @@ CREATE TABLE users (
 );
 ```
 
-**§6 风险评估：**
+**§6 DU 划分（Delivery Units）：**
+
+将设计方案拆成 Delivery Unit——每个 DU 是本次 Change 在一个具体仓库中的实施交付单元（DU 1:1 Repository，跨仓交付必须拆多个 DU）。DU 划分是 design 的产物，sdd-task 仅消费此表做逐 DU 任务分解。
+
+DU 拆分三判据（同时满足）：
+1. **单仓** — 一个 DU 只落一个仓库（跨仓交付拆多个 DU，不得合并）
+2. **可独立红绿灯** — 能独立写出失败测试（不能独立验证的粒度需再切分或合并）
+3. **依赖显式** — `depends on` 声明依赖的 DU id，且无环（du-dependency 机检）
+
+DU id 规范：`DU-<REPO别名>-<nnn>`（如 DU-BE-001 / DU-FE-001），别名见 `.sdd/repositories.yaml` 的 alias（缺省取 id 前 2-4 字符大写）。
+
+DU 划分表（写入 design.md §6 / story-design.md §5）：
+
+```markdown
+| DU        | 仓库     | 职责（实现哪些 DES）        | covers AC      | depends on |
+| --------- | -------- | --------------------------- | -------------- | ---------- |
+| DU-BE-001 | backend  | 实现注册 API（DES-001/002） | AC-001         | —          |
+| DU-FE-001 | frontend | 注册页面（DES-003）         | AC-001, AC-002 | DU-BE-001  |
+```
+
+- `covers AC` 必须引用 spec.md / story-spec.md 中真实存在的 AC-NNN（每 DU 至少 1 个，du-defined 机检）
+- `depends on` 为空写 `—`；有依赖填 DU id，多个用逗号分隔
+- design 验收后用 `openspec du create` 登记 DU 框架（repository/scope/acceptance/dependencies/complexity）；
+  tasked 态 sdd-task 补 tasks 路径。DU 登记时机前移到 design 是为了让 task 阶段只做任务分解
+
+**领域化 Story 拆分判据**（多 Story Change，注入 story-splitting 指令）：
+
+1. **领域边界优先** — Story 划在业务能力/子域边界上（feature-tree L3 即领域锚点），一个 Story 只落一个 L3 节点下的能力增量
+2. **独立可验收** — 每个 Story 有独立 AC 集，AC 不得跨 Story 重复
+3. **变更局部性** — 一个 Story 的 DU 尽量收敛在少数仓库（跨仓 Story 需在拆分时声明理由）
+4. **1 需求 → N Story 是常态** — story-splitting 的默认检查不是「能否合成一个」，而是「按领域切分后每个是否独立可交付」
+
+Story 拆分产出 metadata.stories[] 时，每 Story 条目填写 `domain:` 字段（L3 节点 id + 名；inline 单 Story 由 `bind-feature-path` 自动继承 L3）。机检 `story-domain-boundary`：缺 domain.id → fail（blocking）；多 Story 同 domain → 提示合并评估（advisory）。
+
+**§7 风险评估：**
 
 风险识别维度：
 - **兼容性** — 是否影响现有 API/接口
@@ -159,7 +194,7 @@ CREATE TABLE users (
 | 重复注册并发 | 中 | 数据库唯一约束 + 事务 |
 ```
 
-**§7 待澄清问题：**
+**§8 待澄清问题：**
 - 需用户确认的设计决策（如缓存策略、限流阈值）
 - 需 spec 补充的业务规则（如 spec 未明确的边界 case）
 - 需调查的技术可行性（如外部 API 是否可用）
@@ -172,7 +207,8 @@ CREATE TABLE users (
 - [ ] 数据模型是否覆盖 spec 全部业务规则？
 - [ ] front-matter `affected-repositories` 是否与 §3 分仓小节一致（task 阶段 du-coverage 机检输入）？
 - [ ] 多仓需求是否给出跨仓协作契约（API/Event/Data + 依赖方向 + 集成边界）？
-- [ ] design.md 是否未出现 DU-XXX 编号（Design 不产生 DU）？
+- [ ] §6 DU 划分表是否产出？每个 DU 是否覆盖 ≥1 个 AC-NNN（du-defined 机检）？DU depends on 是否无环（du-dependency 机检）？
+- [ ] 多 Story Change 是否按领域边界拆分？每 Story 是否填写 `domain`（story-domain-boundary 机检）？
 - [ ] 风险评估是否包含兼容性/性能/安全维度？
 - [ ] 设计是否与 standards/ 已有约定一致？
 - [ ] 是否复用了可复用的现有模块（避免重复造轮子）？
@@ -246,8 +282,8 @@ openspec change status <CHG> --set designed
 - 不修改 spec.md / requirement.md / exploration.md
 - 不修改 standards/（只能引用）
 - 不直接写 implementation/ 代码
-- 不产生 DU（DU-XXX 编号不得出现在 design.md，正式拆分交付单元是 sdd-task 职责）
-- 不写实现级伪代码（Pseudocode / Implementation Sketch 是 sdd-task 在 DU 层产出的 Dev Guidance；design 只保留系统级方案与契约，Phase 2.5）
+- 产出 DU 划分表（§6）：DU/仓库/covers AC/depends on；design 验收后用 `openspec du create` 登记 DU 框架（sdd-task 仅消费此表做任务分解，不新造 DU）
+- 不写实现级伪代码（Pseudocode / Implementation Sketch 是 sdd-task 在 DU 层产出的 Dev Guidance；design 只保留系统级方案 + DU 划分，Phase 2.5）
 - front-matter affected-repositories 必须与 §3 分仓小节一致
 - 多仓需求必须给出 §4 跨仓协作契约（单仓可写"无"）
 - 设计必须与现有架构风格一致，避免引入异构模式

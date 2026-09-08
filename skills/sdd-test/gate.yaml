@@ -11,6 +11,7 @@ machine-checks:
   - required-sections
   - { id: cross-reference-valid, severity: advisory } # 引用缺失/误报只警告不卡流程
   - evidence-coverage # Phase 2.1：test-run 覆盖机检（轻量仍有价值，保持 blocking）
+  - { id: evidence-trace, skip-tier: [light] } # Phase 4.3 S4：test-report 引用的 TC-NNN 必须存在于 test-design.md（追踪链仪式检查，light 档跳过）
   - { id: du-fan-in-testing, skip-tier: [light] } # Phase 2.4：所有 DU status ≥ testing（单仓轻量档跳过）
 
 # Phase 2.1 evidence-coverage 开关（phase-2.1-evidence-system-design.md §4.2）
