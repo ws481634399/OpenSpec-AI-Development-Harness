@@ -7,6 +7,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { parseDocument, parse } from 'yaml';
+import { resolveStoryDirV3 } from './artifact-path.js';
 
 const META_FILE = 'metadata.yaml';
 
@@ -146,7 +147,7 @@ export async function patchArtifactStatus(changeDir, artifactName, status) {
 // ---- Phase 4.2 三级规格分层：Story 级 Gate 读写（路径分发）----
 //
 // 落点规则（与 artifact-path.resolveStoryDirV3 一致）：
-// - 3-tier 多 Story（stories 条目 inline=false）→ stories/<STORY-ID>/story-metadata.yaml 的 artifacts 段
+// - 3-tier 多 Story（stories 条目 inline=false）→ 该 Story 四级中文名目录下的 story-metadata.yaml
 // - inline 单 Story → 复用 CHG metadata.yaml 的 artifacts 段（双语义合并，评审决策 2）
 // inline 场景直接复用上方 Change 级函数；下方 ForStory 函数统一入口供 workflow/CLI 调用。
 
@@ -161,8 +162,9 @@ export function resolveStoryGateTarget(changeDir, meta, storyId) {
   const stories = Array.isArray(meta?.stories) ? meta.stories : [];
   const entry = stories.find((s) => s && s.id === storyId);
   if (entry && entry.inline === false) {
+    const storyDir = resolveStoryDirV3(changeDir, meta, storyId);
     return {
-      file: join(changeDir, 'stories', storyId, 'story-metadata.yaml'),
+      file: join(storyDir, 'story-metadata.yaml'),
       inline: false,
     };
   }

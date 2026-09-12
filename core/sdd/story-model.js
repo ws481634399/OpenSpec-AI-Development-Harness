@@ -6,6 +6,7 @@ import { readFile, writeFile, mkdir, rename, readdir } from "node:fs/promises";
 import { join, dirname, basename } from "node:path";
 import { parse, parseDocument } from "yaml";
 import { getHarnessRoot } from "../workspace/harness-root.js";
+import { featurePathDirsFromFp } from "./artifact-path.js";
 
 // Story 生命周期状态（纯枚举，无 state-machine 复杂迁移——Story 推进由 Change workflow 协调）
 export const STORY_STATUSES = [
@@ -127,7 +128,7 @@ function isNodeObject(n) {
 }
 
 /**
- * 创建 Story 目录 + story-metadata.yaml（三级形态 stories/<id>/）。
+ * 创建 Story 目录 + story-metadata.yaml（中文名四级路径：CHG/<L1名>/<L2名>/<L3名>/<STORY名>/）。
  * 不直接写入 Change metadata.stories 列表——由 caller 通过 updateChangeStories 统一更新。
  *
  * @param {string} changeDir CHG 根目录
@@ -142,12 +143,33 @@ function isNodeObject(n) {
  *   status?: string,          // 默认 pending
  * }} payload
  * @param {string} [harnessRoot]
- * @returns {Promise<{storyId:string, storyDir:string, metadata:object}>}
+ * @returns {Promise<{storyId:string, storyDir:string, relPath:string, metadata:object}>}
+ *          relPath 为相对 CHG 的中文名路径（如 L1名/L2名/L3名/STORY名），用于写入 stories[].path
  */
 export async function createStory(changeDir, payload, harnessRoot) {
   const root = harnessRoot || getHarnessRoot();
   const now = new Date().toISOString();
-  const storyDir = join(changeDir, "stories", payload.storyId);
+
+  // 中文名四级路径（featurePath 缺失时回落 stories/<id>，迁移期容错）
+  const segs = featurePathDirsFromFp(payload.featurePath);
+  const relPath = segs ? segs.join("/") : `stories/${payload.storyId}`;
+  const storyDir = join(changeDir, ...relPath.split("/"));
+
+  // 同名冲突检测：目标目录已存在且归属不同 Story → 拒绝
+  if (await exists(storyDir)) {
+    let occupantId = null;
+    try {
+      const occ = await readStoryMetadata(storyDir).catch(() => null);
+      occupantId = occ && occ["story-id"];
+    } catch { /* 目录存在但无 story-metadata，视为空目录可复用 */ }
+    if (occupantId && occupantId !== payload.storyId) {
+      throw new Error(
+        `Story 目录路径冲突：'${relPath}' 已被 Story '${occupantId}' 占用。` +
+        `同一 L3 下 Story 中文名不能重复，请修改 Story 名称后重试。`
+      );
+    }
+  }
+
   await mkdir(storyDir, { recursive: true });
 
   // 拷模板 + patch
@@ -177,7 +199,7 @@ export async function createStory(changeDir, payload, harnessRoot) {
   await patchStoryMetadata(storyDir, patch);
 
   const metadata = await readStoryMetadata(storyDir);
-  return { storyId: payload.storyId, storyDir, metadata };
+  return { storyId: payload.storyId, storyDir, relPath, metadata };
 }
 
 /**
@@ -403,7 +425,7 @@ export async function splitInlineStory(changeDir, opts = {}) {
       inline: false,
       "evidence-tier": meta["evidence-tier"] || "standard",
       status: changeStatusToStoryStatus(meta.status),
-      path: `stories/${storyId}/`,
+      path: created.relPath + "/",
       domain: inlineDomain,
     },
   ];

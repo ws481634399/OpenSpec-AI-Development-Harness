@@ -127,6 +127,10 @@ test('listPendingReviews: 机检 failed 的产物不算待审批项', async () =
 
 const S1 = 'STORY-AP-01';
 
+// 中文名四级路径（与 fixture featurePath name 对齐）
+const STORY_REL = '平台能力/用户中心/认证/用户注册';
+const storyDir = (changeDir) => join(changeDir, ...STORY_REL.split('/'));
+
 function storySpecMd(storyId) {
   return [
     '---',
@@ -173,7 +177,7 @@ test('listPendingReviews: 多 Story 的 story-spec 待人审 → story 项（含
   };
   await createStory(changeDir, { storyId: S1, title: '用户注册', featurePath: fp, evidenceTier: 'light' }, harnessRoot);
   await writeChangeStories(changeDir, [
-    { id: S1, title: '用户注册', inline: false, status: 'pending', path: `stories/${S1}/` },
+    { id: S1, title: '用户注册', inline: false, status: 'pending', path: STORY_REL + '/' },
   ]);
   // Change 级 change-spec.md（story-prd gate 的 change-ref-bound / scope-subset blocking 检查依赖）
   await writeFile(
@@ -183,7 +187,7 @@ test('listPendingReviews: 多 Story 的 story-spec 待人审 → story 项（含
   );
   // 直接置 story-splitting（队列扫描只读状态；workflow 从 story-splitting 进入 Story 循环）
   await patchStatus(changeDir, 'story-splitting');
-  await writeFile(join(changeDir, 'stories', S1, 'story-spec.md'), storySpecMd(S1), 'utf8');
+  await writeFile(join(storyDir(changeDir), 'story-spec.md'), storySpecMd(S1), 'utf8');
 
   const r = await runWorkflow(tmp, changeId, { harnessRoot });
   assert.equal(r.result, WORKFLOW_RESULT.WAITING_FOR_HUMAN);

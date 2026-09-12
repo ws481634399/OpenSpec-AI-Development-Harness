@@ -7,11 +7,13 @@
 # 固定四级：Level-1 → Level-2 → Level-3 → Story
 # Story 为最小产品能力节点（最小可实施单元），CHG ↔ Story = 1:1，Story 1:N DU
 #
-# ID 规范（层级嵌套编码，目录段一律用 ID 禁止用名称）：
+# ID 规范（层级嵌套编码；ID 仅存 metadata 用于绑定/寻址，**目录段用 name 不用 ID**）：
 #   Level-1: FEAT-001
 #   Level-2: FEAT-001-02        （= 父 ID + 段号）
 #   Level-3: FEAT-001-02-03
 #   Story:   STORY-001-02-03-01
+#
+# CHG 产物目录路径 = <L1 name>/<L2 name>/<L3 name>/<Story name>/（中文名，便于阅读）
 #
 # Story status: planned / in-progress / delivered
 #   delivered 的充分条件：该 Story 下全部 DU completed 且所属 CHG completed

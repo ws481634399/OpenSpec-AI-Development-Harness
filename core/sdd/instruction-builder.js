@@ -98,7 +98,7 @@ export function buildInstruction(skill, context, userInput = {}, prompts = []) {
     lines.push('## Story 执行上下文');
     lines.push('');
     lines.push(
-      `- Story: ${storyId}（三级模式，产物写入 \`${context.storyDir || `stories/${storyId}`}/\`）`
+      `- Story: ${storyId}（产物写入 \`${context.storyDir || `stories/${storyId}`}/\`）`
     );
     lines.push(
       '- 本次为 Story 级执行：产物使用 Story 级模板（story-spec.md / story-design.md / tasks.md），而非 Change 级产物'

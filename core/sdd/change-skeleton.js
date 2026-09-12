@@ -17,10 +17,12 @@
 // 边界：candidate / 链不完整 → 拒绝（层级未定不预建）；树节点缺失 → 拒绝（悬挂绑定）
 
 import { mkdir, readFile, readdir, rename, stat } from "node:fs/promises";
-import { join } from "node:path";
-import { featurePathDirs } from "./artifact-path.js";
+import { join, dirname } from "node:path";
+import { parse } from "yaml";
+import { featurePathDirs, featurePathDirsFromFp } from "./artifact-path.js";
 import { findNodeById } from "./feature-model.js";
 import { bindFeaturePath } from "./change-model.js";
+import { patchStoryMetadata, writeChangeStories } from "./story-model.js";
 
 const pathExists = (p) =>
   stat(p).then(
@@ -43,6 +45,14 @@ export async function materializeChangeSkeleton(
   tree,
   workspaceRoot,
 ) {
+  const stories = Array.isArray(meta?.stories) ? meta.stories : [];
+  const isMulti = stories.some((s) => s && s.inline === false);
+
+  // 多 Story 模式：feature-path 权威在各 story-metadata.yaml，逐个同步树名 + 目录 rename
+  if (isMulti) {
+    return syncMultiStorySkeletons(changeDir, meta, stories, tree, workspaceRoot);
+  }
+
   const fp = meta?.["feature-path"];
   if (!fp || !fp["level-1"]?.id || !fp.story?.id) {
     return {
@@ -138,6 +148,96 @@ export async function materializeChangeSkeleton(
   const migrated = await migrateRootArtifacts(changeDir, storyDir, segs[0]);
 
   return { created, renamed, migrated, nameSynced, skipped: false };
+}
+
+/**
+ * 多 Story 模式骨架同步（树名权威 → story-metadata.feature-path 名同步 + 目录 rename）。
+ *
+ * 遍历 meta.stories 中非 inline 条目：
+ *  1. 读 story-metadata.feature-path
+ *  2. 校验绑定链在 feature-tree 中存在（悬挂绑定 → 跳过，doctor 报告）
+ *  3. 树名同步到 story-metadata
+ *  4. 重算中文名路径，与 stories[].path 不一致 → rename 目录 + 更新 path
+ *
+ * @returns {Promise<{created:string[], renamed:string[], migrated:string[], nameSynced:boolean, skipped:boolean}>}
+ */
+async function syncMultiStorySkeletons(changeDir, meta, stories, tree, workspaceRoot) {
+  const created = [];
+  const renamed = [];
+  let nameSynced = false;
+  let pathChanged = false;
+  const updatedStories = stories.map((s) => ({ ...s }));
+
+  for (let i = 0; i < updatedStories.length; i++) {
+    const entry = updatedStories[i];
+    if (!entry || entry.inline) continue;
+
+    // 1. 读 story-metadata.yaml
+    const oldRel = String(entry.path || `stories/${entry.id}`).replace(/\/+$/, '');
+    const storyDir = join(changeDir, ...oldRel.split('/'));
+    let sm;
+    try {
+      sm = parse(await readFile(join(storyDir, 'story-metadata.yaml'), 'utf8'));
+    } catch (e) {
+      if (e.code === 'ENOENT') continue; // story 目录/metadata 缺失 → 跳过（doctor 报告）
+      throw e;
+    }
+    const fp = sm?.['feature-path'];
+    if (!fp || !fp['level-1']?.id || !fp['level-2']?.id || !fp['level-3']?.id || !fp.story?.id) {
+      continue; // feature-path 不完整 → 跳过
+    }
+
+    // 2. 校验绑定链
+    const l1Node = findNodeById(tree, fp['level-1'].id);
+    const l2Node = findNodeById(tree, fp['level-2'].id);
+    const l3Node = findNodeById(tree, fp['level-3'].id);
+    const l3Story = l3Node?.stories?.find((s) => s.id === fp.story.id);
+    if (!l1Node || !l2Node || !l3Node || !l3Story) continue; // 悬挂绑定 → 跳过
+
+    // 3. 树名同步到 story-metadata
+    const latestNames = {
+      'level-1.name': l1Node.name,
+      'level-2.name': l2Node.name,
+      'level-3.name': l3Node.name,
+      'story.name': l3Story.name,
+    };
+    const nameDiff = fp['level-1'].name !== l1Node.name || fp['level-2'].name !== l2Node.name ||
+      fp['level-3'].name !== l3Node.name || fp.story.name !== l3Story.name;
+    if (nameDiff) {
+      await patchStoryMetadata(storyDir, latestNames);
+      nameSynced = true;
+    }
+
+    // 4. 重算中文名路径 + rename
+    const newFp = {
+      'level-1': { id: fp['level-1'].id, name: l1Node.name },
+      'level-2': { id: fp['level-2'].id, name: l2Node.name },
+      'level-3': { id: fp['level-3'].id, name: l3Node.name },
+      story: { id: fp.story.id, name: l3Story.name },
+    };
+    const segs = featurePathDirsFromFp(newFp);
+    if (!segs) continue;
+    const newRel = segs.join('/');
+    if (newRel !== oldRel) {
+        const newDir = join(changeDir, ...segs);
+        if ((await pathExists(storyDir)) && !(await pathExists(newDir))) {
+          await mkdir(dirname(newDir), { recursive: true });
+          await rename(storyDir, newDir);
+          renamed.push(newRel);
+        } else if (!(await pathExists(newDir))) {
+          await mkdir(newDir, { recursive: true });
+          created.push(newRel);
+        }
+        updatedStories[i].path = newRel + '/';
+        pathChanged = true;
+      }
+  }
+
+  if (pathChanged) {
+    await writeChangeStories(changeDir, updatedStories);
+  }
+
+  return { created, renamed, migrated: [], nameSynced, skipped: false };
 }
 
 /**

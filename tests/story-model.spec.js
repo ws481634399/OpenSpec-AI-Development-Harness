@@ -106,7 +106,8 @@ test('StoryModel: createStory → story-metadata.yaml 结构正确 + feature-pat
       changeDesignRef: 'change-design.md#41-story-1',
     }, harness);
     assert.equal(r.storyId, 'STORY-001-02-03-01');
-    assert.match(r.storyDir, /stories.STORY-001-02-03-01$/);
+    assert.equal(r.relPath, '平台能力/SDD 引擎/规格分层/Story 标题测试');
+    assert.ok(r.storyDir.endsWith(join('平台能力', 'SDD 引擎', '规格分层', 'Story 标题测试')));
 
     const m = await readStoryMetadata(r.storyDir);
     assert.equal(m['schema-version'], 1);
@@ -237,7 +238,7 @@ test('splitInlineStory: 旧 schema 升级单 inline → stories/<id>/（schema �
     assert.ok(Array.isArray(chgMeta.stories));
     assert.equal(chgMeta.stories.length, 1);
     assert.equal(chgMeta.stories[0].inline, false);
-    assert.equal(chgMeta.stories[0].path, 'stories/STORY-001-02-03-01/');
+    assert.equal(chgMeta.stories[0].path, '平台能力/SDD 引擎/规格分层/单 Story 平铺测试/');
   } finally { await rm(root, { recursive: true, force: true }); }
 });
 

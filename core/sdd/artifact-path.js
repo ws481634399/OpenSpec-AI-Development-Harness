@@ -11,25 +11,33 @@ import { join } from 'node:path';
 import { featureDirSeg } from './feature-dirname.js';
 
 /**
- * 从 metadata 提取 feature-path 目录段（业务名数组，按四级顺序）。
- * @param {object} meta readMetadata 结果
- * @returns {string[]|null} 如 ['平台基座','用户管理','账户能力','用户登录']；未绑定返回 null
+ * 从 feature-path 对象（Change 级或 Story 级）提取目录段（业务名数组，按四级顺序）。
+ * @param {object} fp feature-path 对象 { level-1, level-2, level-3, story, candidate? }
+ * @returns {string[]|null} 如 ['平台基座','用户管理','账户能力','用户登录']；未绑定/candidate 返回 null
  */
-export function featurePathDirs(meta) {
-  const fp = meta?.['feature-path'];
+export function featurePathDirsFromFp(fp) {
   if (!fp || typeof fp !== 'object') return null;
   const l1 = fp['level-1'];
   const l2 = fp['level-2'];
   const l3 = fp['level-3'];
   const story = fp.story;
   if (!l1?.id || !l2?.id || !l3?.id || !story?.id) return null;
-  if (fp.candidate === true) return null; // Candidate 未晋升 → 不物化
+  if (fp.candidate === true) return null;
   return [
     featureDirSeg(l1.id, l1.name),
     featureDirSeg(l2.id, l2.name),
     featureDirSeg(l3.id, l3.name),
     featureDirSeg(story.id, story.name),
   ];
+}
+
+/**
+ * 从 metadata 提取 feature-path 目录段（业务名数组，按四级顺序）。
+ * @param {object} meta readMetadata 结果
+ * @returns {string[]|null} 如 ['平台基座','用户管理','账户能力','用户登录']；未绑定返回 null
+ */
+export function featurePathDirs(meta) {
+  return featurePathDirsFromFp(meta?.['feature-path']);
 }
 
 /**
@@ -62,12 +70,14 @@ export function resolveStoryDir(changeDir, meta) {
 
 // ---- Phase 4.2 三级规格分层：Story 感知路径解析 ----
 //
-// 目录规则（与 Phase 3.5 兼容）：
+// 目录规则（单/多 Story 统一中文名四级路径）：
 // - inline 单 Story（meta.stories 为空或唯一条目 inline=true）：
 //     feature-path 已绑定 → CHG/<L1名>/<L2名>/<L3名>/<STORY名>/（现有第四级目录）
 //     未绑定/candidate    → CHG 根（explore 早期产物暂存）
 // - 3-tier 多 Story（stories 含 inline=false 条目）：
-//     CHG/stories/<STORY-ID>/ （ID 目录，稳定可寻址；feature-path 权威在各 story-metadata.yaml）
+//     CHG/<该 Story feature-path 的四级中文名>/
+//     路径由 Change metadata.stories[].path 缓存（相对路径，如 L1名/L2名/L3名/STORY名），
+//     缺失时回落 stories/<STORY-ID>/（迁移期容错）；feature-path 权威在各 story-metadata.yaml
 
 /**
  * 判断 Change 是否处于 3-tier 多 Story 形态。
@@ -89,9 +99,11 @@ export function isMultiStory(meta) {
 export function resolveStoryDirV3(changeDir, meta, storyId) {
   const stories = Array.isArray(meta?.stories) ? meta.stories : [];
   const entry = stories.find((s) => s && s.id === storyId);
-  // 显式 3-tier 条目 → stories/<ID>/
+  // 显式 3-tier 条目 → 用 stories[].path（中文名四级相对路径）
   if (entry && entry.inline === false) {
-    return join(changeDir, 'stories', storyId);
+    const rel = String(entry.path || '').replace(/^\/+|\/+$/g, '');
+    if (rel) return join(changeDir, ...rel.split('/'));
+    return join(changeDir, 'stories', storyId); // 迁移期兜底
   }
   // inline / stories 未写（lazy 单 Story）→ 现有第四级目录或 CHG 根
   const dirs = featurePathDirs(meta);

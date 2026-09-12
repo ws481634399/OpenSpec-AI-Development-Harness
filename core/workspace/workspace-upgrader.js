@@ -13,7 +13,7 @@ import { parse, parseDocument, stringify } from 'yaml';
 import { readHarnessVersion, readWorkspaceVersions, readTemplateVersions } from './version.js';
 import { runMigrations } from './schema-migrations.js';
 import { syncSkills, syncPrompts } from '../sdd/skill-registry.js';
-import { featurePathDirs } from '../sdd/artifact-path.js';
+import { featurePathDirs, featurePathDirsFromFp } from '../sdd/artifact-path.js';
 
 const MANAGED_DIRS = ['.sdd', 'skills', 'prompts']; // upgrade 允许写入的顶层目录
 
@@ -264,6 +264,43 @@ export async function migrateChangeSchema(workspaceRoot) {
         flowToBlock(doc.contents);
         await writeFile(f, doc.toString(), 'utf8');
         changed.push(f);
+        migrated++;
+      }
+
+      // 4. 多 Story 目录路径迁移：stories/<STORY-ID>/ → 中文名四级路径
+      //    （幂等：仅处理 path 以 'stories/' 开头的非 inline 条目）
+      let chgMeta;
+      try { chgMeta = parse(await readFile(join(changeDir, 'metadata.yaml'), 'utf8')) || {}; } catch { continue; }
+      const stArr = Array.isArray(chgMeta.stories) ? chgMeta.stories : [];
+      let storiesDirty = false;
+      const stDoc = parseDocument(await readFile(join(changeDir, 'metadata.yaml'), 'utf8'));
+      for (let si = 0; si < stArr.length; si++) {
+        const s = stArr[si];
+        if (!s || s.inline !== false) continue;
+        const oldRel = String(s.path || '').replace(/\/+$/, '');
+        if (!oldRel.startsWith('stories/')) continue; // 已是中文名路径，跳过
+        // 读旧 story-metadata.feature-path 算新路径
+        let sm;
+        try { sm = parse(await readFile(join(changeDir, ...oldRel.split('/'), 'story-metadata.yaml'), 'utf8')); }
+        catch { continue; }
+        const fp = sm?.['feature-path'];
+        const segs = featurePathDirsFromFp(fp);
+        if (!segs) continue;
+        const newRel = segs.join('/');
+        const oldDir = join(changeDir, ...oldRel.split('/'));
+        const newDir = join(changeDir, ...segs);
+        if (oldDir !== newDir && (await pathExists(oldDir)) && !(await pathExists(newDir))) {
+          await mkdir(dirname(newDir), { recursive: true });
+          await rename(oldDir, newDir);
+          renamed.push({ from: toRel(oldDir), to: toRel(newDir) });
+        }
+        stDoc.setIn(['stories', si, 'path'], newRel + '/');
+        storiesDirty = true;
+      }
+      if (storiesDirty) {
+        flowToBlock(stDoc.contents);
+        await writeFile(join(changeDir, 'metadata.yaml'), stDoc.toString(), 'utf8');
+        changed.push(join(changeDir, 'metadata.yaml'));
         migrated++;
       }
     }

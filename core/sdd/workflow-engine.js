@@ -400,7 +400,7 @@ async function processStoryStage(workspaceRoot, changeDir, changeId, meta, story
         result: WORKFLOW_RESULT.WAITING_FOR_ARTIFACT,
         stage: { ...stage, artifact: artifactName },
         story: story.id,
-        reason: `Story ${story.id} artifact not found: stories/${story.id}/${artifactName}. External Agent please follow Instruction to produce it.`,
+        reason: `Story ${story.id} artifact not found: ${String(story.path || '').replace(/\/+$/, '')}/${artifactName}. External Agent please follow Instruction to produce it.`,
         instruction,
       },
     };
@@ -659,6 +659,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
     for (const story of stories) {
       if (story.inline) continue; // inline 单 Story 复用 Change 级 artifacts，无独立检测
       const storyDir = join(changeDir, story.path || `stories/${story.id}`);
+      const storyRel = String(story.path || `stories/${story.id}/`).replace(/\/+$/, '');
       let sm;
       try {
         sm = await readStoryMetadata(storyDir);
@@ -678,7 +679,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
         } catch (e) {
           if (e.code === 'ENOENT') {
             stale.push({
-              artifact: `stories/${story.id}/${a.path}`,
+              artifact: `${storyRel}/${a.path}`,
               kind: 'missing',
               layer: 'story',
               story: story.id,
@@ -690,7 +691,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
         }
         if (recordedHash && sha256(content) !== recordedHash) {
           stale.push({
-            artifact: `stories/${story.id}/${a.path}`,
+            artifact: `${storyRel}/${a.path}`,
             kind: 'hash-mismatch',
             layer: 'story',
             story: story.id,
@@ -707,7 +708,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
               const currentRulesHash = rulesHash(gateRaw);
               if (currentRulesHash !== recordedRulesHash) {
                 stale.push({
-                  artifact: `stories/${story.id}/${a.path}`,
+                  artifact: `${storyRel}/${a.path}`,
                   kind: 'rules-mismatch',
                   layer: 'story',
                   story: story.id,
@@ -726,7 +727,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
       if (story.status !== 'completed') {
         if (changeStaleNames.has('change-spec.md')) {
           stale.push({
-            artifact: `stories/${story.id}/story-spec.md`,
+            artifact: `${storyRel}/story-spec.md`,
             kind: 'stale-propagated',
             layer: 'story',
             story: story.id,
@@ -735,7 +736,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
         }
         if (changeStaleNames.has('change-design.md')) {
           stale.push({
-            artifact: `stories/${story.id}/story-design.md`,
+            artifact: `${storyRel}/story-design.md`,
             kind: 'stale-propagated',
             layer: 'story',
             story: story.id,
@@ -746,7 +747,7 @@ export async function detectStaleArtifacts(changeDir, meta = null, opts = {}) {
       // §5.3 传播：Story 级 story-design 变更 → 该 Story 的 tasks.md
       if (storyStaleNames.has('story-design.md')) {
         stale.push({
-          artifact: `stories/${story.id}/tasks.md`,
+          artifact: `${storyRel}/tasks.md`,
           kind: 'stale-propagated',
           layer: 'story',
           story: story.id,
