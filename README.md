@@ -18,6 +18,7 @@ OpenSpec AI Development Harness 是一个为 AI Coding Agent 设计的 SDD（规
 - Trae
 - Cursor
 - Claude Code
+- Codex
 
 能够带着项目上下文、工程规则和可追溯的交付流程参与软件开发。
 
@@ -150,20 +151,22 @@ implementation/
 当前版本：
 
 ```
-v0.2.0
+v0.4.0
 ```
 
 当前阶段：
 
 ```
-Phase 3 Professional - 已完成
+Phase 4.3 可追踪规格与执行隔离 - 已完成
 ```
 
 已完成能力：
 
-- Phase 1 MVP：工作区初始化、Change 生命周期、特性树、10 个 SDD Skill、Gate 驱动工作流引擎；
+- Phase 1 MVP：工作区初始化、Change 生命周期、特性树、核心 SDD Skill、Gate 驱动工作流引擎；
 - Phase 2 工程增强：Prompt 体系、多仓交付（Delivery Unit）、上下文规则、DU 绑定执行；
-- Phase 3 Professional：版本管理与升级系统、项目模板（Stack）、IDE 适配。
+- Phase 3 Professional：版本管理与升级系统、项目模板（Stack）、IDE 适配；
+- Phase 4.1–4.2：Gate 轻量化、Change–Story–DU 三级规格、多 Story 聚合工作流与 Stale 传播；
+- Phase 4.3：领域化 Story 拆分、DU 前移到设计阶段、AC–DES–DU–TC–EVD 追踪链、TDD 证据约束与一键人审。
 
 ---
 
@@ -200,9 +203,16 @@ OpenSpec-AI-Development-Harness/
 ## 安装
 
 ```bash
-cd cli/openspec
+# Node.js >= 20
 npm install
-node bin/openspec.js --help
+npm run openspec -- --help
+```
+
+需要全局使用时：
+
+```bash
+npm link
+openspec --help
 ```
 
 ## 初始化工作区
@@ -267,7 +277,7 @@ Professional（已完成）：版本管理与升级、项目模板、IDE 适配�
 
 ## Phase 4
 
-Team Version（规划中）：团队协作能力。
+Team Version（进行中）：Gate 轻量化、三级规格、多 Story 工作流和可追踪交付已经落地；更完整的团队协作能力继续演进。
 
 ---
 
@@ -299,4 +309,4 @@ AI Agent
 
 # 许可证
 
-详见 LICENSE 文件。
+当前仓库尚未提供 LICENSE 文件。在许可证补齐前，请勿假定代码可按某种开源许可证再分发。

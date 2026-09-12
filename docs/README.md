@@ -1,8 +1,8 @@
 # OpenSpec AI Development Harness 文档体系
 
-> Version: v1.1  
+> Version: v1.2
 > Status: Active  
-> Last Updated: 2026-08-29
+> Last Updated: 2026-09-10
 
 ---
 
@@ -73,7 +73,7 @@ docs/complete-usage-guide.md
 plans/phase-*.md
 ```
 
-各阶段（Phase 1.0 – 3.3）的设计文档存档。
+各阶段（Phase 1.0 – 4.3）的设计文档存档。
 
 ---
 
@@ -114,7 +114,9 @@ plans/phase-*.md
 | Feature Tree | 四级特性树 Product → Module → Feature → Story | 01-Architecture |
 | Skill | AI Agent 的标准化能力模块（当前 11 个） | 03-Skill-Spec |
 | Workflow Engine | Gate 驱动的流程协调器（状态推进唯一入口为 Transition Service） | 02-Workflow |
-| Delivery Unit (DU) | Change 在单个仓库中的实现交付单元（多仓交付桥梁） | plans/phase-2.4 |
+| Story | Change 下可独立验收的需求单元；多 Story Change 独立推进并聚合状态 | plans/phase-4.2 |
+| Delivery Unit (DU) | Story 面向单个仓库的实现交付单元（多仓交付桥梁） | plans/phase-2.4、phase-4.3 |
+| Traceability | AC → Design Decision → DU → Test Case → Evidence 的可验证追踪链 | plans/phase-4.3 |
 | Knowledge Reverse | 从已有代码逆向生成项目知识 | 04-Knowledge-Model |
 
 ---
@@ -123,7 +125,7 @@ plans/phase-*.md
 
 文档体系状态：**Active**（随实现演进持续更新）。
 
-- Phase 0（架构基础）与 Phase 1–3 实现已完成，当前版本 v0.2.0
+- Phase 0（架构基础）与 Phase 1–3 已完成；Phase 4.1–4.3 已交付，当前 Harness 版本为 v0.4.0
 - 00–06 为设计期文档（保留历史视角，演进以 `plans/phase-*.md` 与 usage guide 为准）
 - [complete-usage-guide.md](./complete-usage-guide.md) 为当前实现的权威使用文档
 
